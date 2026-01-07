@@ -408,6 +408,7 @@ GameObject:
   - component: {fileID: 6496610055575539118}
   - component: {fileID: 3300367238214764530}
   - component: {fileID: 5197056212993226130}
+  - component: {fileID: 5705798656086417557}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -444,7 +445,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 964848143
+  GlobalObjectIdHash: 344280559
   InScenePlacedSourceGlobalObjectIdHash: 0
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
@@ -528,3 +529,17 @@ MonoBehaviour:
   rb: {fileID: 3300367238214764530}
   tocDoDiChuyen: 5
   tocDoXoay: 270
+--- !u!114 &5705798656086417557
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5767629436380736411}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85eebce82c831904aacd539ce19a4616, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  inputReader: {fileID: 11400000, guid: 932516b399235f6469e2cb824bd5aad3, type: 2}
+  turretTransform: {fileID: 2831411995225204704}

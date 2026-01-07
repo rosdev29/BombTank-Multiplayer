@@ -12,7 +12,7 @@ public class InputReader : ScriptableObject, IPlayerActions
 
     public event Action<bool> PrimaryFireEvent;
 
-    public Vector2 AimPostition { get; private set; }
+    public Vector2 ViTriNgam { get; private set; }
 
     private Controls controls;
 
@@ -38,7 +38,7 @@ public class InputReader : ScriptableObject, IPlayerActions
     {
         if (context.performed)
         {
-            PrimaryFireEvent?.Invoke(true);
+            PrimaryFireEvent?.Invoke(true);  
         }
         else if (context.canceled)
         {
@@ -48,7 +48,7 @@ public class InputReader : ScriptableObject, IPlayerActions
 
     public void OnAim(InputAction.CallbackContext context)
     {
-        AimPostition = context.ReadValue<Vector2>();
+        ViTriNgam = context.ReadValue<Vector2>();
     }    
 
 }
