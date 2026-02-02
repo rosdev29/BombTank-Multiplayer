@@ -1,6 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
-using Unity.Netcode.Components;
+﻿using Unity.Netcode.Components;
 using UnityEngine;
 
 public class ClientNetworkTransform : NetworkTransform
@@ -15,15 +13,11 @@ public class ClientNetworkTransform : NetworkTransform
     {
         CanCommitToTransform = IsOwner;
         base.Update();
-        if(NetworkManager != null)
+
+        // Chỉ commit nếu KHÔNG phải Host (tránh duplicate tick error)
+        if (!IsHost && NetworkManager != null && NetworkManager.IsConnectedClient && CanCommitToTransform)
         {
-            if (NetworkManager.IsConnectedClient || NetworkManager.IsListening)
-            {
-                if(CanCommitToTransform)
-                {
-                    TryCommitTransformToServer(transform, NetworkManager.LocalTime.Time);
-                }
-            }
+            TryCommitTransformToServer(transform, NetworkManager.LocalTime.Time);
         }
     }
 
