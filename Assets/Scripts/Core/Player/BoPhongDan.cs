@@ -79,6 +79,11 @@ public class BoPhongDan : NetworkBehaviour
 
         Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
 
+        if (danInstance.TryGetComponent<SatThuongHoiMauVaCham>(out SatThuongHoiMauVaCham gaySatThuong))
+        {
+            gaySatThuong.SetOwner(OwnerClientId);
+        }    
+
         if (danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
         {
             rb.velocity = rb.transform.up * TocDoDan;
