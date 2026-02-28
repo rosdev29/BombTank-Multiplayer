@@ -10,7 +10,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 4307556524178972551, guid: 5a02bec732d92f24ca04469d63db8f02, type: 3}
       propertyPath: GlobalObjectIdHash
-      value: 2220129145
+      value: 1392693135
       objectReference: {fileID: 0}
     - target: {fileID: 4307556524178972551, guid: 5a02bec732d92f24ca04469d63db8f02, type: 3}
       propertyPath: InScenePlacedSourceGlobalObjectIdHash
@@ -18,7 +18,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6864274786219122925, guid: 5a02bec732d92f24ca04469d63db8f02, type: 3}
       propertyPath: m_Name
-      value: CoinBase Variant
+      value: TaiSinhCoin
       objectReference: {fileID: 0}
     - target: {fileID: 8132791533507046943, guid: 5a02bec732d92f24ca04469d63db8f02, type: 3}
       propertyPath: m_LocalPosition.x
@@ -63,5 +63,31 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6864274786219122925, guid: 5a02bec732d92f24ca04469d63db8f02, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5490644837349811373}
   m_SourcePrefab: {fileID: 100100000, guid: 5a02bec732d92f24ca04469d63db8f02, type: 3}
+--- !u!212 &4582652812435393609 stripped
+SpriteRenderer:
+  m_CorrespondingSourceObject: {fileID: 482293178745171039, guid: 5a02bec732d92f24ca04469d63db8f02, type: 3}
+  m_PrefabInstance: {fileID: 4119009584568016918}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &7380103364049748219 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6864274786219122925, guid: 5a02bec732d92f24ca04469d63db8f02, type: 3}
+  m_PrefabInstance: {fileID: 4119009584568016918}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &5490644837349811373
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7380103364049748219}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f5a6efe1e9b69714e8e0c00e04dcfe30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  spriteRenderer: {fileID: 4582652812435393609}
