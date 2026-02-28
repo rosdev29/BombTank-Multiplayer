@@ -1,6 +1,5 @@
-# This .gitignore file should be placed at the root of your Unity project directory
-#
-# Get latest from https://github.com/github/gitignore/blob/main/Unity.gitignore
+# BombTank Multiplayer - Unity .gitignore
+# Base: https://github.com/github/gitignore/blob/main/Unity.gitignore
 #
 .utmp/
 /[Ll]ibrary/
@@ -97,3 +96,9 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.rsuser
+.idea/
