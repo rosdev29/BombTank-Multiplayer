@@ -6,6 +6,19 @@ using UnityEngine;
 public class TaiSinhCoin : Coin
 {
     public event Action<TaiSinhCoin> OnCollected;
+
+    private Vector3 previousPosittion;
+
+    private void Update()
+    {
+        if (previousPosittion != transform.position)
+        {
+            Show(true);
+        }
+
+        previousPosittion = transform.position;
+    }
+
     public override int Collect()
     {
         if (!IsServer)
