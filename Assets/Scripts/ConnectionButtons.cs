@@ -17,7 +17,7 @@ public class ConnectionButtons : MonoBehaviour
 
     IEnumerator DelayedStartClient()
     {
-        // Join cần đợi transport lâu hơn trong Editor; nếu vẫn lỗi socket thử tăng lên 0.5f hoặc 1f
+        // Join cần đợi transport lâu hơn trong Editor
         yield return new WaitForSeconds(0.5f);
         if (NetworkManager.Singleton == null) yield break;
         if (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient) yield break;
