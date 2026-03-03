@@ -9,7 +9,7 @@ public class ConnectionButtons : MonoBehaviour
     /// </summary>
     IEnumerator DelayedStartHost()
     {
-        yield return null;
+        yield return new WaitForSeconds(0.2f); // tăng delay nếu vẫn lỗi 
         if (NetworkManager.Singleton == null) yield break;
         if (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient) yield break;
         NetworkManager.Singleton.StartHost();
@@ -17,7 +17,8 @@ public class ConnectionButtons : MonoBehaviour
 
     IEnumerator DelayedStartClient()
     {
-        yield return null;
+        // Join cần đợi transport lâu hơn trong Editor; nếu vẫn lỗi socket thử tăng lên 0.5f hoặc 1f
+        yield return new WaitForSeconds(0.5f);
         if (NetworkManager.Singleton == null) yield break;
         if (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient) yield break;
         NetworkManager.Singleton.StartClient();
