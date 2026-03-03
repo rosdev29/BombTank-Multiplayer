@@ -41,6 +41,7 @@ public class CoinSpawner : NetworkBehaviour
     private void XuLyKhiNhatXu(TaiSinhCoin coin)
     {
         coin.transform.position = GetSpawnPoint();
+        coin.Reset();
     }
 
     private Vector2 GetSpawnPoint()
