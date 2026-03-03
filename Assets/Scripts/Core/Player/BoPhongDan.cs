@@ -8,6 +8,7 @@ public class BoPhongDan : NetworkBehaviour
 {
     [Header("References")]
     [SerializeField] private InputReader inputReader;
+    [SerializeField] private CoinWallet wallet;
     [SerializeField] private Transform DiemSpawnDan;
     [SerializeField] private GameObject ServerDanPrefab;
     [SerializeField] private GameObject ClientDanPrefab;
@@ -18,9 +19,10 @@ public class BoPhongDan : NetworkBehaviour
     [SerializeField] private float TocDoDan;
     [SerializeField] private float tanSuatTanCong;
     [SerializeField] private float thoiGianHieuUngBan;
+    [SerializeField] private int ChiPhiBan;
 
     private bool duocTanCong;
-    private float thoiDiemTanCongTruoc;
+    private float timer;
     private float henGioLoeNong;
 
 
@@ -48,17 +50,24 @@ public class BoPhongDan : NetworkBehaviour
         }
         if (!IsOwner) { return; }
 
+        if (timer > 0 )
+        {
+            timer -= Time.deltaTime;
+        }
+
         if (!duocTanCong) { return; }
 
 
-        if (Time.time < (1 / tanSuatTanCong) + thoiDiemTanCongTruoc) { return; }
+        if (timer > 0 ) { return; }
+
+        if(wallet.TotalCoins.Value < ChiPhiBan) { return; }
         
 
         xuLyBanChinhServerRpc(DiemSpawnDan.position, DiemSpawnDan.up);
 
         spawnDanGia(DiemSpawnDan.position, DiemSpawnDan.up);
 
-        thoiDiemTanCongTruoc = Time.time;
+        timer = 1 / tanSuatTanCong;
     }
 
     private void xuLyTanCongChinh(bool duocTanCong)
@@ -70,6 +79,11 @@ public class BoPhongDan : NetworkBehaviour
 
     private void xuLyBanChinhServerRpc(Vector3 viTriSpawn, Vector3 huongDi)
     {
+
+        if (wallet.TotalCoins.Value < ChiPhiBan) { return; }
+
+        wallet.SpendCoins(ChiPhiBan);
+
         GameObject danInstance = Instantiate(
             ServerDanPrefab,
             viTriSpawn,
