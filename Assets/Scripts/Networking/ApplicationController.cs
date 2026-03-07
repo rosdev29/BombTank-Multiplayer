@@ -28,7 +28,8 @@ public class ApplicationController : MonoBehaviour
             HostSingleton hostSingleton = Instantiate(hostPrefab);
             hostSingleton.CreateHost();
 
-            //go to main menu
+            // Luôn vào menu dù auth thành công hay thất bại (tránh kẹt màn Loading)
+            clientSingleton.GameManager.GoToMenu();
         }
     }
 }

@@ -10,26 +10,37 @@ public static class AuthenticationWrapper
 
     public static async Task<AuthState> DoAuth(int maxTries = 5)
     {
-        if (AuthState == AuthState.NotAuthenticated)
+        if (AuthState == AuthState.Authenticated)
         {
             return AuthState;
         }
 
+        AuthState = AuthState.Authenticating;
         int tries = 0;
-        while (AuthState == AuthState.Authenticating && tries < maxTries)
+
+        while (tries < maxTries)
         {
-            await AuthenticationService.Instance.SignInAnonymouslyAsync();
-            
-            if(AuthenticationService.Instance.IsSignedIn && AuthenticationService.Instance.IsAuthorized)
+            try
             {
-                AuthState = AuthState.Authenticated;
-                break;
-            }    
+                await AuthenticationService.Instance.SignInAnonymouslyAsync();
+
+                if (AuthenticationService.Instance.IsSignedIn && AuthenticationService.Instance.IsAuthorized)
+                {
+                    AuthState = AuthState.Authenticated;
+                    return AuthState;
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"Auth try {tries + 1} failed: {e.Message}");
+            }
 
             tries++;
-            await Task.Delay(1000);
+            if (tries < maxTries)
+                await Task.Delay(1000);
         }
 
+        AuthState = AuthState.Error;
         return AuthState;
     }
 }
