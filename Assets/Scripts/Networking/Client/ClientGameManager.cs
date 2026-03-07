@@ -7,7 +7,7 @@ using UnityEngine.SceneManagement;
 
 public class ClientGameManager 
 {
-    private const string MenuSceneName = "Menu";
+   private const string MenuSceneName = "Menu";
    public async Task<bool> InitAsync()
     {
         await UnityServices.InitializeAsync();
@@ -23,6 +23,6 @@ public class ClientGameManager
 
     public void GoToMenu()
     {
-        SceneManager.LoadScene("MenuSceneName");
+        SceneManager.LoadScene(MenuSceneName);
     }
 }
