@@ -24,7 +24,7 @@ public class HostGameManager
         try
         {
             allocation = await RelayService.Instance.CreateAllocationAsync(MaxConnections);
-            relayServerData = allocation.ToRelayServerData("udp");
+            relayServerData = allocation.ToRelayServerData("dtls");
             hasRelayServerData = true;
         }
         catch (Exception e)
