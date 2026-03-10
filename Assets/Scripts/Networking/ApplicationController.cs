@@ -22,11 +22,13 @@ public class ApplicationController : MonoBehaviour
         }
         else
         {
+            HostSingleton hostSingleton = Instantiate(hostPrefab);
+            hostSingleton.CreateHost();
+
             ClientSingleton clientSingleton = Instantiate(clientPrefab);
             await clientSingleton.CreateClient();
 
-            HostSingleton hostSingleton = Instantiate(hostPrefab);
-            hostSingleton.CreateHost();
+
 
             // Luôn vào menu dù auth thành công hay thất bại (tránh kẹt màn Loading)
             clientSingleton.GameManager.GoToMenu();

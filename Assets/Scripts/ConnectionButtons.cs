@@ -17,14 +17,7 @@ public class ConnectionButtons : MonoBehaviour
 
         HostGameManager hostManager = HostSingleton.Instance.GameManager;
         await hostManager.StartHostAsync();
-
-        var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
-        if (transport != null && hostManager.HasRelayServerData)
-            transport.SetRelayServerData(hostManager.RelayServerData);
-
-        await Task.Delay(200); // transport ổn định trong Editor
-        if (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient) return;
-        NetworkManager.Singleton.StartHost();
+        // StartHostAsync() đã set RelayServerData và gọi StartHost() bên trong, không cần gọi lại ở đây.
     }
 
     IEnumerator DelayedStartClient()

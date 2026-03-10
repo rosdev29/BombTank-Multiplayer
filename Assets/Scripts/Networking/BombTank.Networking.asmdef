@@ -1,0 +1,21 @@
+{
+    "name": "BombTank.Networking",
+    "rootNamespace": "",
+    "references": [
+        "Unity.Services.Multiplayer",
+        "Unity.Services.Core",
+        "Unity.Services.Authentication",
+        "Unity.Netcode.Runtime",
+        "Unity.Networking.Transport",
+        "UnityEngine"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
