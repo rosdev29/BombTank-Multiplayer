@@ -14,7 +14,6 @@ public class ClientNetworkTransform : NetworkTransform
         CanCommitToTransform = IsOwner;
         base.Update();
 
-        // Chỉ commit nếu KHÔNG phải Host (tránh duplicate tick error)
         if (!IsHost && NetworkManager != null && NetworkManager.IsConnectedClient && CanCommitToTransform)
         {
             TryCommitTransformToServer(transform, NetworkManager.LocalTime.Time);
