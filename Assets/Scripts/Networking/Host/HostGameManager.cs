@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Services.Relay;
 using Unity.Services.Relay.Models;
@@ -7,10 +9,13 @@ using Unity.Networking.Transport.Relay;
 using Unity.Netcode.Transports.UTP;
 using Unity.Netcode;
 using UnityEngine.SceneManagement;
+using Unity.Services.Lobbies;
+using Unity.Services.Lobbies.Models;
 public class HostGameManager
 {
     private Allocation allocation;
     private string joinCode;
+    private string lobbyId;
     private RelayServerData relayServerData;
     private bool hasRelayServerData;
     private const int MaxConnections = 20;
@@ -47,7 +52,44 @@ public class HostGameManager
         if (transport != null && hasRelayServerData)
             transport.SetRelayServerData(relayServerData);
 
+        try
+        {
+            var lobbyOptions = new CreateLobbyOptions();
+            lobbyOptions.IsPrivate = false;
+            lobbyOptions.Data = new Dictionary<string, DataObject>
+            {
+                {
+                    "JoinCode",
+                    new DataObject(
+                        visibility: DataObject.VisibilityOptions.Member,
+                        value: joinCode)
+                }
+            };
+
+            Lobby lobby = await LobbyService.Instance.CreateLobbyAsync("My Lobby", MaxConnections, lobbyOptions);
+            lobbyId = lobby.Id;
+            Debug.Log($"Lobby created. LobbyId={lobbyId}");
+
+            HostSingleton.Instance.StartCoroutine(HearbeatLobby(15f));
+        }
+        catch (LobbyServiceException e)
+        {
+            Debug.Log(e);
+            return;
+        }
+
+
         NetworkManager.Singleton.StartHost();
         NetworkManager.Singleton.SceneManager.LoadScene(GameScenceName, LoadSceneMode.Single);
+    }
+
+    private IEnumerator HearbeatLobby(float waitTimeSeconds)
+    {
+        WaitForSecondsRealtime delay = new WaitForSecondsRealtime(waitTimeSeconds);
+        while (true)
+        {
+            LobbyService.Instance.SendHeartbeatPingAsync(lobbyId);
+            yield return delay;
+        }
     }
 }
