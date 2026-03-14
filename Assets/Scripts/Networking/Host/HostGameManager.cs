@@ -11,6 +11,7 @@ using Unity.Netcode;
 using UnityEngine.SceneManagement;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
+using Unity.Services.Authentication;
 public class HostGameManager
 {
     private Allocation allocation;
@@ -88,7 +89,8 @@ public class HostGameManager
 
         UserData userData = new UserData
         {
-            userName = PlayerPrefs.GetString("PlayerName", "Missing Name")
+            userName = PlayerPrefs.GetString("PlayerName", "Missing Name"),
+            userAuthId = AuthenticationService.Instance.PlayerId
         };
 
         string payload = JsonUtility.ToJson(userData);
