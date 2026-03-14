@@ -332,6 +332,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_ProtocolType: 0
+  m_UseWebSockets: 0
+  m_UseEncryption: 0
   m_MaxPacketQueueSize: 128
   m_MaxPayloadSize: 6144
   m_HeartbeatTimeoutMS: 500
@@ -367,7 +369,7 @@ MonoBehaviour:
       - {fileID: 11400000, guid: c2e647d4b30e48e46beeed7f5cd42c9a, type: 2}
     TickRate: 30
     ClientConnectionBufferTimeout: 10
-    ConnectionApproval: 0
+    ConnectionApproval: 1
     ConnectionData: 
     EnableTimeResync: 0
     TimeResyncInterval: 30
