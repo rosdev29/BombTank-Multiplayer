@@ -13,7 +13,7 @@ using Unity.Services.Relay.Models;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class ClientGameManager
+public class ClientGameManager : IDisposable
 {
     private JoinAllocation allocation;
     private NetworkClient networkClient;
@@ -51,13 +51,11 @@ public class ClientGameManager
             return;
         }
 
-        // dùng cùng protocol với Host ("dtls")
         RelayServerData relayServerData = allocation.ToRelayServerData("dtls");
         UnityTransport transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
         if (transport != null)
             transport.SetRelayServerData(relayServerData);
 
-        // gửi UserData giống Host (thêm userAuthId như trong khóa học)
         UserData userData = new UserData
         {
             userName = PlayerPrefs.GetString("PlayerName", "Missing Name"),
@@ -69,5 +67,10 @@ public class ClientGameManager
         NetworkManager.Singleton.NetworkConfig.ConnectionData = payloadBytes;
 
         NetworkManager.Singleton.StartClient();
+    }
+
+    public void Dispose()
+    {
+        networkClient?.Dispose();
     }
 }

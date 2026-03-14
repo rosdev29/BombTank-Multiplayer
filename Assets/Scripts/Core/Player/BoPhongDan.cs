@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
@@ -112,8 +112,6 @@ public class BoPhongDan : NetworkBehaviour
     {
         if (!IsOwner) { return; }
         spawnDanGia(viTriSpawn, huongDi);
-        // spawnDanGiaClientRpc(viTriSpawn, huongDi); // đây là recursion vô hạn
-
     }
 
     private void spawnDanGia(Vector3 viTriSpawn, Vector3 huongDi)

@@ -6,7 +6,6 @@ using UnityEngine;
 
 public class ConnectionButtons : MonoBehaviour
 {
-    /// Host với Relay (Unity 6 / com.unity.services.multiplayer): tạo allocation, chuyển sang RelayServerData, set transport rồi StartHost.
     public async void StartHost()
     {
         if (NetworkManager.Singleton == null) return;
