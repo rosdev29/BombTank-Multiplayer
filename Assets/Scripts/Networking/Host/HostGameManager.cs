@@ -18,6 +18,7 @@ public class HostGameManager
     private string lobbyId;
     private RelayServerData relayServerData;
     private bool hasRelayServerData;
+    private NetworkServer networkServer;
     private const int MaxConnections = 20;
     private const string GameScenceName = "Game";
 
@@ -66,7 +67,11 @@ public class HostGameManager
                 }
             };
 
-            Lobby lobby = await LobbyService.Instance.CreateLobbyAsync("My Lobby", MaxConnections, lobbyOptions);
+            string playerName = PlayerPrefs.GetString("PlayerName", "Unknown");
+
+            Lobby lobby = await LobbyService.Instance.CreateLobbyAsync(
+                $"{playerName}'s Lobby", MaxConnections, lobbyOptions);
+
             lobbyId = lobby.Id;
             Debug.Log($"Lobby created. LobbyId={lobbyId}");
 
@@ -78,6 +83,17 @@ public class HostGameManager
             return;
         }
 
+
+        networkServer = new NetworkServer(NetworkManager.Singleton);
+
+        UserData userData = new UserData
+        {
+            userName = PlayerPrefs.GetString("PlayerName", "Missing Name")
+        };
+
+        string payload = JsonUtility.ToJson(userData);
+        byte[] payloadBytes = System.Text.Encoding.UTF8.GetBytes(payload);
+        NetworkManager.Singleton.NetworkConfig.ConnectionData = payloadBytes;
 
         NetworkManager.Singleton.StartHost();
         NetworkManager.Singleton.SceneManager.LoadScene(GameScenceName, LoadSceneMode.Single);
