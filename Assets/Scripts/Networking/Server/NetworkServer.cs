@@ -4,13 +4,11 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
-public class NetworkServer
+public class NetworkServer : IDisposable
 {
     private NetworkManager networkManager;
 
-    // maps connected clientId -> authId
     private Dictionary<ulong, string> clientIdToAuth = new Dictionary<ulong, string>();
-    // maps authId -> UserData (so chúng ta có thể tìm lại user theo authId)
     private Dictionary<string, UserData> authIdToUserData = new Dictionary<string, UserData>();
 
     public NetworkServer(NetworkManager networkManager)
@@ -48,6 +46,20 @@ public class NetworkServer
         {
             clientIdToAuth.Remove(clientId);
             authIdToUserData.Remove(authId);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (networkManager == null) { return; }
+
+        networkManager.ConnectionApprovalCallback -= ApprovalCheck;
+        networkManager.OnClientDisconnectCallback -= OnClientDisconnect;
+        networkManager.OnServerStarted -= OnNetworkReady;
+
+        if (networkManager.IsListening)
+        {
+            networkManager.Shutdown();
         }
     }
 }
