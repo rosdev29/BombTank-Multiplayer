@@ -12,7 +12,7 @@ using UnityEngine.SceneManagement;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
 using Unity.Services.Authentication;
-public class HostGameManager
+public class HostGameManager : IDisposable
 {
     private Allocation allocation;
     private string joinCode;
@@ -76,7 +76,7 @@ public class HostGameManager
             lobbyId = lobby.Id;
             Debug.Log($"Lobby created. LobbyId={lobbyId}");
 
-            HostSingleton.Instance.StartCoroutine(HearbeatLobby(15f));
+            HostSingleton.Instance.StartCoroutine(nameof(HearbeatLobby), 15f);
         }
         catch (LobbyServiceException e)
         {
@@ -109,5 +109,26 @@ public class HostGameManager
             LobbyService.Instance.SendHeartbeatPingAsync(lobbyId);
             yield return delay;
         }
+    }
+
+    public async void Dispose()
+    {
+        HostSingleton.Instance.StopCoroutine(nameof(HearbeatLobby));
+
+        if (!string.IsNullOrEmpty(lobbyId))
+        {
+            try
+            {
+                await LobbyService.Instance.DeleteLobbyAsync(lobbyId);
+            }
+            catch (LobbyServiceException e)
+            {
+                Debug.Log(e);
+            }
+
+            lobbyId = string.Empty;
+        }
+
+        networkServer?.Dispose();
     }
 }
