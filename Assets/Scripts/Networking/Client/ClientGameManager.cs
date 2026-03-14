@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
@@ -46,10 +47,21 @@ public class ClientGameManager
             return;
         }
 
-        RelayServerData relayServerData = allocation.ToRelayServerData("udp");
+        // dùng cùng protocol với Host ("dtls")
+        RelayServerData relayServerData = allocation.ToRelayServerData("dtls");
         UnityTransport transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
         if (transport != null)
             transport.SetRelayServerData(relayServerData);
+
+        // gửi UserData giống Host
+        UserData userData = new UserData
+        {
+            userName = PlayerPrefs.GetString("PlayerName", "Missing Name")
+        };
+
+        string payload = JsonUtility.ToJson(userData);
+        byte[] payloadBytes = Encoding.UTF8.GetBytes(payload);
+        NetworkManager.Singleton.NetworkConfig.ConnectionData = payloadBytes;
 
         NetworkManager.Singleton.StartClient();
     }
