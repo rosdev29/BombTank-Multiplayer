@@ -17,12 +17,26 @@ public class TankPlayer : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
+        if (virtualCamera == null)
+        {
+            virtualCamera = GetComponentInChildren<CinemachineVirtualCamera>();
+        }
+
         if (IsServer)
         {
-            UserData userData =
-                HostSingleton.Instance.GameManager.NetworkServer.GetUserDataByClientId(OwnerClientId);
+            UserData userData = null;
+            if (HostSingleton.Instance != null &&
+                HostSingleton.Instance.GameManager != null &&
+                HostSingleton.Instance.GameManager.NetworkServer != null)
+            {
+                userData =
+                    HostSingleton.Instance.GameManager.NetworkServer.GetUserDataByClientId(OwnerClientId);
+            }
 
-            PlayerName.Value = userData.userName;
+            if (userData != null)
+            {
+                PlayerName.Value = userData.userName;
+            }
         }
 
         if (IsOwner)

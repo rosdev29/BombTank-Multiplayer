@@ -1190,7 +1190,6 @@ GameObject:
   - component: {fileID: 6286592586107606620}
   - component: {fileID: 2388427629294214920}
   - component: {fileID: 9066809421956656533}
-  - component: {fileID: 625392883895324009}
   - component: {fileID: 3439551596125446016}
   m_Layer: 0
   m_Name: PhanTrenDauCanvas
@@ -1257,55 +1256,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mau: {fileID: 7114059541313905306}
   ThanhMauImage: {fileID: 5197967921607922919}
---- !u!114 &625392883895324009
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8303670433899205027}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2e1dc9e98eeb4cb4aa9858efc1c0ba51, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  virtualCamera: {fileID: 0}
-  ownerPriority: 15
-  PlayerName:
-    m_InternalValue:
-      utf8LengthInBytes: 0
-      bytes:
-        offset0000:
-          byte0000: 0
-          byte0001: 0
-          byte0002: 0
-          byte0003: 0
-          byte0004: 0
-          byte0005: 0
-          byte0006: 0
-          byte0007: 0
-          byte0008: 0
-          byte0009: 0
-          byte0010: 0
-          byte0011: 0
-          byte0012: 0
-          byte0013: 0
-          byte0014: 0
-          byte0015: 0
-        byte0016: 0
-        byte0017: 0
-        byte0018: 0
-        byte0019: 0
-        byte0020: 0
-        byte0021: 0
-        byte0022: 0
-        byte0023: 0
-        byte0024: 0
-        byte0025: 0
-        byte0026: 0
-        byte0027: 0
-        byte0028: 0
-        byte0029: 0
 --- !u!114 &3439551596125446016
 MonoBehaviour:
   m_ObjectHideFlags: 0
