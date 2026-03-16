@@ -19,7 +19,8 @@ public class HostGameManager : IDisposable
     private string lobbyId;
     private RelayServerData relayServerData;
     private bool hasRelayServerData;
-    private NetworkServer networkServer;
+
+    public NetworkServer NetworkServer { get; private set; }
     private const int MaxConnections = 20;
     private const string GameScenceName = "Game";
 
@@ -85,7 +86,7 @@ public class HostGameManager : IDisposable
         }
 
 
-        networkServer = new NetworkServer(NetworkManager.Singleton);
+        NetworkServer = new NetworkServer(NetworkManager.Singleton);
 
         UserData userData = new UserData
         {
@@ -129,6 +130,6 @@ public class HostGameManager : IDisposable
             lobbyId = string.Empty;
         }
 
-        networkServer?.Dispose();
+        NetworkServer?.Dispose();
     }
 }
