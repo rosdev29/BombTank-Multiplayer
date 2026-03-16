@@ -77,7 +77,7 @@ public class HostGameManager : IDisposable
             lobbyId = lobby.Id;
             Debug.Log($"Lobby created. LobbyId={lobbyId}");
 
-            HostSingleton.Instance.StartCoroutine(nameof(HearbeatLobby), 15f);
+            HostSingleton.Instance.StartCoroutine(HearbeatLobby(15f));
         }
         catch (LobbyServiceException e)
         {
@@ -114,7 +114,7 @@ public class HostGameManager : IDisposable
 
     public async void Dispose()
     {
-        HostSingleton.Instance.StopCoroutine(nameof(HearbeatLobby));
+        HostSingleton.Instance.StopCoroutine(HearbeatLobby(15f));
 
         if (!string.IsNullOrEmpty(lobbyId))
         {
