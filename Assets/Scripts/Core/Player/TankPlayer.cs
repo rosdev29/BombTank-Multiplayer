@@ -59,7 +59,7 @@ public class TankPlayer : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        if (IsServer)
+        if (IsServer && NetworkManager != null && !NetworkManager.ShutdownInProgress)
         {
             OnPlayerDespawned?.Invoke(this);
         }
