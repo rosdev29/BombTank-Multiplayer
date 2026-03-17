@@ -85,7 +85,8 @@ public class HostGameManager : IDisposable
             return;
         }
 
-
+        // If host is started multiple times (e.g. user clicks twice), ensure we don't double-register callbacks.
+        NetworkServer?.Dispose();
         NetworkServer = new NetworkServer(NetworkManager.Singleton);
 
         UserData userData = new UserData
