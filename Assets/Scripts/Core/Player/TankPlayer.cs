@@ -11,6 +11,7 @@ public class TankPlayer : NetworkBehaviour
     [Header("References")]
     [SerializeField] private CinemachineVirtualCamera virtualCamera;
     [field: SerializeField] public Mau Health { get; private set; }
+    [field: SerializeField] public CoinWallet Wallet { get; private set; }
 
     [Header("Settings")]
     [SerializeField] private int ownerPriority = 15;
@@ -30,6 +31,11 @@ public class TankPlayer : NetworkBehaviour
         if (Health == null)
         {
             Health = GetComponent<Mau>();
+        }
+
+        if (Wallet == null)
+        {
+            Wallet = GetComponent<CoinWallet>();
         }
 
         if (IsServer)
