@@ -11,9 +11,7 @@ public class Leaderboard : NetworkBehaviour
     [SerializeField] private LeaderBoardEntityDisplay leaderboardEntityPrefab;
 
     private NetworkList<LeaderboardEntityState> leaderboardEntities = new NetworkList<LeaderboardEntityState>();
-    private readonly List<LeaderBoardEntityDisplay> entityDisplays = new List<LeaderBoardEntityDisplay>();
-    private readonly Dictionary<ulong, NetworkVariable<int>.OnValueChangedDelegate> coinChangeHandlers =
-        new Dictionary<ulong, NetworkVariable<int>.OnValueChangedDelegate>();
+    private List<LeaderBoardEntityDisplay> entityDisplays = new List<LeaderBoardEntityDisplay>();
 
     public override void OnNetworkSpawn()
     {
@@ -79,7 +77,7 @@ public class Leaderboard : NetworkBehaviour
                 if (displayToRemove != null)
                 {
                     displayToRemove.transform.SetParent(null);
-                    UnityEngine.Object.Destroy(displayToRemove.gameObject);
+                    Destroy(displayToRemove.gameObject);
                     entityDisplays.Remove(displayToRemove);
                 }
                 break;
@@ -106,24 +104,26 @@ public class Leaderboard : NetworkBehaviour
             Coins = 0
         });
 
-        if (player.TryGetComponent<CoinWallet>(out var wallet))
-        {
-            // Avoid double-subscribe for the same client
-            if (!coinChangeHandlers.ContainsKey(player.OwnerClientId))
-            {
-                NetworkVariable<int>.OnValueChangedDelegate handler = (oldCoins, newCoins) =>
-                    HandleCoinsChanged(player.OwnerClientId, newCoins);
-
-                coinChangeHandlers[player.OwnerClientId] = handler;
-                wallet.TotalCoins.OnValueChanged += handler;
-            }
-        }
+        player.Wallet.TotalCoins.OnValueChanged += (oldCoins, newCoins) =>
+            HandleCoinsChanged(player.OwnerClientId, newCoins);
     }
 
     private void HandlePlayerDespawned(TankPlayer player)
     {
-        if (!IsServer || !IsSpawned || leaderboardEntities == null || player == null) { return; }
-        if (NetworkManager == null || NetworkManager.ShutdownInProgress) { return; }
+        if (player == null) { return; }
+
+        // Chỉ thao tác khi server và Leaderboard vẫn còn spawn, Netcode chưa shutdown
+        if (!IsServer ||
+            NetworkManager == null ||
+            !IsSpawned ||
+            NetworkObject == null ||
+            !NetworkObject.IsSpawned ||
+            !NetworkManager.IsListening ||
+            NetworkManager.ShutdownInProgress ||
+            leaderboardEntities == null)
+        {
+            return;
+        }
 
         for (int i = 0; i < leaderboardEntities.Count; i++)
         {
@@ -134,16 +134,8 @@ public class Leaderboard : NetworkBehaviour
             break;
         }
 
-        if (player.TryGetComponent<CoinWallet>(out var wallet))
-        {
-            if (coinChangeHandlers.TryGetValue(
-                    player.OwnerClientId,
-                    out NetworkVariable<int>.OnValueChangedDelegate handler))
-            {
-                wallet.TotalCoins.OnValueChanged -= handler;
-                coinChangeHandlers.Remove(player.OwnerClientId);
-            }
-        }
+        player.Wallet.TotalCoins.OnValueChanged -= (oldCoins, newCoins) =>
+            HandleCoinsChanged(player.OwnerClientId, newCoins);
     }
 
     private void HandleCoinsChanged(ulong clientId, int newCoins)
