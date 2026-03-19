@@ -6,7 +6,8 @@ using UnityEngine;
 
 public class RespawnHandler : NetworkBehaviour
 {
-    [SerializeField] private NetworkObject playerPrefab;
+    [SerializeField] private TankPlayer playerPrefab;
+    [SerializeField] private float keptCoinPercentage;
 
     // Track per-player death handler so we can unsubscribe cleanly.
     private readonly Dictionary<TankPlayer, Action<Mau>> dieHandlersByPlayer = new Dictionary<TankPlayer, Action<Mau>>();
@@ -69,22 +70,24 @@ public class RespawnHandler : NetworkBehaviour
     private void HandlePlayerDie(TankPlayer player)
     {
         if (player == null) { return; }
+        int keptCoins = (int)(player.Wallet.TotalCoins.Value * (keptCoinPercentage / 100));
 
         HandlePlayerDespawned(player);
 
         Destroy(player.gameObject);
 
-        StartCoroutine(RespawnPlayer(player.OwnerClientId));
+        StartCoroutine(RespawnPlayer(player.OwnerClientId, keptCoins));
     }
 
-    private IEnumerator RespawnPlayer(ulong ownerClientId)
+    private IEnumerator RespawnPlayer(ulong ownerClientId, int keptCoins)
     {
         // Wait one frame to allow despawn to complete.
         yield return null;
 
-        NetworkObject playerInstance = Instantiate(
+        TankPlayer playerInstance = Instantiate(
             playerPrefab, SpawnPoint.GetRandomSpawnPos(), Quaternion.identity);
 
-        playerInstance.SpawnAsPlayerObject(ownerClientId);
+        playerInstance.NetworkObject.SpawnAsPlayerObject(ownerClientId);
+        playerInstance.Wallet.TotalCoins.Value += keptCoins;
     }
 }
