@@ -2039,7 +2039,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7cd156acc02d7de4ea6d156e46d955cd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  playerPrefab: {fileID: 6669386753635323987, guid: 4291195d5f87cf94bb17b274c7c6e122, type: 3}
+  playerPrefab: {fileID: 6223019598537030959, guid: 4291195d5f87cf94bb17b274c7c6e122, type: 3}
+  keptCoinPercentage: 50
 --- !u!4 &1174255036
 Transform:
   m_ObjectHideFlags: 0
@@ -2226,6 +2227,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   leaderboardEntityHolder: {fileID: 547077899}
   leaderboardEntityPrefab: {fileID: 5784224344138808509, guid: 62cce6b27d2ded941b43e83e2c136a0a, type: 3}
+  entitiesToDisplay: 8
 --- !u!1 &1293033514
 GameObject:
   m_ObjectHideFlags: 0
