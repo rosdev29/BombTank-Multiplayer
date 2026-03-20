@@ -19,6 +19,8 @@ public class HostGameManager : IDisposable
     private string lobbyId;
     private RelayServerData relayServerData;
     private bool hasRelayServerData;
+    private bool isStartingHost;
+    private static bool isAnyHostStartInFlight;
 
     public NetworkServer NetworkServer { get; private set; }
     private const int MaxConnections = 20;
@@ -29,78 +31,119 @@ public class HostGameManager : IDisposable
 
     public async Task StartHostAsync()
     {
-        try
+        NetworkManager networkManager = NetworkManager.Singleton;
+        if (networkManager == null) { return; }
+
+        if (isStartingHost || isAnyHostStartInFlight)
         {
-            allocation = await RelayService.Instance.CreateAllocationAsync(MaxConnections);
-            relayServerData = allocation.ToRelayServerData("dtls");
-            hasRelayServerData = true;
-        }
-        catch (Exception e)
-        {
-            Debug.Log(e);
-            return;
-        }
-        try
-        {
-            joinCode = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
-            Debug.Log(joinCode);
-        }
-        catch (Exception e)
-        {
-            Debug.Log(e);
+            Debug.LogWarning("StartHostAsync is already running.");
             return;
         }
 
-        UnityTransport transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
-        if (transport != null && hasRelayServerData)
-            transport.SetRelayServerData(relayServerData);
+        if (networkManager.IsListening ||
+            networkManager.IsServer ||
+            networkManager.IsClient ||
+            networkManager.ShutdownInProgress)
+        {
+            Debug.LogWarning("NetworkManager is already running. Skip StartHost.");
+            return;
+        }
 
+        isStartingHost = true;
+        isAnyHostStartInFlight = true;
         try
         {
-            var lobbyOptions = new CreateLobbyOptions();
-            lobbyOptions.IsPrivate = false;
-            lobbyOptions.Data = new Dictionary<string, DataObject>
+            try
             {
+                allocation = await RelayService.Instance.CreateAllocationAsync(MaxConnections);
+                relayServerData = allocation.ToRelayServerData("dtls");
+                hasRelayServerData = true;
+            }
+            catch (Exception e)
+            {
+                Debug.Log(e);
+                return;
+            }
+            try
+            {
+                joinCode = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
+                Debug.Log(joinCode);
+            }
+            catch (Exception e)
+            {
+                Debug.Log(e);
+                return;
+            }
+
+            UnityTransport transport = networkManager.GetComponent<UnityTransport>();
+            if (transport != null && hasRelayServerData)
+                transport.SetRelayServerData(relayServerData);
+
+            try
+            {
+                var lobbyOptions = new CreateLobbyOptions();
+                lobbyOptions.IsPrivate = false;
+                lobbyOptions.Data = new Dictionary<string, DataObject>
                 {
-                    "JoinCode",
-                    new DataObject(
-                        visibility: DataObject.VisibilityOptions.Member,
-                        value: joinCode)
-                }
+                    {
+                        "JoinCode",
+                        new DataObject(
+                            visibility: DataObject.VisibilityOptions.Member,
+                            value: joinCode)
+                    }
+                };
+
+                string playerName = PlayerPrefs.GetString("PlayerName", "Unknown");
+
+                Lobby lobby = await LobbyService.Instance.CreateLobbyAsync(
+                    $"{playerName}'s Lobby", MaxConnections, lobbyOptions);
+
+                lobbyId = lobby.Id;
+                Debug.Log($"Lobby created. LobbyId={lobbyId}");
+
+                HostSingleton.Instance.StartCoroutine(HearbeatLobby(15f));
+            }
+            catch (LobbyServiceException e)
+            {
+                Debug.Log(e);
+                return;
+            }
+
+            if (networkManager.IsListening ||
+                networkManager.IsServer ||
+                networkManager.IsClient ||
+                networkManager.ShutdownInProgress)
+            {
+                return;
+            }
+
+            // If host is started multiple times (e.g. user clicks twice), ensure we don't double-register callbacks.
+            NetworkServer?.Dispose();
+            NetworkServer = new NetworkServer(networkManager);
+
+            UserData userData = new UserData
+            {
+                userName = PlayerPrefs.GetString("PlayerName", "Missing Name"),
+                userAuthId = AuthenticationService.Instance.PlayerId
             };
 
-            string playerName = PlayerPrefs.GetString("PlayerName", "Unknown");
+            string payload = JsonUtility.ToJson(userData);
+            byte[] payloadBytes = System.Text.Encoding.UTF8.GetBytes(payload);
+            networkManager.NetworkConfig.ConnectionData = payloadBytes;
 
-            Lobby lobby = await LobbyService.Instance.CreateLobbyAsync(
-                $"{playerName}'s Lobby", MaxConnections, lobbyOptions);
+            if (!networkManager.StartHost())
+            {
+                Debug.LogWarning("StartHost failed because NetworkManager cannot start now.");
+                return;
+            }
 
-            lobbyId = lobby.Id;
-            Debug.Log($"Lobby created. LobbyId={lobbyId}");
-
-            HostSingleton.Instance.StartCoroutine(HearbeatLobby(15f));
+            networkManager.SceneManager.LoadScene(GameScenceName, LoadSceneMode.Single);
         }
-        catch (LobbyServiceException e)
+        finally
         {
-            Debug.Log(e);
-            return;
+            isStartingHost = false;
+            isAnyHostStartInFlight = false;
         }
-
-        // If host is started multiple times (e.g. user clicks twice), ensure we don't double-register callbacks.
-        NetworkServer?.Dispose();
-        NetworkServer = new NetworkServer(NetworkManager.Singleton);
-
-        UserData userData = new UserData
-        {
-            userName = PlayerPrefs.GetString("PlayerName", "Missing Name"),
-            userAuthId = AuthenticationService.Instance.PlayerId
-        };
-
-        string payload = JsonUtility.ToJson(userData);
-        byte[] payloadBytes = System.Text.Encoding.UTF8.GetBytes(payload);
-        NetworkManager.Singleton.NetworkConfig.ConnectionData = payloadBytes;
-
-        NetworkManager.Singleton.StartHost();
-        NetworkManager.Singleton.SceneManager.LoadScene(GameScenceName, LoadSceneMode.Single);
     }
 
     private IEnumerator HearbeatLobby(float waitTimeSeconds)
