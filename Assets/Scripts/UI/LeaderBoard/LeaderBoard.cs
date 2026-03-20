@@ -13,9 +13,12 @@ public class Leaderboard : NetworkBehaviour
 
     private NetworkList<LeaderboardEntityState> leaderboardEntities = new NetworkList<LeaderboardEntityState>();
     private List<LeaderBoardEntityDisplay> entityDisplays = new List<LeaderBoardEntityDisplay>();
+    private bool isTearingDown;
 
     public override void OnNetworkSpawn()
     {
+        isTearingDown = false;
+
         if (IsClient)
         {
             leaderboardEntities.OnListChanged += HandleLeaderboardEntitiesChanged;
@@ -44,20 +47,21 @@ public class Leaderboard : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        if (IsClient)
+        isTearingDown = true;
+
+        if (leaderboardEntities != null)
         {
             leaderboardEntities.OnListChanged -= HandleLeaderboardEntitiesChanged;
         }
 
-        if (IsServer)
-        {
-            TankPlayer.OnPlayerSpawned -= HandlePlayerSpawned;
-            TankPlayer.OnPlayerDespawned -= HandlePlayerDespawned;
-        }
+        TankPlayer.OnPlayerSpawned -= HandlePlayerSpawned;
+        TankPlayer.OnPlayerDespawned -= HandlePlayerDespawned;
     }
 
     private void HandleLeaderboardEntitiesChanged(NetworkListEvent<LeaderboardEntityState> changeEvent)
     {
+        if (isTearingDown) { return; }
+
         switch (changeEvent.Type)
         {
             case NetworkListEvent<LeaderboardEntityState>.EventType.Add:
@@ -101,6 +105,8 @@ public class Leaderboard : NetworkBehaviour
             entityDisplays[i].gameObject.SetActive(i <= entitiesToDisplay - 1);
         }
 
+        if (NetworkManager.Singleton == null) { return; }
+
         LeaderBoardEntityDisplay myDisplay =
             entityDisplays.FirstOrDefault(x => x.ClientId == NetworkManager.Singleton.LocalClientId);
 
@@ -116,6 +122,7 @@ public class Leaderboard : NetworkBehaviour
 
     private void HandlePlayerSpawned(TankPlayer player)
     {
+        if (isTearingDown) { return; }
         if (!IsServer || !IsSpawned || leaderboardEntities == null || player == null) { return; }
         if (NetworkManager == null || NetworkManager.ShutdownInProgress) { return; }
 
@@ -132,7 +139,9 @@ public class Leaderboard : NetworkBehaviour
 
     private void HandlePlayerDespawned(TankPlayer player)
     {
+        if (isTearingDown) { return; }
         if (player == null) { return; }
+        if (NetworkManager.Singleton == null || NetworkManager.Singleton.ShutdownInProgress) { return; }
 
         // Chỉ thao tác khi server và Leaderboard vẫn còn spawn, Netcode chưa shutdown
         if (!IsServer ||
@@ -152,7 +161,15 @@ public class Leaderboard : NetworkBehaviour
             LeaderboardEntityState entity = leaderboardEntities[i];
             if (entity.ClientId != player.OwnerClientId) { continue; }
 
-            leaderboardEntities.RemoveAt(i);
+            try
+            {
+                leaderboardEntities.RemoveAt(i);
+            }
+            catch (NullReferenceException)
+            {
+                // Netcode can tear down NetworkVariables before this despawn callback runs during shutdown.
+                isTearingDown = true;
+            }
             break;
         }
 
@@ -162,6 +179,8 @@ public class Leaderboard : NetworkBehaviour
 
     private void HandleCoinsChanged(ulong clientId, int newCoins)
     {
+        if (isTearingDown || !IsServer || !IsSpawned || leaderboardEntities == null) { return; }
+
         for (int i = 0; i < leaderboardEntities.Count; i++)
         {
             if (leaderboardEntities[i].ClientId != clientId) { continue; }
