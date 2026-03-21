@@ -17,6 +17,8 @@ public class HostGameManager : IDisposable
     private Allocation allocation;
     private string joinCode;
     private string lobbyId;
+    private Coroutine lobbyHeartbeatCoroutine;
+    private bool isShuttingDown;
     private RelayServerData relayServerData;
     private bool hasRelayServerData;
     private bool isStartingHost;
@@ -33,6 +35,7 @@ public class HostGameManager : IDisposable
     {
         NetworkManager networkManager = NetworkManager.Singleton;
         if (networkManager == null) { return; }
+        isShuttingDown = false;
 
         if (isStartingHost || isAnyHostStartInFlight)
         {
@@ -101,7 +104,11 @@ public class HostGameManager : IDisposable
                 lobbyId = lobby.Id;
                 Debug.Log($"Lobby created. LobbyId={lobbyId}");
 
-                HostSingleton.Instance.StartCoroutine(HearbeatLobby(15f));
+                if (lobbyHeartbeatCoroutine != null)
+                {
+                    HostSingleton.Instance.StopCoroutine(lobbyHeartbeatCoroutine);
+                }
+                lobbyHeartbeatCoroutine = HostSingleton.Instance.StartCoroutine(HearbeatLobby(15f));
             }
             catch (LobbyServiceException e)
             {
@@ -137,6 +144,12 @@ public class HostGameManager : IDisposable
                 return;
             }
 
+            if (NetworkServer != null)
+            {
+                NetworkServer.OnClientLeft -= HandleClientLeft;
+                NetworkServer.OnClientLeft += HandleClientLeft;
+            }
+
             networkManager.SceneManager.LoadScene(GameScenceName, LoadSceneMode.Single);
         }
         finally
@@ -151,14 +164,29 @@ public class HostGameManager : IDisposable
         WaitForSecondsRealtime delay = new WaitForSecondsRealtime(waitTimeSeconds);
         while (true)
         {
+            if (string.IsNullOrEmpty(lobbyId))
+            {
+                yield break;
+            }
+
             LobbyService.Instance.SendHeartbeatPingAsync(lobbyId);
             yield return delay;
         }
     }
 
-    public async void Dispose()
+    public void Dispose()
     {
-        HostSingleton.Instance.StopCoroutine(HearbeatLobby(15f));
+        Shutdown();
+    }
+
+    public async void Shutdown()
+    {
+        isShuttingDown = true;
+        if (lobbyHeartbeatCoroutine != null)
+        {
+            HostSingleton.Instance.StopCoroutine(lobbyHeartbeatCoroutine);
+            lobbyHeartbeatCoroutine = null;
+        }
 
         if (!string.IsNullOrEmpty(lobbyId))
         {
@@ -174,6 +202,32 @@ public class HostGameManager : IDisposable
             lobbyId = string.Empty;
         }
 
+        if (NetworkServer != null)
+        {
+            NetworkServer.OnClientLeft -= HandleClientLeft;
+        }
         NetworkServer?.Dispose();
+    }
+
+    private async void HandleClientLeft(string authId)
+    {
+        if (isShuttingDown || string.IsNullOrEmpty(lobbyId) || string.IsNullOrEmpty(authId)) { return; }
+
+        try
+        {
+            await LobbyService.Instance.RemovePlayerAsync(lobbyId, authId);
+        }
+        catch (LobbyServiceException e)
+        {
+            if (e.Reason == LobbyExceptionReason.LobbyNotFound ||
+                e.Reason == LobbyExceptionReason.EntityNotFound ||
+                e.Reason == LobbyExceptionReason.PlayerNotFound)
+            {
+                // Lobby/player may already be gone because teardown raced with disconnect handling.
+                return;
+            }
+
+            Debug.Log(e);
+        }
     }
 }
