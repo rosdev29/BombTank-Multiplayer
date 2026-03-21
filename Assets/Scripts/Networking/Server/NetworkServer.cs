@@ -7,6 +7,7 @@ using UnityEngine;
 public class NetworkServer : IDisposable
 {
     private NetworkManager networkManager;
+    public Action<string> OnClientLeft;
     private Action<NetworkManager.ConnectionApprovalRequest, NetworkManager.ConnectionApprovalResponse> previousApprovalCallback;
 
     private Dictionary<ulong, string> clientIdToAuth = new Dictionary<ulong, string>();
@@ -48,6 +49,7 @@ public class NetworkServer : IDisposable
     {
         if (clientIdToAuth.TryGetValue(clientId, out string authId))
         {
+            OnClientLeft?.Invoke(authId);
             clientIdToAuth.Remove(clientId);
             authIdToUserData.Remove(authId);
         }
