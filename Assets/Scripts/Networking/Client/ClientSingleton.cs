@@ -42,5 +42,9 @@ public class ClientSingleton : MonoBehaviour
     private void OnDestroy()
     {
         GameManager?.Dispose();
+        if (instance == this)
+        {
+            instance = null;
+        }
     }
 }
