@@ -29,6 +29,26 @@ public class InputReader : ScriptableObject, IPlayerActions
 
     }
 
+    private void OnDisable()
+    {
+        if (controls == null) { return; }
+
+        controls.Player.Disable();
+        controls.Player.SetCallbacks(null);
+        if (controls.asset != null)
+        {
+            if (Application.isPlaying)
+            {
+                Destroy(controls.asset);
+            }
+            else
+            {
+                DestroyImmediate(controls.asset);
+            }
+        }
+        controls = null;
+    }
+
     public void OnMove(InputAction.CallbackContext context)
     {
         MoveEvent?.Invoke(context.ReadValue<Vector2>());
@@ -49,6 +69,6 @@ public class InputReader : ScriptableObject, IPlayerActions
     public void OnAim(InputAction.CallbackContext context)
     {
         ViTriNgam = context.ReadValue<Vector2>();
-    }    
+    }
 
 }
