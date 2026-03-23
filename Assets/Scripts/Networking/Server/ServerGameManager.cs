@@ -11,6 +11,7 @@ using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
 using Unity.Services.Relay;
 using Unity.Services.Relay.Models;
+using Unity.Services.Matchmaker.Models;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -19,17 +20,19 @@ public class ServerGameManager : IDisposable
     private string serverIP;
     private int serverPort;
     private int queryPort;
-    private NetworkServer networkServer;
+    private MatchplayBackfiller backfiller;
     private MultiplayAllocationService multiplayAllocationService;
+    private Dictionary<string, int> teamIdToTeamIndex = new Dictionary<string, int>();
 
     private const string GameSceneName = "Game";
+    public NetworkServer NetworkServer { get; private set; }
 
     public ServerGameManager(string serverIP, int serverPort, int queryPort, NetworkManager manager)
     {
         this.serverIP = serverIP;
         this.serverPort = serverPort;
         this.queryPort = queryPort;
-        networkServer = new NetworkServer(manager);
+        NetworkServer = new NetworkServer(manager);
         multiplayAllocationService = new MultiplayAllocationService();
     }
 
@@ -37,7 +40,7 @@ public class ServerGameManager : IDisposable
     {
         await multiplayAllocationService.BeginServerCheck();
 
-        if (!networkServer.OpenConnection(serverIP, serverPort))
+        if (!NetworkServer.OpenConnection(serverIP, serverPort))
         {
             Debug.LogWarning("NetworkServer did not start as expected.");
             return;
@@ -46,9 +49,37 @@ public class ServerGameManager : IDisposable
         NetworkManager.Singleton.SceneManager.LoadScene(GameSceneName, LoadSceneMode.Single);
     }
 
+    private void UserJoined(UserData user)
+    {
+        if (user == null || backfiller == null) { return; }
+
+        Team team = backfiller.GetTeamByUserId(user.userAuthId);
+        if (team == null || string.IsNullOrEmpty(team.TeamId))
+        {
+            user.teamIndex = 0;
+        }
+        else
+        {
+            Debug.Log($"{user.userAuthId} {team.TeamId}");
+            if (!teamIdToTeamIndex.TryGetValue(team.TeamId, out int teamIndex))
+            {
+                teamIndex = teamIdToTeamIndex.Count;
+                teamIdToTeamIndex.Add(team.TeamId, teamIndex);
+            }
+
+            user.teamIndex = teamIndex;
+        }
+
+        multiplayAllocationService.AddPlayer();
+        if (!backfiller.NeedsPlayers() && backfiller.IsBackfilling)
+        {
+            _ = backfiller.StopBackfill();
+        }
+    }
+
     public void Dispose()
     {
         multiplayAllocationService?.Dispose();
-        networkServer?.Dispose();
+        NetworkServer?.Dispose();
     }
 }

@@ -21,7 +21,8 @@ public class UserData
 {
     public string userName;
     public string userAuthId;
-    public GameInfo userGamePreferences;
+    public int teamIndex = -1;
+    public GameInfo userGamePreferences = new GameInfo();
 }
 
 [Serializable]
