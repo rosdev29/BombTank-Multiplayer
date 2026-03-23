@@ -57,6 +57,19 @@ public class TankPlayer : NetworkBehaviour
                 PlayerName.Value = userData.userName;
                 TeamIndex.Value = userData.teamIndex;
             }
+            else
+            {
+                // Fallback so leaderboard never receives an empty player name.
+                string fallbackName = OwnerClientId == NetworkManager.ServerClientId
+                    ? PlayerPrefs.GetString("PlayerName", $"Player {OwnerClientId}")
+                    : $"Player {OwnerClientId}";
+                PlayerName.Value = fallbackName;
+
+                if (TeamIndex.Value == 0 && OwnerClientId != NetworkManager.ServerClientId)
+                {
+                    TeamIndex.Value = -1;
+                }
+            }
 
             OnPlayerSpawned?.Invoke(this);
         }

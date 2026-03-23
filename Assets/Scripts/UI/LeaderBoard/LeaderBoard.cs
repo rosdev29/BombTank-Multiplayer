@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class Leaderboard : NetworkBehaviour
 {
@@ -146,22 +147,9 @@ public class Leaderboard : NetworkBehaviour
         {
             entityDisplays[i].transform.SetSiblingIndex(i);
             entityDisplays[i].UpdateText();
-            entityDisplays[i].gameObject.SetActive(i <= entitiesToDisplay - 1);
+            entityDisplays[i].gameObject.SetActive(true);
         }
-
-        if (NetworkManager.Singleton == null) { return; }
-
-        LeaderBoardEntityDisplay myDisplay =
-            entityDisplays.FirstOrDefault(x => x.ClientId == NetworkManager.Singleton.LocalClientId);
-
-        if (myDisplay != null)
-        {
-            if (myDisplay.transform.GetSiblingIndex() >= entitiesToDisplay)
-            {
-                leaderboardEntityHolder.GetChild(entitiesToDisplay - 1).gameObject.SetActive(false);
-                myDisplay.gameObject.SetActive(true);
-            }
-        }
+        EnsureVisibleStack(leaderboardEntityHolder, entityDisplays);
 
         if (teamLeaderboardBackground == null || !teamLeaderboardBackground.activeSelf) { return; }
 
@@ -187,6 +175,25 @@ public class Leaderboard : NetworkBehaviour
                 teamEntityDisplays[i].transform.SetSiblingIndex(i);
                 teamEntityDisplays[i].UpdateText();
             }
+            EnsureVisibleStack(teamLeaderboardEntityHolder, teamEntityDisplays);
+        }
+    }
+
+    private void EnsureVisibleStack(Transform holder, List<LeaderBoardEntityDisplay> displays)
+    {
+        if (holder == null || displays == null || displays.Count == 0) { return; }
+
+        // If a layout group exists, Unity handles positioning.
+        if (holder.GetComponent<LayoutGroup>() != null) { return; }
+
+        for (int i = 0; i < displays.Count; i++)
+        {
+            if (displays[i] == null) { continue; }
+            RectTransform rt = displays[i].transform as RectTransform;
+            if (rt == null) { continue; }
+
+            float rowHeight = rt.rect.height > 0f ? rt.rect.height : 36f;
+            rt.anchoredPosition = new Vector2(0f, -i * rowHeight);
         }
     }
 
