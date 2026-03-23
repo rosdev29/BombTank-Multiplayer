@@ -5904,6 +5904,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1c6bcc070f993e2468caec40ad46d1e9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  player: {fileID: 6223019598537030959}
   inputReader: {fileID: 11400000, guid: 932516b399235f6469e2cb824bd5aad3, type: 2}
   wallet: {fileID: -8512091747004092066}
   DiemSpawnDan: {fileID: 5523347170077017719}

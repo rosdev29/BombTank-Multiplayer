@@ -8,6 +8,7 @@ using UnityEngine.EventSystems;
 public class BoPhongDan : NetworkBehaviour
 {
     [Header("References")]
+    [SerializeField] private TankPlayer player;
     [SerializeField] private InputReader inputReader;
     [SerializeField] private CoinWallet wallet;
     [SerializeField] private Transform DiemSpawnDan;
@@ -26,6 +27,12 @@ public class BoPhongDan : NetworkBehaviour
     private bool duocTanCong;
     private float timer;
     private float henGioLoeNong;
+
+    private int TeamIndexHienTai()
+    {
+        TankPlayer ownerPlayer = player != null ? player : GetComponent<TankPlayer>();
+        return ownerPlayer != null ? ownerPlayer.TeamIndex.Value : -1;
+    }
 
 
     public override void OnNetworkSpawn()
@@ -66,10 +73,11 @@ public class BoPhongDan : NetworkBehaviour
 
         if(wallet.TotalCoins.Value < ChiPhiBan) { return; }
         
+        int teamIndex = TeamIndexHienTai();
 
         xuLyBanChinhServerRpc(DiemSpawnDan.position, DiemSpawnDan.up);
 
-        spawnDanGia(DiemSpawnDan.position, DiemSpawnDan.up);
+        spawnDanGia(DiemSpawnDan.position, DiemSpawnDan.up, teamIndex);
 
         timer = 1 / tanSuatTanCong;
     }
@@ -104,26 +112,32 @@ public class BoPhongDan : NetworkBehaviour
 
         if (danInstance.TryGetComponent<SatThuongHoiMauVaCham>(out SatThuongHoiMauVaCham gaySatThuong))
         {
-            gaySatThuong.SetOwner(OwnerClientId);
+            int teamIndex = TeamIndexHienTai();
+            gaySatThuong.SetOwner(OwnerClientId, teamIndex);
         }    
+
+        if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
+        {
+            projectile.Initialise(TeamIndexHienTai());
+        }
 
         if (danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
         {
             rb.velocity = rb.transform.up * TocDoDan;
         }
 
-        spawnDanGiaClientRpc(viTriSpawn, huongDi);
+        spawnDanGiaClientRpc(viTriSpawn, huongDi, TeamIndexHienTai());
     }
 
     [ClientRpc]
 
-    private void spawnDanGiaClientRpc(Vector3 viTriSpawn, Vector3 huongDi)
+    private void spawnDanGiaClientRpc(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)
     {
-        if (!IsOwner) { return; }
-        spawnDanGia(viTriSpawn, huongDi);
+        if (IsOwner) { return; }
+        spawnDanGia(viTriSpawn, huongDi, teamIndex);
     }
 
-    private void spawnDanGia(Vector3 viTriSpawn, Vector3 huongDi)
+    private void spawnDanGia(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)
     {
         hieuUngLoeNong.SetActive(true);
         henGioLoeNong = thoiGianHieuUngBan;
@@ -136,6 +150,11 @@ public class BoPhongDan : NetworkBehaviour
         danInstance.transform.up = huongDi;
 
         Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
+
+        if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
+        {
+            projectile.Initialise(teamIndex);
+        }
 
         if(danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb ))
         {
