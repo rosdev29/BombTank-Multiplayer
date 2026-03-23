@@ -113,6 +113,14 @@ public class MatchplayBackfiller : IDisposable
         return MatchPlayerCount < maxPlayers;
     }
 
+    public Team GetTeamByUserId(string userId)
+    {
+        if (MatchProperties?.Teams == null) { return null; }
+
+        return MatchProperties.Teams.FirstOrDefault(
+            t => t.PlayerIds != null && t.PlayerIds.Contains(userId));
+    }
+
     private Player GetPlayerById(string userId)
     {
         return MatchProperties.Players.FirstOrDefault(
