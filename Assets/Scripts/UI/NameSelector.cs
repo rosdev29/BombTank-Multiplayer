@@ -16,12 +16,6 @@ public class NameSelector : MonoBehaviour
 
     private void Start()
     {
-        if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
-        {
-            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex + 1);
-            return;
-        }
-
         nameField.text = PlayerPrefs.GetString(PlayerNameKey, string.Empty);
         HandleNameChanged();
     }
