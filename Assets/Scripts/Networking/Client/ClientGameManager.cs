@@ -15,8 +15,12 @@ using UnityEngine.SceneManagement;
 
 public class ClientGameManager : IDisposable
 {
+    private const string PlayerNameKey = "PlayerName";
     private JoinAllocation allocation;
     private NetworkClient networkClient;
+    private MatchplayMatchmaker matchmaker;
+
+    public UserData UserData { get; private set; }
 
     private const string MenuSceneName = "Menu";
     public async Task<bool> InitAsync()
@@ -29,6 +33,12 @@ public class ClientGameManager : IDisposable
 
         if (authState == AuthState.Authenticated)
         {
+            matchmaker = new MatchplayMatchmaker();
+            UserData = new UserData
+            {
+                userName = PlayerPrefs.GetString(PlayerNameKey, "Missing Name"),
+                userAuthId = AuthenticationService.Instance.PlayerId
+            };
             return true;
         }
         return false;
@@ -56,13 +66,16 @@ public class ClientGameManager : IDisposable
         if (transport != null)
             transport.SetRelayServerData(relayServerData);
 
-        UserData userData = new UserData
+        if (UserData == null)
         {
-            userName = PlayerPrefs.GetString("PlayerName", "Missing Name"),
-            userAuthId = AuthenticationService.Instance.PlayerId
-        };
+            UserData = new UserData
+            {
+                userName = PlayerPrefs.GetString(PlayerNameKey, "Missing Name"),
+                userAuthId = AuthenticationService.Instance.PlayerId
+            };
+        }
 
-        string payload = JsonUtility.ToJson(userData);
+        string payload = JsonUtility.ToJson(UserData);
         byte[] payloadBytes = Encoding.UTF8.GetBytes(payload);
         NetworkManager.Singleton.NetworkConfig.ConnectionData = payloadBytes;
 
@@ -76,6 +89,7 @@ public class ClientGameManager : IDisposable
 
     public void Dispose()
     {
+        matchmaker?.Dispose();
         networkClient?.Dispose();
     }
 }
