@@ -78,3 +78,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   sathuong: 10
+  projectile: {fileID: 7959173603610427092}
+--- !u!114 &7959173603610427092 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: -2707929266953108036, guid: 5308ceb93ac643142b4e75f8a29d6754, type: 3}
+  m_PrefabInstance: {fileID: 3755767433063644008}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4171092764436538747}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb970fac5a314f4e9127b5e8944b8cf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
