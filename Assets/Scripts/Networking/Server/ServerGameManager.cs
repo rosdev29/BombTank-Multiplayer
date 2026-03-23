@@ -13,7 +13,6 @@ using Unity.Services.Relay;
 using Unity.Services.Relay.Models;
 using Unity.Services.Matchmaker.Models;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class ServerGameManager : IDisposable
 {
@@ -21,32 +20,28 @@ public class ServerGameManager : IDisposable
     private int serverPort;
     private int queryPort;
     private MatchplayBackfiller backfiller;
-    private MultiplayAllocationService multiplayAllocationService;
     private Dictionary<string, int> teamIdToTeamIndex = new Dictionary<string, int>();
 
-    private const string GameSceneName = "Game";
     public NetworkServer NetworkServer { get; private set; }
 
-    public ServerGameManager(string serverIP, int serverPort, int queryPort, NetworkManager manager)
+    public ServerGameManager(string serverIP, int serverPort,
+        int queryPort, NetworkManager manager, NetworkObject playerPrefab)
     {
         this.serverIP = serverIP;
         this.serverPort = serverPort;
         this.queryPort = queryPort;
-        NetworkServer = new NetworkServer(manager);
-        multiplayAllocationService = new MultiplayAllocationService();
+        NetworkServer = new NetworkServer(manager, playerPrefab);
     }
 
-    public async Task StartGameServerAsync()
+    public Task StartGameServerAsync()
     {
-        await multiplayAllocationService.BeginServerCheck();
-
         if (!NetworkServer.OpenConnection(serverIP, serverPort))
         {
             Debug.LogWarning("NetworkServer did not start as expected.");
-            return;
+            return Task.CompletedTask;
         }
 
-        NetworkManager.Singleton.SceneManager.LoadScene(GameSceneName, LoadSceneMode.Single);
+        return Task.CompletedTask;
     }
 
     private void UserJoined(UserData user)
@@ -70,7 +65,6 @@ public class ServerGameManager : IDisposable
             user.teamIndex = teamIndex;
         }
 
-        multiplayAllocationService.AddPlayer();
         if (!backfiller.NeedsPlayers() && backfiller.IsBackfilling)
         {
             _ = backfiller.StopBackfill();
@@ -79,7 +73,6 @@ public class ServerGameManager : IDisposable
 
     public void Dispose()
     {
-        multiplayAllocationService?.Dispose();
         NetworkServer?.Dispose();
     }
 }
