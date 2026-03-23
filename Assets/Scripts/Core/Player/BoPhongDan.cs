@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 public class BoPhongDan : NetworkBehaviour
 {
@@ -21,6 +22,7 @@ public class BoPhongDan : NetworkBehaviour
     [SerializeField] private float thoiGianHieuUngBan;
     [SerializeField] private int ChiPhiBan;
 
+    private bool isPointerOverUI;
     private bool duocTanCong;
     private float timer;
     private float henGioLoeNong;
@@ -50,6 +52,8 @@ public class BoPhongDan : NetworkBehaviour
         }
         if (!IsOwner) { return; }
 
+        isPointerOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+
         if (timer > 0 )
         {
             timer -= Time.deltaTime;
@@ -72,6 +76,11 @@ public class BoPhongDan : NetworkBehaviour
 
     private void xuLyTanCongChinh(bool duocTanCong)
     {
+        if (duocTanCong)
+        {
+            if (isPointerOverUI) { return; }
+        }
+
         this.duocTanCong = duocTanCong;
     }
 
