@@ -60,6 +60,7 @@ public class Leaderboard : NetworkBehaviour
 
     private void HandleLeaderboardEntitiesChanged(NetworkListEvent<LeaderboardEntityState> changeEvent)
     {
+        if (!gameObject.scene.isLoaded) { return; }
         if (isTearingDown) { return; }
 
         switch (changeEvent.Type)
