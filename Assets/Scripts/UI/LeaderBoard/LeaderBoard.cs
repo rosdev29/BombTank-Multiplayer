@@ -12,10 +12,10 @@ public class Leaderboard : NetworkBehaviour
     [SerializeField] private Transform teamLeaderboardEntityHolder;
     [SerializeField] private GameObject teamLeaderboardBackground;
     [SerializeField] private LeaderBoardEntityDisplay leaderboardEntityPrefab;
-    [SerializeField] private int entitiesToDisplay = 8;
     [SerializeField] private Color ownerColour;
     [SerializeField] private string[] teamNames;
     [SerializeField] private TeamColourLookup teamColourLookup;
+    [SerializeField] private float leaderboardRowSpacing = 28f;
 
     private NetworkList<LeaderboardEntityState> leaderboardEntities;
     private List<LeaderBoardEntityDisplay> entityDisplays = new List<LeaderBoardEntityDisplay>();
@@ -116,7 +116,8 @@ public class Leaderboard : NetworkBehaviour
                         changeEvent.Value.Coins);
                     if (NetworkManager.Singleton.LocalClientId == changeEvent.Value.ClientId)
                     {
-                        leaderboardEntity.SetColour(ownerColour);
+                        Color localColour = ownerColour.a > 0.01f ? ownerColour : Color.red;
+                        leaderboardEntity.SetColour(localColour);
                     }
                     entityDisplays.Add(leaderboardEntity);
                 }
@@ -191,9 +192,10 @@ public class Leaderboard : NetworkBehaviour
             if (displays[i] == null) { continue; }
             RectTransform rt = displays[i].transform as RectTransform;
             if (rt == null) { continue; }
-
-            float rowHeight = rt.rect.height > 0f ? rt.rect.height : 36f;
-            rt.anchoredPosition = new Vector2(0f, -i * rowHeight);
+            rt.anchorMin = new Vector2(0f, 1f);
+            rt.anchorMax = new Vector2(0f, 1f);
+            rt.pivot = new Vector2(0f, 1f);
+            rt.anchoredPosition = new Vector2(0f, -i * leaderboardRowSpacing);
         }
     }
 
