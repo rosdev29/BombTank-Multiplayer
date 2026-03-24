@@ -16,11 +16,15 @@ public class Leaderboard : NetworkBehaviour
     [SerializeField] private string[] teamNames;
     [SerializeField] private TeamColourLookup teamColourLookup;
     [SerializeField] private float leaderboardRowSpacing = 28f;
+    [SerializeField] private float staleEntryCleanupInterval = 0.5f;
 
     private NetworkList<LeaderboardEntityState> leaderboardEntities;
     private List<LeaderBoardEntityDisplay> entityDisplays = new List<LeaderBoardEntityDisplay>();
     private List<LeaderBoardEntityDisplay> teamEntityDisplays = new List<LeaderBoardEntityDisplay>();
+    private readonly Dictionary<ulong, CoinChangedSubscription> coinChangedSubscriptions =
+        new Dictionary<ulong, CoinChangedSubscription>();
     private bool isTearingDown;
+    private float staleCleanupTimer;
 
     private void Awake()
     {
@@ -30,6 +34,7 @@ public class Leaderboard : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         isTearingDown = false;
+        staleCleanupTimer = 0f;
 
         if (IsClient)
         {
@@ -82,7 +87,24 @@ public class Leaderboard : NetworkBehaviour
 
             TankPlayer.OnPlayerSpawned += HandlePlayerSpawned;
             TankPlayer.OnPlayerDespawned += HandlePlayerDespawned;
+            if (NetworkManager != null)
+            {
+                NetworkManager.OnClientDisconnectCallback += HandleClientDisconnectedServer;
+            }
         }
+    }
+
+    private void Update()
+    {
+        if (!IsServer || isTearingDown) { return; }
+        if (!IsSpawned || NetworkManager == null || !NetworkManager.IsListening) { return; }
+        if (leaderboardEntities == null || leaderboardEntities.Count == 0) { return; }
+
+        staleCleanupTimer += Time.unscaledDeltaTime;
+        if (staleCleanupTimer < staleEntryCleanupInterval) { return; }
+
+        staleCleanupTimer = 0f;
+        RemoveStaleEntries();
     }
 
     public override void OnNetworkDespawn()
@@ -96,6 +118,10 @@ public class Leaderboard : NetworkBehaviour
 
         TankPlayer.OnPlayerSpawned -= HandlePlayerSpawned;
         TankPlayer.OnPlayerDespawned -= HandlePlayerDespawned;
+        if (IsServer && NetworkManager != null)
+        {
+            NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnectedServer;
+        }
     }
 
     private void HandleLeaderboardEntitiesChanged(NetworkListEvent<LeaderboardEntityState> changeEvent)
@@ -204,6 +230,13 @@ public class Leaderboard : NetworkBehaviour
         if (isTearingDown) { return; }
         if (!IsServer || !IsSpawned || leaderboardEntities == null || player == null) { return; }
         if (NetworkManager == null || NetworkManager.ShutdownInProgress) { return; }
+        for (int i = 0; i < leaderboardEntities.Count; i++)
+        {
+            if (leaderboardEntities[i].ClientId == player.OwnerClientId)
+            {
+                return;
+            }
+        }
 
         leaderboardEntities.Add(new LeaderboardEntityState
         {
@@ -213,48 +246,28 @@ public class Leaderboard : NetworkBehaviour
             Coins = 0
         });
 
-        player.Wallet.TotalCoins.OnValueChanged += (oldCoins, newCoins) =>
-            HandleCoinsChanged(player.OwnerClientId, newCoins);
+        if (player.Wallet != null && !coinChangedSubscriptions.ContainsKey(player.OwnerClientId))
+        {
+            NetworkVariable<int>.OnValueChangedDelegate handler =
+                (oldCoins, newCoins) => HandleCoinsChanged(player.OwnerClientId, newCoins);
+            coinChangedSubscriptions[player.OwnerClientId] = new CoinChangedSubscription
+            {
+                wallet = player.Wallet,
+                handler = handler
+            };
+            player.Wallet.TotalCoins.OnValueChanged += handler;
+        }
     }
 
     private void HandlePlayerDespawned(TankPlayer player)
     {
         if (isTearingDown) { return; }
         if (player == null) { return; }
-        if (NetworkManager.Singleton == null || NetworkManager.Singleton.ShutdownInProgress) { return; }
+        if (!IsServer || leaderboardEntities == null) { return; }
+        if (NetworkManager == null || NetworkManager.ShutdownInProgress) { return; }
 
-        // Chỉ thao tác khi server và Leaderboard vẫn còn spawn, Netcode chưa shutdown
-        if (!IsServer ||
-            NetworkManager == null ||
-            !IsSpawned ||
-            NetworkObject == null ||
-            !NetworkObject.IsSpawned ||
-            !NetworkManager.IsListening ||
-            NetworkManager.ShutdownInProgress ||
-            leaderboardEntities == null)
-        {
-            return;
-        }
-
-        for (int i = 0; i < leaderboardEntities.Count; i++)
-        {
-            LeaderboardEntityState entity = leaderboardEntities[i];
-            if (entity.ClientId != player.OwnerClientId) { continue; }
-
-            try
-            {
-                leaderboardEntities.RemoveAt(i);
-            }
-            catch (NullReferenceException)
-            {
-                // Netcode can tear down NetworkVariables before this despawn callback runs during shutdown.
-                isTearingDown = true;
-            }
-            break;
-        }
-
-        player.Wallet.TotalCoins.OnValueChanged -= (oldCoins, newCoins) =>
-            HandleCoinsChanged(player.OwnerClientId, newCoins);
+        RemoveLeaderboardEntity(player.OwnerClientId);
+        UnsubscribeCoinHandler(player);
     }
 
     private void HandleCoinsChanged(ulong clientId, int newCoins)
@@ -275,5 +288,93 @@ public class Leaderboard : NetworkBehaviour
 
             return;
         }
+    }
+
+    private void HandleClientDisconnectedServer(ulong clientId)
+    {
+        if (isTearingDown) { return; }
+        RemoveLeaderboardEntity(clientId);
+        UnsubscribeCoinHandlerByClientId(clientId);
+    }
+
+    private void RemoveLeaderboardEntity(ulong clientId)
+    {
+        if (leaderboardEntities == null) { return; }
+
+        for (int i = leaderboardEntities.Count - 1; i >= 0; i--)
+        {
+            LeaderboardEntityState entity = leaderboardEntities[i];
+            if (entity.ClientId != clientId) { continue; }
+
+            try
+            {
+                leaderboardEntities.RemoveAt(i);
+            }
+            catch (NullReferenceException)
+            {
+                // Netcode can tear down NetworkVariables before this callback runs during shutdown.
+                isTearingDown = true;
+            }
+        }
+    }
+
+    private void UnsubscribeCoinHandler(TankPlayer player)
+    {
+        if (player == null) { return; }
+        UnsubscribeCoinHandlerByClientId(player.OwnerClientId);
+    }
+
+    private void UnsubscribeCoinHandlerByClientId(ulong clientId)
+    {
+        CoinChangedSubscription subscription;
+        if (!coinChangedSubscriptions.TryGetValue(clientId, out subscription))
+        {
+            return;
+        }
+
+        if (subscription.wallet != null)
+        {
+            subscription.wallet.TotalCoins.OnValueChanged -= subscription.handler;
+        }
+
+        coinChangedSubscriptions.Remove(clientId);
+    }
+
+    private void RemoveStaleEntries()
+    {
+        HashSet<ulong> activePlayerIds = new HashSet<ulong>();
+        TankPlayer[] activePlayers = FindObjectsByType<TankPlayer>(FindObjectsSortMode.None);
+        for (int i = 0; i < activePlayers.Length; i++)
+        {
+            TankPlayer activePlayer = activePlayers[i];
+            if (activePlayer == null || !activePlayer.IsSpawned) { continue; }
+            activePlayerIds.Add(activePlayer.OwnerClientId);
+        }
+
+        for (int i = leaderboardEntities.Count - 1; i >= 0; i--)
+        {
+            ulong clientId = leaderboardEntities[i].ClientId;
+            bool isConnected = IsClientStillConnected(clientId);
+            bool hasActivePlayer = activePlayerIds.Contains(clientId);
+            if (isConnected && hasActivePlayer) { continue; }
+
+            RemoveLeaderboardEntity(clientId);
+            UnsubscribeCoinHandlerByClientId(clientId);
+        }
+    }
+
+    private bool IsClientStillConnected(ulong clientId)
+    {
+        if (NetworkManager == null) { return false; }
+        if (clientId == NetworkManager.ServerClientId) { return true; }
+        if (NetworkManager.ConnectedClients == null) { return false; }
+
+        return NetworkManager.ConnectedClients.ContainsKey(clientId);
+    }
+
+    private sealed class CoinChangedSubscription
+    {
+        public CoinWallet wallet;
+        public NetworkVariable<int>.OnValueChangedDelegate handler;
     }
 }

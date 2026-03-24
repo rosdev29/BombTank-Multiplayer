@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Linq;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
@@ -17,6 +18,7 @@ public class NetworkServer : IDisposable
 
     private Dictionary<ulong, string> clientIdToAuth = new Dictionary<ulong, string>();
     private Dictionary<string, UserData> authIdToUserData = new Dictionary<string, UserData>();
+    private Dictionary<ulong, int> clientSpawnPointIndices = new Dictionary<ulong, int>();
 
     public NetworkServer(NetworkManager networkManager, NetworkObject playerPrefab = null)
     {
@@ -39,8 +41,7 @@ public class NetworkServer : IDisposable
         NetworkManager.ConnectionApprovalRequest request,
         NetworkManager.ConnectionApprovalResponse response)
     {
-        string payload = System.Text.Encoding.UTF8.GetString(request.Payload);
-        UserData userData = JsonUtility.FromJson<UserData>(payload);
+        UserData userData = GetUserDataFromPayload(request.Payload, request.ClientNetworkId);
 
         Debug.Log(userData.userName);
 
@@ -53,18 +54,20 @@ public class NetworkServer : IDisposable
             playerPrefab = networkManager.NetworkConfig.PlayerPrefab.GetComponent<NetworkObject>();
         }
 
+        Vector3 spawnPosition = GetSpawnPositionForClient(request.ClientNetworkId);
+
         if (playerPrefab != null)
         {
-            _ = SpawnPlayerDelayed(request.ClientNetworkId);
+            _ = SpawnPlayerDelayed(request.ClientNetworkId, spawnPosition);
         }
 
         response.Approved = true;
-        response.Position = SpawnPoint.GetRandomSpawnPos();
+        response.Position = spawnPosition;
         response.Rotation = Quaternion.identity;
         response.CreatePlayerObject = playerPrefab == null;
     }
 
-    private async Task SpawnPlayerDelayed(ulong clientId)
+    private async Task SpawnPlayerDelayed(ulong clientId, Vector3 spawnPosition)
     {
         await Task.Delay(1000);
 
@@ -74,7 +77,7 @@ public class NetworkServer : IDisposable
         }
 
         NetworkObject playerInstance =
-            GameObject.Instantiate(playerPrefab, SpawnPoint.GetRandomSpawnPos(), Quaternion.identity);
+            GameObject.Instantiate(playerPrefab, spawnPosition, Quaternion.identity);
 
         playerInstance.SpawnAsPlayerObject(clientId);
     }
@@ -96,6 +99,8 @@ public class NetworkServer : IDisposable
             clientIdToAuth.Remove(clientId);
             authIdToUserData.Remove(authId);
         }
+
+        clientSpawnPointIndices.Remove(clientId);
     }
 
     public UserData GetUserDataByClientId(ulong clientId)
@@ -128,5 +133,79 @@ public class NetworkServer : IDisposable
         {
             networkManager.Shutdown();
         }
+    }
+
+    private static UserData GetUserDataFromPayload(byte[] payloadBytes, ulong clientId)
+    {
+        if (payloadBytes == null || payloadBytes.Length == 0)
+        {
+            return CreateFallbackUserData(clientId);
+        }
+
+        string payload = System.Text.Encoding.UTF8.GetString(payloadBytes);
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return CreateFallbackUserData(clientId);
+        }
+
+        UserData userData = JsonUtility.FromJson<UserData>(payload);
+        if (userData == null)
+        {
+            return CreateFallbackUserData(clientId);
+        }
+
+        if (string.IsNullOrWhiteSpace(userData.userName))
+        {
+            userData.userName = $"Player {clientId}";
+        }
+
+        if (string.IsNullOrWhiteSpace(userData.userAuthId))
+        {
+            userData.userAuthId = $"lan-{clientId}";
+        }
+
+        if (userData.userGamePreferences == null)
+        {
+            userData.userGamePreferences = new GameInfo();
+        }
+
+        return userData;
+    }
+
+    private static UserData CreateFallbackUserData(ulong clientId)
+    {
+        return new UserData
+        {
+            userName = $"Player {clientId}",
+            userAuthId = $"lan-{clientId}",
+            teamIndex = -1,
+            userGamePreferences = new GameInfo()
+        };
+    }
+
+    private Vector3 GetSpawnPositionForClient(ulong clientId)
+    {
+        SpawnPoint[] spawnPoints = UnityEngine.Object.FindObjectsByType<SpawnPoint>(FindObjectsSortMode.None);
+        if (spawnPoints == null || spawnPoints.Length == 0)
+        {
+            clientSpawnPointIndices[clientId] = -1;
+            return SpawnPoint.GetRandomSpawnPos();
+        }
+
+        HashSet<int> usedIndices = clientSpawnPointIndices.Values.Where(index => index >= 0).ToHashSet();
+        int startIndex = UnityEngine.Random.Range(0, spawnPoints.Length);
+
+        for (int i = 0; i < spawnPoints.Length; i++)
+        {
+            int candidate = (startIndex + i) % spawnPoints.Length;
+            if (usedIndices.Contains(candidate)) { continue; }
+
+            clientSpawnPointIndices[clientId] = candidate;
+            return spawnPoints[candidate].transform.position;
+        }
+
+        int fallbackIndex = UnityEngine.Random.Range(0, spawnPoints.Length);
+        clientSpawnPointIndices[clientId] = fallbackIndex;
+        return spawnPoints[fallbackIndex].transform.position;
     }
 }
