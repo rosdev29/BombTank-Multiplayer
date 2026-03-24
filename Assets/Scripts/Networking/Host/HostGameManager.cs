@@ -31,6 +31,15 @@ public class HostGameManager : IDisposable
     public RelayServerData RelayServerData => relayServerData;
     public bool HasRelayServerData => hasRelayServerData;
 
+    public void PrepareLanHost()
+    {
+        NetworkManager networkManager = NetworkManager.Singleton;
+        if (networkManager == null) { return; }
+
+        NetworkServer?.Dispose();
+        NetworkServer = new NetworkServer(networkManager);
+    }
+
     public async Task StartHostAsync()
     {
         NetworkManager networkManager = NetworkManager.Singleton;
