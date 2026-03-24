@@ -21,6 +21,13 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
         ClientId = clientId;
         this.displayName = displayName;
 
+        if (NetworkManager.Singleton != null &&
+            clientId == NetworkManager.Singleton.LocalClientId)
+        {
+            // Keep local player visible even if LeaderBoard owner colour is not configured.
+            displayText.color = myColour;
+        }
+
         UpdateCoins(coins);
     }
 

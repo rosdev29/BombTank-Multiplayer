@@ -2694,7 +2694,6 @@ MonoBehaviour:
   teamLeaderboardEntityHolder: {fileID: 1782223516}
   teamLeaderboardBackground: {fileID: 1742391316}
   leaderboardEntityPrefab: {fileID: 5784224344138808509, guid: 62cce6b27d2ded941b43e83e2c136a0a, type: 3}
-  entitiesToDisplay: 8
   ownerColour: {r: 0.9716981, g: 0.27959237, b: 0.27959237, a: 0}
   teamNames:
   - Red Team
@@ -2702,6 +2701,7 @@ MonoBehaviour:
   - Purple Team
   - Yellow Team
   teamColourLookup: {fileID: 11400000, guid: b28e82ee139ff344ead2511668a37e15, type: 2}
+  leaderboardRowSpacing: 28
 --- !u!114 &1243014685
 MonoBehaviour:
   m_ObjectHideFlags: 0

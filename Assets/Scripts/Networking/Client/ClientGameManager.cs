@@ -18,7 +18,6 @@ public class ClientGameManager : IDisposable
     private const string PlayerNameKey = "PlayerName";
     private JoinAllocation allocation;
     private NetworkClient networkClient;
-    private MatchplayMatchmaker matchmaker;
 
     public UserData UserData { get; private set; }
 
@@ -33,7 +32,6 @@ public class ClientGameManager : IDisposable
 
         if (authState == AuthState.Authenticated)
         {
-            matchmaker = new MatchplayMatchmaker();
             UserData = new UserData
             {
                 userName = PlayerPrefs.GetString(PlayerNameKey, "Missing Name"),
@@ -89,7 +87,6 @@ public class ClientGameManager : IDisposable
 
     public void Dispose()
     {
-        matchmaker?.Dispose();
         networkClient?.Dispose();
     }
 }

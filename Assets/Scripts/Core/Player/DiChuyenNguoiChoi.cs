@@ -18,9 +18,8 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
 
     private ParticleSystem.EmissionModule emissionModule;
     private Vector2 inputDiChuyenTruoc;
-    private Vector3 viTriTruoc;
-
-    private const float NguongDungHat = 0.005f;
+    private readonly NetworkVariable<bool> dangDiChuyen =
+        new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
     private void Awake()
     {
@@ -50,22 +49,15 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
 
         float gocXoayZ = inputDiChuyenTruoc.x * -tocDoXoay * Time.deltaTime;
         bodyTransform.Rotate(0f, 0f, gocXoayZ);
+        dangDiChuyen.Value = Mathf.Abs(inputDiChuyenTruoc.y) > 0.01f;
     }
 
     private void FixedUpdate()
     {
         if (dustTrail != null)
         {
-            if ((transform.position - viTriTruoc).sqrMagnitude > NguongDungHat)
-            {
-                emissionModule.rateOverTime = tocDoEmission;
-            }
-            else
-            {
-                emissionModule.rateOverTime = 0f;
-            }
+            emissionModule.rateOverTime = dangDiChuyen.Value ? tocDoEmission : 0f;
         }
-        viTriTruoc = transform.position;
 
         if (!IsOwner) { return; }
 
