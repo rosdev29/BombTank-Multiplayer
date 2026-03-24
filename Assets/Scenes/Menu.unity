@@ -302,6 +302,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ipField: {fileID: 675393552}
+  clientButton: {fileID: 0}
+  statusText: {fileID: 0}
   port: 7777
   gameSceneName: Game
 --- !u!1 &491783526
