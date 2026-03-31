@@ -10,31 +10,32 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
     [SerializeField] private TMP_Text displayText;
     [SerializeField] private Color myColour;
 
-    private FixedString32Bytes displayName;
+    private string displayName;
 
     public ulong ClientId { get; private set; }
-    public int TeamIndex { get; private set; }
+    public int TeamIndex { get; private set; } = -1;
     public int Coins { get; private set; }
 
-    public void Initialise(ulong clientId, FixedString32Bytes displayName, int coins)
+    public void Initialise(ulong clientId, FixedString32Bytes playerName, int coins)
     {
         ClientId = clientId;
-        this.displayName = displayName;
+        TeamIndex = -1;
+        displayName = playerName.ToString();
 
         if (NetworkManager.Singleton != null &&
             clientId == NetworkManager.Singleton.LocalClientId)
         {
-            // Keep local player visible even if LeaderBoard owner colour is not configured.
             displayText.color = myColour;
         }
 
         UpdateCoins(coins);
     }
 
-    public void Initialise(int teamIndex, FixedString32Bytes displayName, int coins)
+    public void Initialise(int teamIndex, string teamName, int coins)
     {
+        ClientId = 0;
         TeamIndex = teamIndex;
-        this.displayName = displayName;
+        displayName = teamName;
         UpdateCoins(coins);
     }
 
@@ -44,13 +45,16 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
         UpdateText();
     }
 
-    public void UpdateText()
-    {
-        displayText.text = $"{transform.GetSiblingIndex() + 1}. {displayName} ({Coins})";
-    }
-
     public void SetColour(Color colour)
     {
+        if (displayText == null) { return; }
         displayText.color = colour;
+    }
+
+    public void UpdateText()
+    {
+        if (displayText == null) { return; }
+        string nameToShow = string.IsNullOrWhiteSpace(displayName) ? "Unknown" : displayName;
+        displayText.text = $"{transform.GetSiblingIndex() + 1}. {nameToShow} ({Coins})";
     }
 }
