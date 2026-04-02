@@ -57,14 +57,25 @@ public class CoinWallet : NetworkBehaviour
     private void HandleDie(Mau health)
     {
         int bountyValue = (int)(TotalCoins.Value * (bountyPercentage / 100f));
-        int bountyCoinValue = bountyValue / bountyCoinCount;
+        if (bountyValue <= 0) { return; }
 
-        if (bountyCoinValue < minBountyCoinValue) { return; }
+        int spawnCount = Mathf.Max(1, bountyCoinCount);
+        spawnCount = Mathf.Min(spawnCount, bountyValue);
 
-        for (int i = 0; i < bountyCoinCount; i++)
+        if (minBountyCoinValue > 1)
+        {
+            int maxByMin = Mathf.Max(1, bountyValue / minBountyCoinValue);
+            spawnCount = Mathf.Min(spawnCount, maxByMin);
+        }
+
+        int baseCoinValue = bountyValue / spawnCount;
+        int remainder = bountyValue % spawnCount;
+
+        for (int i = 0; i < spawnCount; i++)
         {
             BountyCoin coinInstance = Instantiate(coinPrefab, GetSpawnPoint(), Quaternion.identity);
-            coinInstance.SetValue(bountyCoinValue);
+            int coinValue = baseCoinValue + (i < remainder ? 1 : 0);
+            coinInstance.SetValue(coinValue);
             coinInstance.NetworkObject.Spawn();
         }
     }
