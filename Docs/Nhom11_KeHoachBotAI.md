@@ -257,6 +257,7 @@ Bot brain đọc số từ config (không hard-code). **Không cần UI chọn c
 **Cần làm:**
 
 1. **Hướng dẫn chơi (Tutorial)**: 1 bảng chữ ngắn vào từ menu hoặc nút "?", nói rõ:
+  - **Game chỉ chơi qua mạng LAN** — mọi người phải **chung 1 wifi** (cùng router) mới kết nối được. Không chạy qua mạng internet thông thường / Discord / Hamachi (trừ khi tự setup).
   - Phím di chuyển (WASD), ngắm bằng chuột, bắn bằng chuột trái
   - **Bắn tốn coin** (vài coin/viên đạn)
   - Máu giảm khi trúng đạn, hết máu là chết, hồi sinh sau vài giây
