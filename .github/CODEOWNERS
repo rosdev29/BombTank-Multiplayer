@@ -1,0 +1,5 @@
+# Chu so huu repo - approve moi PR truoc khi merge vao master.
+# Cu phap: <pattern> <user1> <user2> ...
+# Tham khao: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+
+* @rosdev29
