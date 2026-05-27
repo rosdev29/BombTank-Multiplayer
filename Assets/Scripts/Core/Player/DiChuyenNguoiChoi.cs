@@ -52,21 +52,21 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
             dustTrail.Play();
         }
 
-        if (!IsOwner) { return; }
+        if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
 
         docInput.MoveEvent += XuLyDiChuyen;
     }
 
     public override void OnNetworkDespawn()
     {
-        if (!IsOwner) { return; }
+        if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
 
         docInput.MoveEvent -= XuLyDiChuyen;
     }
 
     private void Update()
     {
-        if (!IsOwner) { return; }
+        if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
 
         float gocXoayZ = inputDiChuyenTruoc.x * -tocDoXoay * Time.deltaTime;
         bodyTransform.Rotate(0f, 0f, gocXoayZ);
@@ -78,7 +78,7 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
         bool nenPhat = CaphatBuiTheoTrangThai();
         CapNhatVetBanh(nenPhat);
 
-        if (!IsOwner) { return; }
+        if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
 
         rb.velocity = (Vector2)bodyTransform.up * inputDiChuyenTruoc.y * tocDoDiChuyen;
     }
