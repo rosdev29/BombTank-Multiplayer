@@ -20,6 +20,12 @@ public class TankPlayer : NetworkBehaviour
 
     public NetworkVariable<FixedString32Bytes> PlayerName = new NetworkVariable<FixedString32Bytes>();
     public NetworkVariable<int> TeamIndex = new NetworkVariable<int>();
+    public NetworkVariable<bool> IsBot = new NetworkVariable<bool>(false);
+
+    public bool IsCurrentlyBot()
+    {
+        return IsBot.Value || GetComponent<BotTag>() != null;
+    }
 
     public static event Action<TankPlayer> OnPlayerSpawned;
     public static event Action<TankPlayer> OnPlayerDespawned;
@@ -43,38 +49,41 @@ public class TankPlayer : NetworkBehaviour
 
         if (IsServer)
         {
-            UserData userData = null;
-            if (HostSingleton.Instance != null &&
-                HostSingleton.Instance.GameManager != null &&
-                HostSingleton.Instance.GameManager.NetworkServer != null)
+            if (!IsCurrentlyBot())
             {
-                userData =
-                    HostSingleton.Instance.GameManager.NetworkServer.GetUserDataByClientId(OwnerClientId);
-            }
-
-            if (userData != null)
-            {
-                PlayerName.Value = userData.userName;
-                TeamIndex.Value = userData.teamIndex;
-            }
-            else
-            {
-                // Fallback so leaderboard never receives an empty player name.
-                string fallbackName = OwnerClientId == NetworkManager.ServerClientId
-                    ? PlayerPrefs.GetString("PlayerName", $"Player {OwnerClientId}")
-                    : $"Player {OwnerClientId}";
-                PlayerName.Value = fallbackName;
-
-                if (TeamIndex.Value == 0 && OwnerClientId != NetworkManager.ServerClientId)
+                UserData userData = null;
+                if (HostSingleton.Instance != null &&
+                    HostSingleton.Instance.GameManager != null &&
+                    HostSingleton.Instance.GameManager.NetworkServer != null)
                 {
-                    TeamIndex.Value = -1;
+                    userData =
+                        HostSingleton.Instance.GameManager.NetworkServer.GetUserDataByClientId(OwnerClientId);
+                }
+
+                if (userData != null)
+                {
+                    PlayerName.Value = userData.userName;
+                    TeamIndex.Value = userData.teamIndex;
+                }
+                else
+                {
+                    // Fallback so leaderboard never receives an empty player name.
+                    string fallbackName = OwnerClientId == NetworkManager.ServerClientId
+                        ? PlayerPrefs.GetString("PlayerName", $"Player {OwnerClientId}")
+                        : $"Player {OwnerClientId}";
+                    PlayerName.Value = fallbackName;
+
+                    if (TeamIndex.Value == 0 && OwnerClientId != NetworkManager.ServerClientId)
+                    {
+                        TeamIndex.Value = -1;
+                    }
                 }
             }
 
             OnPlayerSpawned?.Invoke(this);
         }
 
-        if (IsOwner)
+        if (IsOwner && !IsCurrentlyBot())
         {
             virtualCamera.Priority = ownerPriority;
 

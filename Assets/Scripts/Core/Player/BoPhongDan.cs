@@ -37,13 +37,13 @@ public class BoPhongDan : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        if (!IsOwner) { return; }
+        if (!IsOwner || (player != null && player.IsBot.Value)) { return; }
         inputReader.PrimaryFireEvent += xuLyTanCongChinh;
     }
 
     public override void OnNetworkDespawn()
     {
-        if (!IsOwner) { return; }
+        if (!IsOwner || (player != null && player.IsBot.Value)) { return; }
         inputReader.PrimaryFireEvent -= xuLyTanCongChinh;
     }
 
@@ -57,7 +57,7 @@ public class BoPhongDan : NetworkBehaviour
                 hieuUngLoeNong.SetActive(false);
             }
         }
-        if (!IsOwner) { return; }
+        if (!IsOwner || (player != null && player.IsBot.Value)) { return; }
 
         isPointerOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
