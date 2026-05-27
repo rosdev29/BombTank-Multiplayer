@@ -36,13 +36,11 @@ public class PlayerColourDisplay : MonoBehaviour
 
         if (player != null && player.IsCurrentlyBot())
         {
-            // Bot chọn màu ngẫu nhiên nhưng tránh màu đầu tiên (màu của người chơi)
             int fallbackIndex = 1 + (int)(player.NetworkObjectId % (ulong)(fallbackColours.Length - 1));
             teamColour = fallbackColours.Length > 1 ? fallbackColours[fallbackIndex] : Color.red;
         }
         else
         {
-            // Người chơi thật luôn mặc định màu xanh dương (phần tử đầu tiên)
             teamColour = fallbackColours.Length > 0 ? fallbackColours[0] : new Color(0.20f, 0.65f, 1.00f, 1.00f);
         }
 
