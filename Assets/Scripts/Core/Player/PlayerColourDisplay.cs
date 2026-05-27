@@ -34,16 +34,14 @@ public class PlayerColourDisplay : MonoBehaviour
     {
         Color teamColour;
 
-        if (newTeamIndex >= 0 && teamColourLookup != null)
+        if (player != null && player.IsCurrentlyBot())
         {
-            teamColour = teamColourLookup.GetTeamColour(newTeamIndex);
+            int fallbackIndex = 1 + (int)(player.NetworkObjectId % (ulong)(fallbackColours.Length - 1));
+            teamColour = fallbackColours.Length > 1 ? fallbackColours[fallbackIndex] : Color.red;
         }
         else
         {
-            int fallbackIndex = fallbackColours.Length > 0
-                ? (int)(player.OwnerClientId % (ulong)fallbackColours.Length)
-                : 0;
-            teamColour = fallbackColours.Length > 0 ? fallbackColours[fallbackIndex] : Color.white;
+            teamColour = fallbackColours.Length > 0 ? fallbackColours[0] : new Color(0.20f, 0.65f, 1.00f, 1.00f);
         }
 
         foreach (SpriteRenderer sprite in playerSprites)
