@@ -10,7 +10,7 @@ public class NguoiChoiNgamBan : NetworkBehaviour
 
     private void LateUpdate()
     {
-        if (!IsOwner) {  return; }
+        if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
 
         Vector2 ViTriNgamTrenManHinh = inputReader.ViTriNgam;
         Vector2 ViTriNgamTrongTheGioi = Camera.main.ScreenToWorldPoint(ViTriNgamTrenManHinh);
