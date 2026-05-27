@@ -11,19 +11,45 @@ public class Mau : NetworkBehaviour
     public NetworkVariable<int> MauHienTai = new NetworkVariable<int>();
 
     private bool daChet;
+    private TankPlayer lastAttacker;
+    private float lastAttackerTime;
+    private const float KillCreditWindowSeconds = 8f;
 
     public Action<Mau> KhiChet;
 
     public override void OnNetworkSpawn()
     {
-        if (!IsServer) { return; }
+        base.OnNetworkSpawn();
+        daChet = false;
+        lastAttacker = null;
+        lastAttackerTime = 0f;
+
+        if (!IsServer || !IsSpawned) { return; }
 
         MauHienTai.Value = MauToiDa;
     }
 
     public void NhanSatThuong(int giaTriSatThuong)
     {
+        if (!IsServer) { return; }
         ThayDoiMau(-giaTriSatThuong);
+    }
+
+    public void GhiNhanSatThuongTu(TankPlayer attacker)
+    {
+        if (!IsServer || attacker == null) { return; }
+        lastAttacker = attacker;
+        lastAttackerTime = Time.time;
+    }
+
+    public bool TryLayKeGiet(out TankPlayer killer)
+    {
+        killer = null;
+        if (lastAttacker == null) { return false; }
+        if (Time.time - lastAttackerTime > KillCreditWindowSeconds) { return false; }
+
+        killer = lastAttacker;
+        return killer != null;
     }
 
     public void HoiMau(int giaTriHoi)
