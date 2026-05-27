@@ -5,7 +5,7 @@ using UnityEngine;
 
 public class BotSpawner : MonoBehaviour
 {
-    private const int TargetTotalTanks = 10;
+    private const int TargetTotalTanks = 8;
     
     private List<TankPlayer> activeBots = new List<TankPlayer>();
     private int realPlayerCount = 0;
@@ -25,6 +25,26 @@ public class BotSpawner : MonoBehaviour
         go.AddComponent<BotSpawner>();
     }
 
+    private NetworkManager cachedNetworkManager;
+
+    private void Update()
+    {
+        if (NetworkManager.Singleton != cachedNetworkManager)
+        {
+            if (cachedNetworkManager != null)
+            {
+                cachedNetworkManager.OnServerStarted -= HandleServerStarted;
+            }
+            
+            cachedNetworkManager = NetworkManager.Singleton;
+            
+            if (cachedNetworkManager != null)
+            {
+                cachedNetworkManager.OnServerStarted += HandleServerStarted;
+            }
+        }
+    }
+
     private void Start()
     {
         TankPlayer.OnPlayerSpawned += HandlePlayerSpawned;
@@ -35,6 +55,17 @@ public class BotSpawner : MonoBehaviour
     {
         TankPlayer.OnPlayerSpawned -= HandlePlayerSpawned;
         TankPlayer.OnPlayerDespawned -= HandlePlayerDespawned;
+
+        if (cachedNetworkManager != null)
+        {
+            cachedNetworkManager.OnServerStarted -= HandleServerStarted;
+        }
+    }
+
+    private void HandleServerStarted()
+    {
+        activeBots.Clear();
+        realPlayerCount = 0;
     }
 
     private void HandlePlayerSpawned(TankPlayer player)
@@ -68,14 +99,21 @@ public class BotSpawner : MonoBehaviour
 
     private void UpdateBots()
     {
+        if (!Application.isPlaying) return;
+        if (NetworkManager.Singleton == null) return;
         if (!NetworkManager.Singleton.IsServer) return;
+        if (!NetworkManager.Singleton.IsListening) return;
+        if (NetworkManager.Singleton.ShutdownInProgress) return;
+        if (NetworkManager.Singleton.ConnectedClients == null || NetworkManager.Singleton.ConnectedClients.Count == 0) return;
 
         int targetBotCount = Mathf.Max(0, TargetTotalTanks - realPlayerCount);
 
+        int safetyCounter = 0;
         // Need more bots
-        while (activeBots.Count < targetBotCount)
+        while (activeBots.Count < targetBotCount && safetyCounter < 20)
         {
             SpawnBot();
+            safetyCounter++;
         }
 
         // Need fewer bots
@@ -102,13 +140,15 @@ public class BotSpawner : MonoBehaviour
         
         botInstance.gameObject.AddComponent<BotTag>();
 
+        TankPlayer tankPlayer = botInstance.GetComponent<TankPlayer>();
+        
+        // Reassign NetworkVariables completely to bypass the LogWarning before Spawn
+        tankPlayer.IsBot = new NetworkVariable<bool>(true);
+        tankPlayer.PlayerName = new NetworkVariable<Unity.Collections.FixedString32Bytes>(new Unity.Collections.FixedString32Bytes(GetRandomBotName()));
+        tankPlayer.TeamIndex = new NetworkVariable<int>(-1);
+
         // Spawn as a server-owned object (not a player object)
         botInstance.Spawn(true);
-        
-        TankPlayer tankPlayer = botInstance.GetComponent<TankPlayer>();
-        tankPlayer.IsBot.Value = true;
-        tankPlayer.PlayerName.Value = GetRandomBotName();
-        tankPlayer.TeamIndex.Value = -1;
     }
 
     private string GetRandomBotName()
