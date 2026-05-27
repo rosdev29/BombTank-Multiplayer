@@ -140,16 +140,21 @@ public class BotSpawner : MonoBehaviour
         
         botInstance.gameObject.AddComponent<BotTag>();
 
+        if (botInstance.GetComponent<BotSense>() == null)
+            botInstance.gameObject.AddComponent<BotSense>();
+
+        if (botInstance.GetComponent<BotBrain>() == null)
+            botInstance.gameObject.AddComponent<BotBrain>();
+
         TankPlayer tankPlayer = botInstance.GetComponent<TankPlayer>();
         
-        // Reassign NetworkVariables completely to bypass the LogWarning before Spawn
         tankPlayer.IsBot = new NetworkVariable<bool>(true);
         tankPlayer.PlayerName = new NetworkVariable<Unity.Collections.FixedString32Bytes>(new Unity.Collections.FixedString32Bytes(GetRandomBotName()));
         tankPlayer.TeamIndex = new NetworkVariable<int>(-1);
 
-        // Spawn as a server-owned object (not a player object)
         botInstance.Spawn(true);
     }
+
 
     private string GetRandomBotName()
     {
