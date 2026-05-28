@@ -6,6 +6,8 @@ public class BountyCoin : Coin
 {
     public override int Collect()
     {
+        Debug.Log("COIN COLLECT FUNCTION RUNNING");
+
         if (!IsServer)
         {
             Show(false);
@@ -15,6 +17,10 @@ public class BountyCoin : Coin
         if (alreadyCollected) { return 0; }
 
         alreadyCollected = true;
+
+        Debug.Log("PLAY COIN SOUND");
+
+        AudioManager.Instance.PlaySFX(AudioManager.Instance.coinPickup);
 
         Destroy(gameObject);
 
