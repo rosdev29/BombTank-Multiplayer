@@ -79,6 +79,8 @@ public class BoPhongDan : NetworkBehaviour
 
         spawnDanGia(DiemSpawnDan.position, DiemSpawnDan.up, teamIndex);
 
+        AudioManager.Instance.PlaySFX(AudioManager.Instance.gunShot);
+
         timer = 1 / tanSuatTanCong;
     }
 
