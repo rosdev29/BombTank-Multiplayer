@@ -45,7 +45,15 @@ public class CoinWallet : NetworkBehaviour
 
     private void OnTriggerEnter2D(Collider2D col)
     {
-        if(!col.TryGetComponent<Coin>(out Coin coin)) { return; }
+        if (!col.TryGetComponent<Coin>(out Coin coin)) { return; }
+
+        
+        if (IsOwner)
+        {
+            Debug.Log("PLAY COIN SOUND");
+
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.coinPickup);
+        }
 
         int coinValue = coin.Collect();
 
