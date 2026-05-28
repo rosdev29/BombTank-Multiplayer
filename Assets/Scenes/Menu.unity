@@ -1719,7 +1719,7 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
-  m_PlayOnAwake: 0
+  m_PlayOnAwake: 1
   m_Volume: 1
   m_Pitch: 1
   Loop: 1
@@ -1819,7 +1819,7 @@ MonoBehaviour:
   musicSource: {fileID: 1997716338}
   sfxSource: {fileID: 1997716337}
   gunShot: {fileID: 8300000, guid: ffd9d07c36bd3ed43a3a1b7e2a8ec05b, type: 3}
-  coinPickup: {fileID: 0}
+  coinPickup: {fileID: 8300000, guid: 8562373be63ae3743a73a8bb139dfa99, type: 3}
 --- !u!4 &1997716340
 Transform:
   m_ObjectHideFlags: 0
