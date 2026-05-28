@@ -47,12 +47,12 @@ public class CoinWallet : NetworkBehaviour
     {
         if (!col.TryGetComponent<Coin>(out Coin coin)) { return; }
 
-        
+        // Phát âm thanh nhặt coin
         if (IsOwner)
         {
-            Debug.Log("PLAY COIN SOUND");
-
-            AudioManager.Instance.PlaySFX(AudioManager.Instance.coinPickup);
+            AudioManager.Instance?.PlaySFX(
+                AudioManager.Instance.coinPickup
+            );
         }
 
         int coinValue = coin.Collect();
