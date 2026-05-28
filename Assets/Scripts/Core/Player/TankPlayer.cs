@@ -59,7 +59,7 @@ public class TankPlayer : NetworkBehaviour
             }
             else
             {
-                // Fallback so leaderboard never receives an empty player name.
+                
                 string fallbackName = OwnerClientId == NetworkManager.ServerClientId
                     ? PlayerPrefs.GetString("PlayerName", $"Player {OwnerClientId}")
                     : $"Player {OwnerClientId}";
