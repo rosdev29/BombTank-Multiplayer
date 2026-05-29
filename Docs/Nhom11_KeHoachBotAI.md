@@ -5,7 +5,9 @@
 
 **Sơ đồ Gantt:**
 
-Sơ đồ Gantt nhóm 11
+![Sơ đồ Gantt nhóm 11](Nhom11_Gantt.png)
+
+*Máu / combat hai chiều trên Gantt: gộp trong **Hoàng: Điều khiển xe + đạn trừ máu** và **Duy: Kill feed**. Mốc **07/06**.*
 
 **Quy tắc Git:**
 
@@ -24,15 +26,19 @@ Sơ đồ Gantt nhóm 11
 ## 1. Thứ tự làm (ai cần ai)
 
 ```
-Hoàng (spawn bot + sửa điều khiển xe) ──┐
-                                         ├─► Bot chạy ngon ──► Duy test LAN (mỗi lần merge)
-An + Lộc (bot suy nghĩ — 4 trạng thái) ─┘                       An hỗ trợ khi có lỗi bot
+Hoàng (spawn + điều khiển + đạn 2 chiều: bot↔người trừ HP) ────┐
+                                                               ├─► Đánh nhau thật ──► Duy test LAN
+An + Lộc (bot brain — 4 trạng thái, Giao tranh bóp cò) ───────┘         Kill feed cần credit 2 chiều
 
 Thái (Settings + Bảng điểm + Màn kết thúc)  ─── làm song song, Bảng điểm chờ nhãn bot của Hoàng
 Phúc (Tutorial + Âm thanh + Hiệu ứng SFX)   ─── làm song song, cuối nối nhạc với Settings của Thái
 ```
 
-**Mấu chốt:** Hoàng spawn bot xong (31/05) là "cú mở khoá" cho An/Lộc/Thái cùng chạy. An+Lộc làm chung bot brain (An làm khung + Giao tranh, Lộc làm 3 trạng thái dễ). Thái và Phúc làm UI/âm thanh song song, không liên quan bot.
+**Mấu chốt:** Hoàng spawn bot xong (31/05) là "cú mở khoá" cho An/Lộc/Thái cùng chạy. Combat phải **hai chiều trên server**:
+- **Bot bắn → người/bot mất máu** (Hoàng 2b — đạn bot + `SetOwner`).
+- **Người thật bắn → bot mất máu và chết được** (đường đạn người trong `BoPhongDan` + `GhiNhanSatThuongTu` — Duy giữ pipeline, Hoàng đảm bảo bot không chặn va chạm/team sai).
+
+Chỉ bot đi/xoay nòng **chưa đủ**. An+Lộc làm bot brain; Thái/Phúc UI/âm thanh song song.
 
 ---
 
@@ -151,6 +157,21 @@ Bot brain đọc số từ config (không hard-code). **Không cần UI chọn c
   - File bắn đạn
 - Tắt camera của bot (camera chỉ dành cho người thật).
 
+**Phần 2b — Sát thương hai chiều trên server (07/06, gắn phần 2):**
+
+| Hướng | Ai làm | Việc |
+| ----- | ------ | ---- |
+| **Bot → người/bot** | **Hoàng** | API bắn server khi brain bóp cò; spawn `ServerDanPrefab`; `SetOwner(bot)` |
+| **Người → bot** | **Duy** (đã có) + **Hoàng** kiểm tra | Đạn người qua `BoPhongDan` server RPC; `SetOwner(TankPlayer)`; bot **không** bị loại friendly fire/team sai |
+
+**Test bắt buộc (cả 4 case):**
+1. Người bắn bot → máu bot giảm → bot chết được → kill feed *TênNgười → TênBot*.
+2. Bot bắn người → máu người giảm → kill feed khi chết.
+3. Bot bắn bot → máu giảm.
+4. Người bắn người (LAN 2 máy) → vẫn hoạt động như cũ.
+
+*Ghi chú:* Bot chết **không** hồi sinh (`RespawnHandler` bỏ qua `IsBot`) — có thể despawn hoặc để Hoàng/An quyết sau; quan trọng là **chết được** và feed/bounty nhận killer.
+
 **Bàn giao cho:**
 
 - An + Lộc: bot trên map để có chỗ cắm bot brain vào (sau phần 1).
@@ -161,6 +182,7 @@ Bot brain đọc số từ config (không hard-code). **Không cần UI chọn c
 
 - Phần 1: vào trận thấy 7 xe bot đứng yên trên map, mỗi xe 1 tên khác nhau, rủ thêm 1 người vào thì bot tự bớt còn 6.
 - Phần 2: bot tự đi, tự xoay nòng, tự bắn — không cần ai động vào chuột.
+- Phần 2b: **hai chiều** — người giết bot được; bot giết người/bot được; HP giảm trên server; kill feed có đủ case.
 
 ---
 
@@ -192,10 +214,10 @@ Bot brain đọc số từ config (không hard-code). **Không cần UI chọn c
 
 **2.2. Kill Feed** (05/06 → 07/06, ~2 ngày) — `feature/kill-feed`
 
-- Góc trên phải màn hình: mỗi lần có xe bắn chết xe → hiện 1 dòng *"Lộc → SteelWolf"* trong 4 giây rồi tự biến mất.
+- **Giữa màn hình, căn lề trái**: mỗi lần có xe bắn chết xe → hiện 1 dòng *"Lộc → SteelWolf"* trong 4 giây rồi tự biến mất (tránh đè leaderboard góc phải).
 - Tên **người thật màu vàng**, tên **bot màu trắng** (đồng bộ với bảng điểm của Thái).
-- Lắng nghe event `KhiChet` (có sẵn trong `mau.cs`) + nhãn bot của Hoàng.
-- *Phụ thuộc:* Hoàng phần 1.
+- Lắng nghe event `KhiChet` + `TryLayKeGiet` / `GhiNhanSatThuongTu` trong `mau.cs` + nhãn bot của Hoàng.
+- *Phụ thuộc:* Hoàng phần 1 (nhãn bot) + **combat hai chiều** (Hoàng 2b bot bắn + pipeline người bắn bot của Duy/Hoàng). Kill feed phải hiện cả *người → bot* và *bot → người*.
 
 **2.3. Match Timer** (07/06 → 09/06, ~2 ngày) — `feature/match-timer`
 
@@ -266,7 +288,7 @@ Bot brain đọc số từ config (không hard-code). **Không cần UI chọn c
   **Lấy ở đâu:** trang miễn phí bản quyền như freesound.org, pixabay.com/sound-effects, hoặc Unity Asset Store (free). **Không lấy nhạc bản quyền** (YouTube, Spotify…).
 3. **Hiệu ứng âm thanh chi tiết (SFX)** — làm game "đầy" hơn:
   - Tiếng động cơ xe chạy (loop khi xe di chuyển)
-  - Tiếng đạn **trúng** xe (khác tiếng bắn)
+  - Tiếng đạn **trúng** xe (khác tiếng bắn) — *sau khi Hoàng 2b / pipeline sát thương ổn*, hook khi `Mau.NhanSatThuong` hoặc event trúng đạn
   - Tiếng nổ khi xe chết
   - Tiếng click khi bấm nút UI
   - Nhạc **chiến thắng** và **thua** cho Màn kết thúc (Thái báo khi xong)
@@ -312,7 +334,7 @@ Nếu ai vắng dài (> 3 ngày): báo Zalo trước, leader chia lại việc c
 | ----- | ----------------------------------------------------------------------------------------- |
 | 31/05 | Có bot xuất hiện và đi được trên map                                                      |
 | 05/06 | Chết có delay + spectator camera + màn "Hồi sinh sau X giây"                              |
-| 07/06 | Bot bắn được khi gặp địch (Giao tranh), có Kill Feed ở góc trên phải                      |
+| 07/06 | **Người giết bot + bot giết người** đều trừ HP; Kill Feed giữa-trái màn hình              |
 | 09/06 | Match Timer đếm ngược ở góc trên giữa                                                     |
 | 10/06 | Bot có đủ 4 trạng thái — Tuần tra, Giao tranh, Rút lui, Nhặt coin                         |
 | 12/06 | Bảng điểm có ping của người thật                                                          |
@@ -326,7 +348,40 @@ Nếu ai vắng dài (> 3 ngày): báo Zalo trước, leader chia lại việc c
 ## 6. Cặp hỗ trợ nhau (khi kẹt)
 
 - **An + Lộc**: cặp chính bot brain — ngồi cạnh debug 4 trạng thái.
-- **An + Hoàng**: bot ra lệnh ↔ xe nghe lệnh.
+- **An + Hoàng**: bot ra lệnh ↔ xe nghe lệnh (di chuyển, ngắm, bóp cò).
 - **Lộc + Hoàng**: Lộc cần API điều khiển xe của Hoàng để 3 trạng thái "đi tới 1 điểm" chạy được.
 - **Thái + Phúc**: nối thanh trượt âm lượng + nhạc thắng/thua cho Màn kết thúc.
 - **Duy + ai cũng được**: khi test LAN gặp lỗi → ping người làm phần đó.
+- **An + Hoàng**: Giao tranh bóp cò ↔ Hoàng bắn server (phần 2b).
+- **Hoàng + Duy**: đạn bot `SetOwner` đúng → kill feed + bounty có killer.
+
+---
+
+## 7. Rà soát việc dễ sót (trước demo / trước merge)
+
+Duy tick khi test LAN; người phụ trách sửa nếu chưa có.
+
+
+| # | Việc | Ai chịu trách nhiệm | Ghi chú |
+|---|------|---------------------|---------|
+| 1 | Bot spawn đủ 8 xe, có `BotTag` / `IsBot` | Hoàng (1) | `IsBot` gán **sau** `Spawn`, không `new NetworkVariable` |
+| 2 | Bot đi + xoay nòng theo brain | Hoàng (2) | Tắt input người trên xe bot |
+| 3 | **Bot bắn → đạn server → trừ HP** | **Hoàng (2b)** | `BoPhongDan` hiện skip bot — cần API bắn server |
+| 4a | **Người bắn bot → bot mất máu, chết được** | Duy + Hoàng | `BoPhongDan` server + `SetOwner`; bot không immune; test giết bot |
+| 4b | **Bot bắn → đối phương mất máu** | Hoàng (2b) | API bắn server cho bot |
+| 5 | Kill feed đủ 4 hướng (người↔người, người→bot, bot→người, bot→bot) | Duy + Hoàng | Killer credit 8s trong `mau.cs` |
+| 6 | Chết bot **không** respawn như người | Duy | `RespawnHandler` bỏ qua `IsBot` |
+| 7 | Chết người: spectator + hồi sinh | Duy | |
+| 8 | Match timer sync + hết giờ | Duy | Nối màn kết thúc Thái sau 14/06 |
+| 9 | Bảng điểm 8 dòng, bot vs người | Thái | Cần nhãn Hoàng |
+| 10 | Bounty 👑 + 20% coin khi giết | Lộc | Cần killer credit (cùng pipeline 3–4) |
+| 11 | 3 cấp độ bot áp vào spawn | Lộc + Hoàng | Config + random lúc spawn |
+| 12 | `AudioManager.cs` + gán clip | Phúc | Không chỉ gọi class chưa tồn tại |
+| 13 | SFX trúng đạn / nổ khi chết | Phúc | Sau pipeline sát thương |
+| 14 | Settings slider → âm lượng | Thái + Phúc | |
+| 15 | Ping trên leaderboard | Duy | Sau bảng Thái 11/06 |
+| 16 | Tutorial ghi **LAN cùng WiFi** | Phúc | |
+| 17 | Không commit `.meta` folder trống | Cả nhóm | Music/UI/Docs rỗng |
+| 18 | Không sửa tay `Controls.cs` auto-gen | Cả nhóm | Regenerate từ `.inputactions` |
+
+**Demo tối thiểu 14/06:** 2 máy LAN + **bắn bot chết được** + bot bắn người trừ máu + kill feed + timer + bảng điểm + hết giờ kết thúc.

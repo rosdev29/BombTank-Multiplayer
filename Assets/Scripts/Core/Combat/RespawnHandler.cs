@@ -8,6 +8,7 @@ public class RespawnHandler : NetworkBehaviour
 {
     [SerializeField] private TankPlayer playerPrefab;
     [SerializeField] private float keptCoinPercentage;
+    [SerializeField] private float respawnDelaySeconds = 5f;
 
     // Track per-player death handler so we can unsubscribe cleanly.
     private readonly Dictionary<TankPlayer, Action<Mau>> dieHandlersByPlayer = new Dictionary<TankPlayer, Action<Mau>>();
@@ -70,24 +71,85 @@ public class RespawnHandler : NetworkBehaviour
     private void HandlePlayerDie(TankPlayer player)
     {
         if (player == null) { return; }
+        if (player.IsCurrentlyBot()) { return; }
+
+        ulong ownerClientId = player.OwnerClientId;
         int keptCoins = (int)(player.Wallet.TotalCoins.Value * (keptCoinPercentage / 100));
+
+        NotifyDeathClientRpc(
+            respawnDelaySeconds,
+            new ClientRpcParams
+            {
+                Send = new ClientRpcSendParams
+                {
+                    TargetClientIds = new[] { ownerClientId }
+                }
+            });
 
         HandlePlayerDespawned(player);
 
-        Destroy(player.gameObject);
+        // Wait one frame so KillFeedManager (and other KhiChet listeners) run before despawn unsubscribes them.
+        StartCoroutine(DespawnAndRespawnAfterDeath(player, ownerClientId, keptCoins));
+    }
 
-        StartCoroutine(RespawnPlayer(player.OwnerClientId, keptCoins));
+    private IEnumerator DespawnAndRespawnAfterDeath(TankPlayer player, ulong ownerClientId, int keptCoins)
+    {
+        yield return null;
+
+        if (player != null)
+        {
+            DespawnPlayerObject(player);
+        }
+
+        yield return new WaitForSeconds(respawnDelaySeconds);
+        yield return RespawnPlayer(ownerClientId, keptCoins);
+    }
+
+    private static void DespawnPlayerObject(TankPlayer player)
+    {
+        if (player == null) { return; }
+
+        NetworkObject netObj = player.NetworkObject;
+        if (netObj != null && netObj.IsSpawned)
+        {
+            netObj.Despawn(true);
+            return;
+        }
+
+        Destroy(player.gameObject);
     }
 
     private IEnumerator RespawnPlayer(ulong ownerClientId, int keptCoins)
     {
-        // Wait one frame to allow despawn to complete.
-        yield return null;
+        NetworkManager networkManager = NetworkManager.Singleton;
+        if (networkManager == null || !networkManager.IsListening || networkManager.ShutdownInProgress)
+        {
+            yield break;
+        }
+
+        if (!networkManager.ConnectedClients.ContainsKey(ownerClientId))
+        {
+            yield break;
+        }
+
+        // NGO may still track a player object for this client — remove it before respawning.
+        NetworkObject stalePlayer = networkManager.SpawnManager.GetPlayerNetworkObject(ownerClientId);
+        if (stalePlayer != null && stalePlayer.IsSpawned)
+        {
+            stalePlayer.Despawn(true);
+            yield return null;
+        }
 
         TankPlayer playerInstance = Instantiate(
             playerPrefab, SpawnPoint.GetRandomSpawnPos(), Quaternion.identity);
 
         playerInstance.NetworkObject.SpawnAsPlayerObject(ownerClientId);
         playerInstance.Wallet.TotalCoins.Value += keptCoins;
+    }
+
+    [ClientRpc]
+    private void NotifyDeathClientRpc(float delaySeconds, ClientRpcParams rpcParams = default)
+    {
+        DeathSpectatorClient.NotifyDeath(delaySeconds);
     }
 }
