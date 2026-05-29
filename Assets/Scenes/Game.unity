@@ -2395,6 +2395,8 @@ GameObject:
   - component: {fileID: 1174255036}
   - component: {fileID: 1174255034}
   - component: {fileID: 1174255035}
+  - component: {fileID: 1174255038}
+  - component: {fileID: 1174255037}
   m_Layer: 0
   m_Name: RespawnHandler
   m_TagString: Untagged
@@ -2437,6 +2439,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerPrefab: {fileID: 6223019598537030959, guid: 4291195d5f87cf94bb17b274c7c6e122, type: 3}
   keptCoinPercentage: 50
+  respawnDelaySeconds: 10
 --- !u!4 &1174255036
 Transform:
   m_ObjectHideFlags: 0
@@ -2452,6 +2455,31 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1174255037
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1174255033}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc3b3590cab9a4044b6bd716e8c3c5a3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  matchDurationSeconds: 60
+--- !u!114 &1174255038
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1174255033}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: decbfae9ce61a6646b20286acfb52c8a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1001 &1229335346
 PrefabInstance:
   m_ObjectHideFlags: 0
