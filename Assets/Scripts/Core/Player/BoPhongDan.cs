@@ -113,7 +113,8 @@ public class BoPhongDan : NetworkBehaviour
         if (danInstance.TryGetComponent<SatThuongHoiMauVaCham>(out SatThuongHoiMauVaCham gaySatThuong))
         {
             int teamIndex = TeamIndexHienTai();
-            gaySatThuong.SetOwner(OwnerClientId, teamIndex);
+            TankPlayer ownerTank = player != null ? player : GetComponent<TankPlayer>();
+            gaySatThuong.SetOwner(ownerTank, teamIndex);
         }    
 
         if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
