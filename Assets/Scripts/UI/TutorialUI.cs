@@ -6,13 +6,11 @@ public class TutorialUI : MonoBehaviour
 
     private void Start()
     {
+        // Kiểm tra tránh lỗi null
         if (tutorialPanel != null)
         {
+            // Ẩn tutorial khi mới vào game
             tutorialPanel.SetActive(false);
-        }
-        else
-        {
-            Debug.LogError($"[TutorialUI] Bạn chưa gán 'Tutorial Panel' vào script trên object: {gameObject.name}");
         }
     }
 
@@ -21,11 +19,6 @@ public class TutorialUI : MonoBehaviour
         if (tutorialPanel != null)
         {
             tutorialPanel.SetActive(true);
-            Debug.Log("[TutorialUI] Panel đã được mở!");
-        }
-        else
-        {
-            Debug.LogError("[TutorialUI] Không thể mở vì chưa gán Panel!");
         }
     }
 
