@@ -12,6 +12,9 @@ public class AudioManager : MonoBehaviour
     public AudioClip gunShot;
     public AudioClip coinPickup;
 
+    [Header("Music Clips")]
+    public AudioClip menuMusic;
+
     private void Awake()
     {
         if (Instance == null)
@@ -23,6 +26,11 @@ public class AudioManager : MonoBehaviour
         {
             Destroy(gameObject);
         }
+    }
+
+    private void Start()
+    {
+        PlayMusic(menuMusic);
     }
 
     public void PlaySFX(AudioClip clip)
@@ -38,5 +46,10 @@ public class AudioManager : MonoBehaviour
 
         musicSource.clip = musicClip;
         musicSource.Play();
+    }
+
+    public void StopMusic()
+    {
+        musicSource.Stop();
     }
 }
