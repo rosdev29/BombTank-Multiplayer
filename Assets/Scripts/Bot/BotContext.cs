@@ -13,10 +13,11 @@ public class BotContext
     public float              DistanceToEnemy { get; set; } = float.MaxValue;
     public List<TankPlayer>   DanhSachDichGan { get; }      = new List<TankPlayer>();
 
-    public Coin    NearestCoin    { get; set; }
-    public Vector2 CoinPosition   { get; set; }
-    public float   DistanceToCoin { get; set; } = float.MaxValue;
-    public int     SoCoinHienTai  { get; set; }
+    public Coin             NearestCoin     { get; set; }
+    public Vector2          CoinPosition    { get; set; }
+    public float            DistanceToCoin  { get; set; } = float.MaxValue;
+    public List<Coin>       DanhSachCoinGan { get; }      = new List<Coin>();
+    public int              SoCoinHienTai   { get; set; }
 
     public Vector2 BotPosition    => BodyTransform != null ? (Vector2)BodyTransform.position : Vector2.zero;
 
