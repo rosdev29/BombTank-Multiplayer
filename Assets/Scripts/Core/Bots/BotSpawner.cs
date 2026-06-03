@@ -157,20 +157,13 @@ public class BotSpawner : MonoBehaviour
 
         botInstance.Spawn(true);
 
-        // Set values after spawn — never replace NetworkVariable instances (breaks Mau and other behaviours).
+        // Đặt giá trị thông qua .Value SAU KHI Spawn
         if (tankPlayer != null)
         {
             tankPlayer.IsBot.Value = true;
-            tankPlayer.PlayerName.Value = new FixedString32Bytes(GetRandomBotName());
+            tankPlayer.PlayerName.Value = new Unity.Collections.FixedString32Bytes(GetRandomBotName());
             tankPlayer.TeamIndex.Value = -1;
         }
-        
-        tankPlayer.IsBot = new NetworkVariable<bool>(true);
-        tankPlayer.PlayerName = new NetworkVariable<Unity.Collections.FixedString32Bytes>(new Unity.Collections.FixedString32Bytes(GetRandomBotName()));
-        tankPlayer.TeamIndex = new NetworkVariable<int>(-1);
-
-        botInstance.Spawn(true);
-
     }
 
 
