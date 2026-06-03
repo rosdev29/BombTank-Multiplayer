@@ -17,6 +17,7 @@ public class TrangThaiGiaoTranh : IBotState
     private enum KieuDiChuyen { VongTrai, VongPhai, TienGan, LuiXa, DungBan }
     private KieuDiChuyen _kieuHienTai;
     private float         _timerDoiKieu;
+    private float         _gocVong;
     private Vector2       _viTriDichCu;
 
     public void OnEnter(BotContext ctx)
@@ -73,14 +74,13 @@ public class TrangThaiGiaoTranh : IBotState
             switch (_kieuHienTai)
             {
                 case KieuDiChuyen.VongTrai:
-                    // Chạy vòng cung sang trái quanh địch
-                    steer    = gocLechThanXe > -70f ? -1f : 1f;
+                    // Chạy cung sang trái với góc lệch ngẫu nhiên (không cố định → tránh vòng tròn)
+                    steer    = gocLechThanXe > -_gocVong ? -1f : 1f;
                     throttle = TOC_DO_TIEN_LUI;
                     break;
 
                 case KieuDiChuyen.VongPhai:
-                    // Chạy vòng cung sang phải quanh địch
-                    steer    = gocLechThanXe > 70f ? -1f : 1f;
+                    steer    = gocLechThanXe > _gocVong ? -1f : 1f;
                     throttle = TOC_DO_TIEN_LUI;
                     break;
 
@@ -121,13 +121,18 @@ public class TrangThaiGiaoTranh : IBotState
 
     private void ChonKieuMoi()
     {
-        // Trọng số: VongTrai 25%, VongPhai 25%, TienGan 20%, LuiXa 20%, DungBan 10%
+        // Trọng số: VongTrai 15%, VongPhai 15%, TienGan 25%, LuiXa 25%, DungBan 20%
+        // Giảm vong xuống 30% tổng → không còn đi vòng tròn lÍi lại
         float r = Random.value;
-        if      (r < 0.25f) _kieuHienTai = KieuDiChuyen.VongTrai;
-        else if (r < 0.50f) _kieuHienTai = KieuDiChuyen.VongPhai;
-        else if (r < 0.70f) _kieuHienTai = KieuDiChuyen.TienGan;
-        else if (r < 0.90f) _kieuHienTai = KieuDiChuyen.LuiXa;
+        if      (r < 0.15f) _kieuHienTai = KieuDiChuyen.VongTrai;
+        else if (r < 0.30f) _kieuHienTai = KieuDiChuyen.VongPhai;
+        else if (r < 0.55f) _kieuHienTai = KieuDiChuyen.TienGan;
+        else if (r < 0.80f) _kieuHienTai = KieuDiChuyen.LuiXa;
         else                _kieuHienTai = KieuDiChuyen.DungBan;
+
+        // Góc lệch ngẫu nhiên 45°-90° mỗi lần chọn kiểu mới
+        // Không cố định → quỹ đạo là cung có bán kính thay đổi chứ không phải hình tròn
+        _gocVong = Random.Range(45f, 90f);
 
         _timerDoiKieu = Random.Range(THOI_GIAN_DOI_CHIEU * 0.6f, THOI_GIAN_DOI_CHIEU * 1.4f);
     }
