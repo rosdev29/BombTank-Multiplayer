@@ -42,17 +42,10 @@ public class TrangThaiGiaoTranh : IBotState
 
         Vector2 huongToiDich  = (ctx.EnemyPosition - ctx.BotPosition).normalized;
         float   gocLechThanXe = Vector2.SignedAngle((Vector2)ctx.BodyTransform.up, huongToiDich);
-        float   steer         = gocLechThanXe > 0f ? -1f : 1f;
 
         float khoangLech = khoangCach - KHOANG_CACH_LY_TUONG;
         float throttle   = 0f;
-
-        if (khoangCach < KHOANG_CACH_QUA_GAN)
-            throttle = -TOC_DO_TIEN_LUI;
-        else if (khoangLech > KHOANG_CACH_DUNG_LAI)
-            throttle = TOC_DO_TIEN_LUI;
-        else if (khoangLech < -KHOANG_CACH_DUNG_LAI)
-            throttle = -TOC_DO_TIEN_LUI * 0.6f;
+        float steer      = 0f;
 
         _timerStrafe -= ctx.DeltaTime;
         if (_timerStrafe <= 0f)
@@ -61,12 +54,28 @@ public class TrangThaiGiaoTranh : IBotState
             _timerStrafe = Random.Range(THOI_GIAN_STRAFE * 0.7f, THOI_GIAN_STRAFE * 1.3f);
         }
 
-        bool  dangGiuKhoangCach = Mathf.Abs(khoangLech) <= KHOANG_CACH_DUNG_LAI * 2f;
-        float steerCuoi = dangGiuKhoangCach
-            ? Mathf.Lerp(steer, _huongStrafe * BIEN_STRAFE, 0.5f)
-            : steer;
+        if (khoangCach < KHOANG_CACH_QUA_GAN)
+        {
+            // Quá gần -> Lùi thẳng ra xa, chĩa thẳng thân xe vào địch
+            throttle = -TOC_DO_TIEN_LUI;
+            steer    = gocLechThanXe > 0f ? -1f : 1f;
+        }
+        else if (khoangLech > KHOANG_CACH_DUNG_LAI)
+        {
+            // Quá xa -> Tiến thẳng về phía địch
+            throttle = TOC_DO_TIEN_LUI;
+            steer    = gocLechThanXe > 0f ? -1f : 1f;
+        }
+        else
+        {
+            // Khoảng cách lý tưởng -> Chạy vòng cung quanh địch (Circling/Strafing)
+            // Hướng thân xe chệch 75 độ so với địch và tiến lên -> tạo quỹ đạo tròn
+            float gocMucTieu = _huongStrafe * 75f;
+            steer    = gocLechThanXe > gocMucTieu ? -1f : 1f;
+            throttle = TOC_DO_TIEN_LUI;
+        }
 
-        cmd.MoveInput = new Vector2(steerCuoi, throttle);
+        cmd.MoveInput = new Vector2(steer, throttle);
 
         Vector2 huongNgam   = (diemNgam - ctx.BotPosition).normalized;
         Transform nioNgam   = ctx.TurretTransform != null ? ctx.TurretTransform : ctx.BodyTransform;

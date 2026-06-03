@@ -36,7 +36,8 @@ public class BotBrain : NetworkBehaviour
     private IBotState currentState;
 
     private float _timerDanhGia;
-    private float _deltaTichLuy;   // thời gian thực trôi qua giữa 2 chu kỳ bot
+    private float _deltaTichLuy;
+    private BotCommand _currentCommand = new BotCommand();   // thời gian thực trôi qua giữa 2 chu kỳ bot
 
     private void Awake()
     {
@@ -84,32 +85,36 @@ public class BotBrain : NetworkBehaviour
 
         float dt = Time.deltaTime;
         _timerDanhGia -= dt;
-        _deltaTichLuy += dt;   // cộng dồn mỗi frame
+        _deltaTichLuy += dt;
 
-        if (_timerDanhGia > 0f) { return; }
+        // --- CHU KỲ ĐÁNH GIÁ AI (0.2s - 0.5s một lần) ---
+        if (_timerDanhGia <= 0f)
+        {
+            _timerDanhGia    = RandomChuKy();
+            ctx.DeltaTime    = _deltaTichLuy;  
+            _deltaTichLuy    = 0f;             
 
-        _timerDanhGia    = RandomChuKy();
-        ctx.DeltaTime    = _deltaTichLuy;  // đúng: thời gian thực giữa 2 tick
-        _deltaTichLuy    = 0f;             // reset sau khi dùng
+            sense.DocMoiTruong(ctx);
+            ChonTrangThai();
 
-        sense.DocMoiTruong(ctx);
-        ChonTrangThai();
+            _currentCommand = currentState.Update(ctx);
 
-        BotCommand cmd = currentState.Update(ctx);
+            ctx.OutputHuongDiChuyen = _currentCommand.MoveInput;
+            ctx.OutputDiemNgam      = _currentCommand.AimTarget ?? ctx.BotPosition;
+            ctx.OutputCoBopCo       = _currentCommand.Fire;
 
-        ctx.OutputHuongDiChuyen = cmd.MoveInput;
-        ctx.OutputDiemNgam      = cmd.AimTarget ?? ctx.BotPosition;
-        ctx.OutputCoBopCo       = cmd.Fire;
+            // Xoay nòng súng về điểm ngắm
+            turretController?.DatContext(ctx);
 
-        ThucThiLenh(cmd);
+            // Bắn (chỉ check 1 lần mỗi chu kỳ đánh giá)
+            botShooter?.XuLyBan(_currentCommand.Fire);
 
-        // Xoay nòng súng về điểm ngắm
-        turretController?.DatContext(ctx);
+            CapNhatLabelDebug();
+        }
 
-        // Bắn (chỉ 1 lần mỗi chu kỳ đánh giá, không phải mỗi frame)
-        botShooter?.XuLyBan(cmd.Fire);
-
-        CapNhatLabelDebug();
+        // --- THỰC THI LỆNH MỖI FRAME (Smooth Movement) ---
+        // Phải chạy mỗi frame thì xe mới xoay mượt mà (Time.deltaTime)
+        ThucThiLenh(_currentCommand);
     }
 
     private void ChonTrangThai()
