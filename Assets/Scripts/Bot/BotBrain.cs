@@ -22,10 +22,12 @@ public class BotBrain : NetworkBehaviour
     public static IReadOnlyList<TankPlayer> AllPlayers => _allPlayers;
     private static readonly List<TankPlayer> _allPlayers = new List<TankPlayer>();
 
-    private BotContext  ctx;
-    private BotSense    sense;
-    private TankPlayer  tankPlayer;
-    private Rigidbody2D rb;
+    private BotContext          ctx;
+    private BotSense            sense;
+    private TankPlayer          tankPlayer;
+    private Rigidbody2D         rb;
+    private BotTurretController turretController;
+    private BotShooter          botShooter;
 
     private IBotState stateTuanTra;
     private IBotState stateGiaoTranh;
@@ -34,12 +36,15 @@ public class BotBrain : NetworkBehaviour
     private IBotState currentState;
 
     private float _timerDanhGia;
+    private float _deltaTichLuy;   // thời gian thực trôi qua giữa 2 chu kỳ bot
 
     private void Awake()
     {
-        tankPlayer = GetComponent<TankPlayer>();
-        sense      = GetComponent<BotSense>();
-        rb         = GetComponent<Rigidbody2D>();
+        tankPlayer       = GetComponent<TankPlayer>();
+        sense            = GetComponent<BotSense>();
+        rb               = GetComponent<Rigidbody2D>();
+        turretController = GetComponent<BotTurretController>();
+        botShooter       = GetComponent<BotShooter>();
 
         stateTuanTra   = new TrangThaiTuanTra();
         stateGiaoTranh = new TrangThaiGiaoTranh();
@@ -76,11 +81,15 @@ public class BotBrain : NetworkBehaviour
     {
         if (!IsServer) { return; }
 
-        _timerDanhGia -= Time.deltaTime;
+        float dt = Time.deltaTime;
+        _timerDanhGia -= dt;
+        _deltaTichLuy += dt;   // cộng dồn mỗi frame
+
         if (_timerDanhGia > 0f) { return; }
 
-        _timerDanhGia = RandomChuKy();
-        ctx.DeltaTime = Time.deltaTime;
+        _timerDanhGia    = RandomChuKy();
+        ctx.DeltaTime    = _deltaTichLuy;  // đúng: thời gian thực giữa 2 tick
+        _deltaTichLuy    = 0f;             // reset sau khi dùng
 
         sense.DocMoiTruong(ctx);
         ChonTrangThai();
@@ -92,6 +101,13 @@ public class BotBrain : NetworkBehaviour
         ctx.OutputCoBopCo       = cmd.Fire;
 
         ThucThiLenh(cmd);
+
+        // Xoay nòng súng về điểm ngắm
+        turretController?.DatContext(ctx);
+
+        // Bắn (chỉ 1 lần mỗi chu kỳ đánh giá, không phải mỗi frame)
+        botShooter?.XuLyBan(cmd.Fire);
+
         CapNhatLabelDebug();
     }
 

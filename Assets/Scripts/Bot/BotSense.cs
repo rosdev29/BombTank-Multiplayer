@@ -14,8 +14,9 @@ public class BotSense : MonoBehaviour
 
     private void DocGiacQuanCoin(BotContext ctx)
     {
-        ctx.NearestCoin    = null;
-        ctx.DistanceToCoin = float.MaxValue;
+        ctx.NearestCoin     = null;
+        ctx.DistanceToCoin  = float.MaxValue;
+        ctx.DanhSachCoinGan.Clear();
 
         Collider2D[] hits = Physics2D.OverlapCircleAll(ctx.BotPosition, BanKinhPhatHienCoin);
         foreach (Collider2D hit in hits)
@@ -23,6 +24,8 @@ public class BotSense : MonoBehaviour
             if (hit == null) { continue; }
             Coin coin = hit.GetComponent<Coin>();
             if (coin == null) { continue; }
+
+            ctx.DanhSachCoinGan.Add(coin);
 
             float dist = Vector2.Distance(ctx.BotPosition, (Vector2)coin.transform.position);
             if (dist < ctx.DistanceToCoin)
@@ -45,7 +48,12 @@ public class BotSense : MonoBehaviour
         foreach (TankPlayer p in BotBrain.AllPlayers)
         {
             if (p == null || p == ctx.Player) { continue; }
-            if (p.TeamIndex.Value == ctx.Player.TeamIndex.Value) { continue; }
+
+            // Bỏ qua đồng đội: TeamIndex >= 0 và bằng nhau (người thật cùng team).
+            // Bot có TeamIndex = -1 → coi tất cả xe khác (kể cả bot khác) là địch.
+            bool cungTeam = ctx.Player.TeamIndex.Value >= 0
+                         && p.TeamIndex.Value == ctx.Player.TeamIndex.Value;
+            if (cungTeam) { continue; }
 
             float dist = Vector2.Distance(ctx.BotPosition, (Vector2)p.transform.position);
             if (dist > BanKinhPhatHienDich) { continue; }
