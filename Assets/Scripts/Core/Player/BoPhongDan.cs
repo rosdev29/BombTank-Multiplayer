@@ -37,13 +37,13 @@ public class BoPhongDan : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        if (!IsOwner) { return; }
+        if (!IsOwner || (player != null && player.IsBot.Value)) { return; }
         inputReader.PrimaryFireEvent += xuLyTanCongChinh;
     }
 
     public override void OnNetworkDespawn()
     {
-        if (!IsOwner) { return; }
+        if (!IsOwner || (player != null && player.IsBot.Value)) { return; }
         inputReader.PrimaryFireEvent -= xuLyTanCongChinh;
     }
 
@@ -57,7 +57,7 @@ public class BoPhongDan : NetworkBehaviour
                 hieuUngLoeNong.SetActive(false);
             }
         }
-        if (!IsOwner) { return; }
+        if (!IsOwner || (player != null && player.IsBot.Value)) { return; }
 
         isPointerOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
@@ -113,7 +113,8 @@ public class BoPhongDan : NetworkBehaviour
         if (danInstance.TryGetComponent<SatThuongHoiMauVaCham>(out SatThuongHoiMauVaCham gaySatThuong))
         {
             int teamIndex = TeamIndexHienTai();
-            gaySatThuong.SetOwner(OwnerClientId, teamIndex);
+            TankPlayer ownerTank = player != null ? player : GetComponent<TankPlayer>();
+            gaySatThuong.SetOwner(ownerTank, teamIndex);
         }    
 
         if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
