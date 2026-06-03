@@ -85,6 +85,11 @@ public class NetworkServer : IDisposable
     private void OnNetworkReady()
     {
         networkManager.OnClientDisconnectCallback += OnClientDisconnect;
+
+        if (playerPrefab == null && networkManager.NetworkConfig != null && networkManager.NetworkConfig.PlayerPrefab != null)
+        {
+            playerPrefab = networkManager.NetworkConfig.PlayerPrefab.GetComponent<NetworkObject>();
+        }
     }
 
     private void OnClientDisconnect(ulong clientId)
