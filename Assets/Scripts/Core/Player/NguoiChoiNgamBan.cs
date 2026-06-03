@@ -8,7 +8,6 @@ public class NguoiChoiNgamBan : NetworkBehaviour
     [SerializeField] private InputReader inputReader;
     [SerializeField] private Transform turretTransform;
 
-    /// <summary>Cho phép BotTurretController lấy transform nòng súng mà không cần gán tay.</summary>
     public Transform TurretTransform => turretTransform;
 
     private void LateUpdate()

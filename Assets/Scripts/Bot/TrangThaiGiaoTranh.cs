@@ -10,19 +10,19 @@ public class TrangThaiGiaoTranh : IBotState
     private const float HE_SO_LEAD        = 0.15f;
     private const int   CHI_PHI_BAN       = 1;
 
-    private const float TOC_DO_TIEN_LUI  = 1f;
-    private const float THOI_GIAN_STRAFE = 1.8f;
-    private const float BIEN_STRAFE      = 0.6f;
+    private const float TOC_DO_TIEN_LUI    = 1f;
+    private const float THOI_GIAN_DOI_CHIEU = 1.5f;
 
-    private float   _timerStrafe;
-    private float   _huongStrafe;
-    private Vector2 _viTriDichCu;
+    // Các kiểu di chuyển ngẫu nhiên khi giữ khoảng cách lý tưởng
+    private enum KieuDiChuyen { VongTrai, VongPhai, TienGan, LuiXa, DungBan }
+    private KieuDiChuyen _kieuHienTai;
+    private float         _timerDoiKieu;
+    private Vector2       _viTriDichCu;
 
     public void OnEnter(BotContext ctx)
     {
-        _huongStrafe = Random.value > 0.5f ? 1f : -1f;
-        _timerStrafe = Random.Range(THOI_GIAN_STRAFE * 0.5f, THOI_GIAN_STRAFE);
         _viTriDichCu = ctx.EnemyPosition;
+        ChonKieuMoi();
     }
 
     public BotCommand Update(BotContext ctx)
@@ -31,6 +31,7 @@ public class TrangThaiGiaoTranh : IBotState
 
         if (ctx.NearestEnemy == null) { return cmd; }
 
+        // --- Ngắm đón đầu ---
         const float TOC_DO_DAN = 10f;
         Vector2 vanTocDich  = (ctx.EnemyPosition - _viTriDichCu) / Mathf.Max(ctx.DeltaTime, 0.001f);
         float   khoangCach  = Vector2.Distance(ctx.BotPosition, ctx.EnemyPosition);
@@ -42,44 +43,73 @@ public class TrangThaiGiaoTranh : IBotState
 
         Vector2 huongToiDich  = (ctx.EnemyPosition - ctx.BotPosition).normalized;
         float   gocLechThanXe = Vector2.SignedAngle((Vector2)ctx.BodyTransform.up, huongToiDich);
+        float   khoangLech    = khoangCach - KHOANG_CACH_LY_TUONG;
 
-        float khoangLech = khoangCach - KHOANG_CACH_LY_TUONG;
-        float throttle   = 0f;
-        float steer      = 0f;
+        float throttle = 0f;
+        float steer    = 0f;
 
-        _timerStrafe -= ctx.DeltaTime;
-        if (_timerStrafe <= 0f)
-        {
-            _huongStrafe = -_huongStrafe;
-            _timerStrafe = Random.Range(THOI_GIAN_STRAFE * 0.7f, THOI_GIAN_STRAFE * 1.3f);
-        }
-
+        // --- Ưu tiên 1: Xử lý khoảng cách tuyệt đối ---
         if (khoangCach < KHOANG_CACH_QUA_GAN)
         {
-            // Quá gần -> Lùi thẳng ra xa, chĩa thẳng thân xe vào địch
+            // Quá gần → lùi ngay, hướng mũi xe về phía địch
             throttle = -TOC_DO_TIEN_LUI;
             steer    = gocLechThanXe > 0f ? -1f : 1f;
         }
-        else if (khoangLech > KHOANG_CACH_DUNG_LAI)
+        else if (khoangLech > KHOANG_CACH_DUNG_LAI * 3f)
         {
-            // Quá xa -> Tiến thẳng về phía địch
+            // Quá xa → tiến thẳng vào
             throttle = TOC_DO_TIEN_LUI;
             steer    = gocLechThanXe > 0f ? -1f : 1f;
         }
         else
         {
-            // Khoảng cách lý tưởng -> Chạy vòng cung quanh địch (Circling/Strafing)
-            // Hướng thân xe chệch 75 độ so với địch và tiến lên -> tạo quỹ đạo tròn
-            float gocMucTieu = _huongStrafe * 75f;
-            steer    = gocLechThanXe > gocMucTieu ? -1f : 1f;
-            throttle = TOC_DO_TIEN_LUI;
+            // --- Ưu tiên 2: Khoảng cách lý tưởng → đổi kiểu di chuyển theo timer ---
+            _timerDoiKieu -= ctx.DeltaTime;
+            if (_timerDoiKieu <= 0f)
+            {
+                ChonKieuMoi();
+            }
+
+            switch (_kieuHienTai)
+            {
+                case KieuDiChuyen.VongTrai:
+                    // Chạy vòng cung sang trái quanh địch
+                    steer    = gocLechThanXe > -70f ? -1f : 1f;
+                    throttle = TOC_DO_TIEN_LUI;
+                    break;
+
+                case KieuDiChuyen.VongPhai:
+                    // Chạy vòng cung sang phải quanh địch
+                    steer    = gocLechThanXe > 70f ? -1f : 1f;
+                    throttle = TOC_DO_TIEN_LUI;
+                    break;
+
+                case KieuDiChuyen.TienGan:
+                    // Áp sát địch một chút rồi lập tức đổi kiểu
+                    steer    = gocLechThanXe > 0f ? -1f : 1f;
+                    throttle = TOC_DO_TIEN_LUI;
+                    break;
+
+                case KieuDiChuyen.LuiXa:
+                    // Giật lùi tạo khoảng trống
+                    steer    = gocLechThanXe > 0f ? -1f : 1f;
+                    throttle = -TOC_DO_TIEN_LUI * 0.7f;
+                    break;
+
+                case KieuDiChuyen.DungBan:
+                    // Đứng yên tại chỗ, chỉ xoay nòng nhắm bắn
+                    steer    = 0f;
+                    throttle = 0f;
+                    break;
+            }
         }
 
         cmd.MoveInput = new Vector2(steer, throttle);
 
-        Vector2 huongNgam   = (diemNgam - ctx.BotPosition).normalized;
-        Transform nioNgam   = ctx.TurretTransform != null ? ctx.TurretTransform : ctx.BodyTransform;
-        float   gocLechNgam = Vector2.Angle((Vector2)nioNgam.up, huongNgam);
+        // --- Kiểm tra góc bắn ---
+        Vector2   huongNgam   = (diemNgam - ctx.BotPosition).normalized;
+        Transform nongNgam    = ctx.TurretTransform != null ? ctx.TurretTransform : ctx.BodyTransform;
+        float     gocLechNgam = Vector2.Angle((Vector2)nongNgam.up, huongNgam);
 
         if (gocLechNgam < NGUONG_GOC_DE_BAN && ctx.DuCoinDeBan(CHI_PHI_BAN))
             cmd.Fire = true;
@@ -88,4 +118,17 @@ public class TrangThaiGiaoTranh : IBotState
     }
 
     public void OnExit(BotContext ctx) { }
+
+    private void ChonKieuMoi()
+    {
+        // Trọng số: VongTrai 25%, VongPhai 25%, TienGan 20%, LuiXa 20%, DungBan 10%
+        float r = Random.value;
+        if      (r < 0.25f) _kieuHienTai = KieuDiChuyen.VongTrai;
+        else if (r < 0.50f) _kieuHienTai = KieuDiChuyen.VongPhai;
+        else if (r < 0.70f) _kieuHienTai = KieuDiChuyen.TienGan;
+        else if (r < 0.90f) _kieuHienTai = KieuDiChuyen.LuiXa;
+        else                _kieuHienTai = KieuDiChuyen.DungBan;
+
+        _timerDoiKieu = Random.Range(THOI_GIAN_DOI_CHIEU * 0.6f, THOI_GIAN_DOI_CHIEU * 1.4f);
+    }
 }
