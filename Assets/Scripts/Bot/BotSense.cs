@@ -45,7 +45,7 @@ public class BotSense : MonoBehaviour
         ctx.DistanceToEnemy = float.MaxValue;
         ctx.DanhSachDichGan.Clear();
 
-        foreach (TankPlayer p in BotBrain.AllPlayers)
+        foreach (TankPlayer p in TankPlayer.AllTankPlayers)
         {
             if (p == null || p == ctx.Player) { continue; }
 
