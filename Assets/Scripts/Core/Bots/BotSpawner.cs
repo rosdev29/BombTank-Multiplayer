@@ -143,6 +143,12 @@ public class BotSpawner : MonoBehaviour
         if (botInstance.GetComponent<BotSense>() == null)
             botInstance.gameObject.AddComponent<BotSense>();
 
+        if (botInstance.GetComponent<BotTurretController>() == null)
+            botInstance.gameObject.AddComponent<BotTurretController>();
+
+        if (botInstance.GetComponent<BotShooter>() == null)
+            botInstance.gameObject.AddComponent<BotShooter>();
+
         if (botInstance.GetComponent<BotBrain>() == null)
             botInstance.gameObject.AddComponent<BotBrain>();
 
