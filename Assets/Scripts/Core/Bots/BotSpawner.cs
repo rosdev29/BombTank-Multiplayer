@@ -150,8 +150,12 @@ public class BotSpawner : MonoBehaviour
         if (botInstance.GetComponent<BotShooter>() == null)
             botInstance.gameObject.AddComponent<BotShooter>();
 
-        if (botInstance.GetComponent<BotBrain>() == null)
-            botInstance.gameObject.AddComponent<BotBrain>();
+        BotBrain botBrain = botInstance.GetComponent<BotBrain>();
+        if (botBrain == null)
+        {
+            botBrain = botInstance.gameObject.AddComponent<BotBrain>();
+        }
+        botBrain.SetLayerMaskTuong(LayerMask.GetMask("Terrain"));
 
         TankPlayer tankPlayer = botInstance.GetComponent<TankPlayer>();
 
