@@ -69,7 +69,8 @@ public class TrangThaiGiaoTranh : IBotState
         cmd.MoveInput = new Vector2(steerCuoi, throttle);
 
         Vector2 huongNgam   = (diemNgam - ctx.BotPosition).normalized;
-        float   gocLechNgam = Vector2.Angle((Vector2)ctx.BodyTransform.up, huongNgam);
+        Transform nioNgam   = ctx.TurretTransform != null ? ctx.TurretTransform : ctx.BodyTransform;
+        float   gocLechNgam = Vector2.Angle((Vector2)nioNgam.up, huongNgam);
 
         if (gocLechNgam < NGUONG_GOC_DE_BAN && ctx.DuCoinDeBan(CHI_PHI_BAN))
             cmd.Fire = true;

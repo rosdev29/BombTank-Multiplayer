@@ -61,10 +61,11 @@ public class BotBrain : NetworkBehaviour
 
         ctx = new BotContext
         {
-            Player        = tankPlayer,
-            BodyTransform = transform,
-            Health        = tankPlayer.Health,
-            Wallet        = tankPlayer.Wallet,
+            Player          = tankPlayer,
+            BodyTransform   = transform,
+            TurretTransform = GetComponent<NguoiChoiNgamBan>()?.TurretTransform,
+            Health          = tankPlayer.Health,
+            Wallet          = tankPlayer.Wallet,
         };
 
         _timerDanhGia = RandomChuKy();
