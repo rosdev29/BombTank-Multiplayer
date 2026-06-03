@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+<<<<<<< HEAD
 using Unity.Collections;
+=======
+>>>>>>> feature/bot-brain
 using Unity.Netcode;
 using UnityEngine;
 
@@ -144,10 +147,20 @@ public class BotSpawner : MonoBehaviour
         if (botInstance.GetComponent<BotSense>() == null)
             botInstance.gameObject.AddComponent<BotSense>();
 
+<<<<<<< HEAD
+=======
+        if (botInstance.GetComponent<BotTurretController>() == null)
+            botInstance.gameObject.AddComponent<BotTurretController>();
+
+        if (botInstance.GetComponent<BotShooter>() == null)
+            botInstance.gameObject.AddComponent<BotShooter>();
+
+>>>>>>> feature/bot-brain
         if (botInstance.GetComponent<BotBrain>() == null)
             botInstance.gameObject.AddComponent<BotBrain>();
 
         TankPlayer tankPlayer = botInstance.GetComponent<TankPlayer>();
+<<<<<<< HEAD
 
         botInstance.Spawn(true);
 
@@ -158,6 +171,14 @@ public class BotSpawner : MonoBehaviour
             tankPlayer.PlayerName.Value = new FixedString32Bytes(GetRandomBotName());
             tankPlayer.TeamIndex.Value = -1;
         }
+=======
+        
+        tankPlayer.IsBot = new NetworkVariable<bool>(true);
+        tankPlayer.PlayerName = new NetworkVariable<Unity.Collections.FixedString32Bytes>(new Unity.Collections.FixedString32Bytes(GetRandomBotName()));
+        tankPlayer.TeamIndex = new NetworkVariable<int>(-1);
+
+        botInstance.Spawn(true);
+>>>>>>> feature/bot-brain
     }
 
 
