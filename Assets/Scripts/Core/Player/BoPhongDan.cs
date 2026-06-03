@@ -58,16 +58,12 @@ public class BoPhongDan : NetworkBehaviour
                 hieuUngLoeNong.SetActive(false);
             }
         }
-<<<<<<< HEAD
-=======
 
-        // Cooldown timer cho bot — đếm mọi frame trên server
         if (IsServer && timerBot > 0f)
         {
             timerBot -= Time.deltaTime;
         }
 
->>>>>>> feature/bot-brain
         if (!IsOwner || (player != null && player.IsBot.Value)) { return; }
 
         isPointerOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
@@ -103,11 +99,6 @@ public class BoPhongDan : NetworkBehaviour
         this.duocTanCong = duocTanCong;
     }
 
-    /// <summary>
-    /// Gọi bởi BotShooter (chạy trực tiếp trên Server) để bot bắn đạn thật.
-    /// KHÔNG dùng ServerRpc vì bot là server-owned object.
-    /// Tự quản lý timerBot riêng để cooldown không phụ thuộc luồng người chơi.
-    /// </summary>
     public void BanBot()
     {
         if (!IsServer) { return; }
