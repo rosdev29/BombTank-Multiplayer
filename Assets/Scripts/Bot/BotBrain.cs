@@ -19,6 +19,12 @@ public class BotBrain : NetworkBehaviour
     [Header("Debug")]
     [SerializeField] private TextMeshPro labelTrangThai;
 
+    [Header("Né tường")]
+    [Tooltip("Layer của tường/địa hình (Terrain). Bot sẽ raycast để tránh.")]
+    [SerializeField] private LayerMask layerMaskTuong;
+    [Tooltip("Khoảng cách bắt đầu bắt đầu tránh tường (met).")]
+    [SerializeField] private float khoangNeTuong = 2.5f;
+
     public static IReadOnlyList<TankPlayer> AllPlayers => _allPlayers;
     private static readonly List<TankPlayer> _allPlayers = new List<TankPlayer>();
 
@@ -37,7 +43,8 @@ public class BotBrain : NetworkBehaviour
 
     private float _timerDanhGia;
     private float _deltaTichLuy;
-    private BotCommand _currentCommand = new BotCommand();   // thời gian thực trôi qua giữa 2 chu kỳ bot
+    private BotCommand _currentCommand = new BotCommand();
+    private float _steerNeTuongTruoc   = 0f; // smoothing né tường
 
     private void Awake()
     {
@@ -157,13 +164,62 @@ public class BotBrain : NetworkBehaviour
     {
         if (rb == null) { return; }
 
-        float steer     = cmd.MoveInput.x;
-        float throttle  = cmd.MoveInput.y;
-        float tocDo     = 5f;
-        float tocDoXoay = 120f;
+        float steer    = cmd.MoveInput.x;
+        float throttle = cmd.MoveInput.y;
+        const float TOC_DO     = 5f;
+        const float TOC_DO_XOY = 120f;
 
-        ctx.BodyTransform.Rotate(0f, 0f, steer * -tocDoXoay * Time.deltaTime);
-        rb.velocity = (Vector2)ctx.BodyTransform.up * throttle * tocDo;
+        // Né tường: tính lực đẩy tổng hợp rồi blend với lệnh AI
+        float steerNe = TinhSteerNeTuong(throttle);
+        // Smooth để tránh dao động (giật trái/phải liên tục)
+        _steerNeTuongTruoc = Mathf.Lerp(_steerNeTuongTruoc, steerNe, 8f * Time.deltaTime);
+        // Blend: steerNe mạnh thì né tường, yếu thì AI tự điều khiển
+        float urgency = Mathf.Abs(_steerNeTuongTruoc);
+        steer = Mathf.Lerp(steer, Mathf.Sign(_steerNeTuongTruoc + 0.001f), urgency);
+
+        ctx.BodyTransform.Rotate(0f, 0f, steer * -TOC_DO_XOY * Time.deltaTime);
+        rb.velocity = (Vector2)ctx.BodyTransform.up * throttle * TOC_DO;
+    }
+
+    private float TinhSteerNeTuong(float throttle)
+    {
+        if (Mathf.Abs(throttle) < 0.05f) { return 0f; }
+        if (layerMaskTuong.value == 0)   { return 0f; }
+
+        Vector2 viTri     = ctx.BotPosition;
+        Vector2 huongTien = (Vector2)ctx.BodyTransform.up;
+        if (throttle < 0f) { huongTien = -huongTien; }
+
+        // 9 tia: thẳng, ±20°, ±40°, ±60°, ±80°
+        float[] cacGoc  = { 0f, 20f, -20f, 40f, -40f, 60f, -60f, 80f, -80f };
+        Vector2 lucDayTong = Vector2.zero;
+        bool    coTuong    = false;
+
+        foreach (float g in cacGoc)
+        {
+            Vector2      huong = Quaternion.Euler(0f, 0f, g) * huongTien;
+            RaycastHit2D hit   = Physics2D.Raycast(viTri, huong, khoangNeTuong, layerMaskTuong);
+            if (hit.collider == null) { continue; }
+
+            coTuong = true;
+            // Trọng số bình phương: càng gần tường, lực đẩy càng lớn
+            float t    = 1f - (hit.distance / khoangNeTuong);
+            float manh = t * t;
+            lucDayTong += hit.normal * manh;
+        }
+
+        if (!coTuong || lucDayTong.sqrMagnitude < 0.0001f) { return 0f; }
+
+        // Chuyển vector lực đẩy thành góc lái (steer)
+        float goc = Vector2.SignedAngle(huongTien, lucDayTong.normalized);
+        // goc > 0 → tường đẩy sang trái → xe cần rẽ phải (steer = +1)
+        // goc < 0 → tường đẩy sang phải → xe cần rẽ trái (steer = -1)
+        float huongNe = goc > 0f ? 1f : -1f;
+
+        // Cường độ phản ứng: tỉ lệ với tổng lực đẩy, clamp tối đa 1
+        float cuongDo = Mathf.Clamp01(lucDayTong.magnitude);
+
+        return huongNe * cuongDo;
     }
 
     private void CapNhatLabelDebug()
@@ -180,6 +236,8 @@ public class BotBrain : NetworkBehaviour
         TrangThaiTuanTra   => "🔍 Tuần tra",
         _                  => s?.GetType().Name ?? "null"
     };
+
+    public void SetLayerMaskTuong(LayerMask mask) => layerMaskTuong = mask;
 
     private float RandomChuKy() => Random.Range(chuKyDanhGiaMin, chuKyDanhGiaMax);
 
