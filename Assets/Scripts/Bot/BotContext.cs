@@ -3,9 +3,10 @@ using UnityEngine;
 
 public class BotContext
 {
-    public TankPlayer Player        { get; set; }
-    public Transform  BodyTransform { get; set; }
-    public Mau        Health        { get; set; }
+    public TankPlayer Player          { get; set; }
+    public Transform  BodyTransform   { get; set; }
+    public Transform  TurretTransform { get; set; }
+    public Mau        Health          { get; set; }
     public CoinWallet Wallet        { get; set; }
 
     public TankPlayer         NearestEnemy    { get; set; }
