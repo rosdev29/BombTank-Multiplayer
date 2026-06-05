@@ -15,6 +15,7 @@ public class BotBrain : NetworkBehaviour
     [Header("Ngưỡng chuyển trạng thái")]
     [SerializeField] private float nguongMauThapDeRutLui = 0.35f;
     [SerializeField] private float banKinhGiaoTranh      = 10f;
+    [SerializeField] private int   chiPhiBan             = 1;
 
     [Header("Debug")]
     [SerializeField] private TextMeshPro labelTrangThai;
@@ -107,7 +108,7 @@ public class BotBrain : NetworkBehaviour
         {
             muon = stateGiaoTranh;
         }
-        else if (ctx.NearestCoin != null)
+        else if (!ctx.DuCoinDeBan(chiPhiBan) && ctx.NearestCoin != null)
         {
             muon = stateNhatCoin;
         }
