@@ -8,7 +8,6 @@ using TMPro;
 public class BotBrain : NetworkBehaviour
 {
     [Header("Chu kỳ đánh giá")]
-    [Tooltip("Bot đánh giá lại trạng thái sau mỗi X giây (random trong khoảng min-max)")]
     [SerializeField] private float chuKyDanhGiaMin = 0.2f;
     [SerializeField] private float chuKyDanhGiaMax = 0.5f;
 
@@ -20,10 +19,13 @@ public class BotBrain : NetworkBehaviour
     [SerializeField] private TextMeshPro labelTrangThai;
 
     [Header("Né tường")]
-    [Tooltip("Layer của tường/địa hình (Terrain). Bot sẽ raycast để tránh.")]
     [SerializeField] private LayerMask layerMaskTuong;
-    [Tooltip("Khoảng cách bắt đầu bắt đầu tránh tường (met).")]
     [SerializeField] private float khoangNeTuong = 2.5f;
+    [SerializeField] private float khoangKhanCap = 0.6f;
+
+    [Header("Anti-Stuck")]
+    [SerializeField] private float thoiGianPhatHienKet  = 1.2f;
+    [SerializeField] private float nguongDisplacementKet = 0.3f;
 
     public static IReadOnlyList<TankPlayer> AllPlayers => _allPlayers;
     private static readonly List<TankPlayer> _allPlayers = new List<TankPlayer>();
@@ -41,10 +43,21 @@ public class BotBrain : NetworkBehaviour
     private IBotState stateRutLui;
     private IBotState currentState;
 
-    private float _timerDanhGia;
-    private float _deltaTichLuy;
-    private BotCommand _currentCommand = new BotCommand();
-    private float _steerNeTuongTruoc   = 0f; // smoothing né tường
+    private float      _timerDanhGia;
+    private float      _deltaTichLuy;
+    private BotCommand _currentCommand    = new BotCommand();
+    private float      _steerNeTuongTruoc = 0f;
+
+    private float   _stuckTimer      = 0f;
+    private float   _checkStuckTimer = 0f;
+    private Vector2 _viTriKiemTraCu  = Vector2.zero;
+    private bool    _dangThoatKet    = false;
+    private float   _thoatKetTimer   = 0f;
+    private float   _steerThoatKet   = 1f;
+
+    private const float STUCK_CHECK_INTERVAL = 0.5f;
+    private const float THOI_GIAN_LUI_THOAT  = 0.6f;
+    private const float THOI_GIAN_XOAY_THOAT = 0.4f;
 
     private void Awake()
     {
@@ -74,9 +87,11 @@ public class BotBrain : NetworkBehaviour
             TurretTransform = GetComponent<NguoiChoiNgamBan>()?.TurretTransform,
             Health          = tankPlayer.Health,
             Wallet          = tankPlayer.Wallet,
+            LayerMaskTuong  = layerMaskTuong,
         };
 
-        _timerDanhGia = RandomChuKy();
+        _timerDanhGia   = RandomChuKy();
+        _viTriKiemTraCu = (Vector2)transform.position;
         ChuyenTrangThai(stateTuanTra);
     }
 
@@ -94,12 +109,13 @@ public class BotBrain : NetworkBehaviour
         _timerDanhGia -= dt;
         _deltaTichLuy += dt;
 
-        // --- CHU KỲ ĐÁNH GIÁ AI (0.2s - 0.5s một lần) ---
+        CapNhatAntiStuck(dt);
+
         if (_timerDanhGia <= 0f)
         {
-            _timerDanhGia    = RandomChuKy();
-            ctx.DeltaTime    = _deltaTichLuy;  
-            _deltaTichLuy    = 0f;             
+            _timerDanhGia = RandomChuKy();
+            ctx.DeltaTime = _deltaTichLuy;
+            _deltaTichLuy = 0f;
 
             sense.DocMoiTruong(ctx);
             ChonTrangThai();
@@ -110,18 +126,74 @@ public class BotBrain : NetworkBehaviour
             ctx.OutputDiemNgam      = _currentCommand.AimTarget ?? ctx.BotPosition;
             ctx.OutputCoBopCo       = _currentCommand.Fire;
 
-            // Xoay nòng súng về điểm ngắm
             turretController?.DatContext(ctx);
-
-            // Bắn (chỉ check 1 lần mỗi chu kỳ đánh giá)
             botShooter?.XuLyBan(_currentCommand.Fire);
 
             CapNhatLabelDebug();
         }
 
-        // --- THỰC THI LỆNH MỖI FRAME (Smooth Movement) ---
-        // Phải chạy mỗi frame thì xe mới xoay mượt mà (Time.deltaTime)
         ThucThiLenh(_currentCommand);
+    }
+
+    private void CapNhatAntiStuck(float dt)
+    {
+        if (_dangThoatKet) { return; }
+
+        _checkStuckTimer += dt;
+        if (_checkStuckTimer < STUCK_CHECK_INTERVAL) { return; }
+
+        _checkStuckTimer = 0f;
+
+        Vector2 viTriHienTai = ctx != null ? ctx.BotPosition : (Vector2)transform.position;
+        float displacement   = Vector2.Distance(viTriHienTai, _viTriKiemTraCu);
+        _viTriKiemTraCu = viTriHienTai;
+
+        bool dangDiChuyen = Mathf.Abs(_currentCommand.MoveInput.y) > 0.05f;
+        if (!dangDiChuyen)
+        {
+            _stuckTimer = 0f;
+            return;
+        }
+
+        if (displacement < nguongDisplacementKet)
+            _stuckTimer += STUCK_CHECK_INTERVAL;
+        else
+            _stuckTimer = Mathf.Max(0f, _stuckTimer - STUCK_CHECK_INTERVAL * 0.5f);
+
+        if (_stuckTimer >= thoiGianPhatHienKet)
+            KichHoatThoatKet();
+    }
+
+    private void KichHoatThoatKet()
+    {
+        _stuckTimer    = 0f;
+        _dangThoatKet  = true;
+        _thoatKetTimer = THOI_GIAN_LUI_THOAT + THOI_GIAN_XOAY_THOAT;
+        _steerThoatKet = Random.value > 0.5f ? 1f : -1f;
+        Debug.Log($"[BotBrain] {tankPlayer.PlayerName.Value} → Kich hoat thoat ket!");
+    }
+
+    private BotCommand LayLenhThoatKet(float dt)
+    {
+        if (!_dangThoatKet) { return null; }
+
+        _thoatKetTimer -= dt;
+
+        if (_thoatKetTimer <= 0f)
+        {
+            _dangThoatKet = false;
+            _stuckTimer   = 0f;
+            return null;
+        }
+
+        var cmd = new BotCommand();
+
+        if (_thoatKetTimer > THOI_GIAN_XOAY_THOAT)
+            cmd.MoveInput = new Vector2(_steerThoatKet, -1f);
+        else
+            cmd.MoveInput = new Vector2(_steerThoatKet, 0f);
+
+        return cmd;
     }
 
     private void ChonTrangThai()
@@ -129,26 +201,16 @@ public class BotBrain : NetworkBehaviour
         IBotState muon;
 
         if (ctx.HealthRatio < nguongMauThapDeRutLui)
-        {
             muon = stateRutLui;
-        }
         else if (ctx.NearestEnemy != null && ctx.DistanceToEnemy < banKinhGiaoTranh)
-        {
             muon = stateGiaoTranh;
-        }
         else if (ctx.NearestCoin != null)
-        {
             muon = stateNhatCoin;
-        }
         else
-        {
             muon = stateTuanTra;
-        }
 
         if (muon != currentState)
-        {
             ChuyenTrangThai(muon);
-        }
     }
 
     private void ChuyenTrangThai(IBotState tiepTheo)
@@ -164,25 +226,43 @@ public class BotBrain : NetworkBehaviour
     {
         if (rb == null) { return; }
 
+        float dt = Time.deltaTime;
+
+        BotCommand thoatKetCmd = LayLenhThoatKet(dt);
+        if (thoatKetCmd != null)
+            cmd = thoatKetCmd;
+
         float steer    = cmd.MoveInput.x;
         float throttle = cmd.MoveInput.y;
         const float TOC_DO     = 5f;
         const float TOC_DO_XOY = 120f;
 
-        // Né tường: tính lực đẩy tổng hợp rồi blend với lệnh AI
-        float steerNe = TinhSteerNeTuong(throttle);
-        // Smooth để tránh dao động (giật trái/phải liên tục)
-        _steerNeTuongTruoc = Mathf.Lerp(_steerNeTuongTruoc, steerNe, 8f * Time.deltaTime);
-        // Blend: steerNe mạnh thì né tường, yếu thì AI tự điều khiển
-        float urgency = Mathf.Abs(_steerNeTuongTruoc);
-        steer = Mathf.Lerp(steer, Mathf.Sign(_steerNeTuongTruoc + 0.001f), urgency);
+        float steerNe = TinhSteerNeTuong(throttle, out bool khancap);
 
-        ctx.BodyTransform.Rotate(0f, 0f, steer * -TOC_DO_XOY * Time.deltaTime);
+        _steerNeTuongTruoc = Mathf.Lerp(_steerNeTuongTruoc, steerNe, 8f * dt);
+
+        float urgency    = khancap ? 1f : Mathf.Abs(_steerNeTuongTruoc);
+        float throttleNe = throttle * (1f - urgency * 0.75f);
+
+        if (khancap)
+        {
+            steer    = Mathf.Sign(steerNe + 0.001f);
+            throttle = throttleNe;
+        }
+        else
+        {
+            steer    = Mathf.Lerp(steer, Mathf.Sign(_steerNeTuongTruoc + 0.001f), urgency);
+            throttle = throttleNe;
+        }
+
+        ctx.BodyTransform.Rotate(0f, 0f, steer * -TOC_DO_XOY * dt);
         rb.velocity = (Vector2)ctx.BodyTransform.up * throttle * TOC_DO;
     }
 
-    private float TinhSteerNeTuong(float throttle)
+    private float TinhSteerNeTuong(float throttle, out bool khanCap)
     {
+        khanCap = false;
+
         if (Mathf.Abs(throttle) < 0.05f) { return 0f; }
         if (layerMaskTuong.value == 0)   { return 0f; }
 
@@ -190,8 +270,26 @@ public class BotBrain : NetworkBehaviour
         Vector2 huongTien = (Vector2)ctx.BodyTransform.up;
         if (throttle < 0f) { huongTien = -huongTien; }
 
-        // 9 tia: thẳng, ±20°, ±40°, ±60°, ±80°
-        float[] cacGoc  = { 0f, 20f, -20f, 40f, -40f, 60f, -60f, 80f, -80f };
+        float[] gocKhanCap = { 0f, 30f, -30f };
+        Vector2 lucKhanCap = Vector2.zero;
+        foreach (float g in gocKhanCap)
+        {
+            Vector2      huong = Quaternion.Euler(0f, 0f, g) * huongTien;
+            RaycastHit2D hit   = Physics2D.Raycast(viTri, huong, khoangKhanCap, layerMaskTuong);
+            if (hit.collider == null) { continue; }
+
+            khanCap    = true;
+            float t    = 1f - (hit.distance / khoangKhanCap);
+            lucKhanCap += hit.normal * (t * t);
+        }
+
+        if (khanCap && lucKhanCap.sqrMagnitude > 0.0001f)
+        {
+            float gocKC = Vector2.SignedAngle(huongTien, lucKhanCap.normalized);
+            return gocKC > 0f ? 1f : -1f;
+        }
+
+        float[] cacGoc     = { 0f, 20f, -20f, 40f, -40f, 60f, -60f, 80f, -80f };
         Vector2 lucDayTong = Vector2.zero;
         bool    coTuong    = false;
 
@@ -202,7 +300,6 @@ public class BotBrain : NetworkBehaviour
             if (hit.collider == null) { continue; }
 
             coTuong = true;
-            // Trọng số bình phương: càng gần tường, lực đẩy càng lớn
             float t    = 1f - (hit.distance / khoangNeTuong);
             float manh = t * t;
             lucDayTong += hit.normal * manh;
@@ -210,13 +307,8 @@ public class BotBrain : NetworkBehaviour
 
         if (!coTuong || lucDayTong.sqrMagnitude < 0.0001f) { return 0f; }
 
-        // Chuyển vector lực đẩy thành góc lái (steer)
-        float goc = Vector2.SignedAngle(huongTien, lucDayTong.normalized);
-        // goc > 0 → tường đẩy sang trái → xe cần rẽ phải (steer = +1)
-        // goc < 0 → tường đẩy sang phải → xe cần rẽ trái (steer = -1)
+        float goc     = Vector2.SignedAngle(huongTien, lucDayTong.normalized);
         float huongNe = goc > 0f ? 1f : -1f;
-
-        // Cường độ phản ứng: tỉ lệ với tổng lực đẩy, clamp tối đa 1
         float cuongDo = Mathf.Clamp01(lucDayTong.magnitude);
 
         return huongNe * cuongDo;
@@ -237,7 +329,11 @@ public class BotBrain : NetworkBehaviour
         _                  => s?.GetType().Name ?? "null"
     };
 
-    public void SetLayerMaskTuong(LayerMask mask) => layerMaskTuong = mask;
+    public void SetLayerMaskTuong(LayerMask mask)
+    {
+        layerMaskTuong = mask;
+        if (ctx != null) { ctx.LayerMaskTuong = mask; }
+    }
 
     private float RandomChuKy() => Random.Range(chuKyDanhGiaMin, chuKyDanhGiaMax);
 

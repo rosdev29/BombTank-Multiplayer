@@ -31,5 +31,6 @@ public class BotContext
     public Vector2 OutputHuongDiChuyen { get; set; }
     public Vector2 OutputDiemNgam      { get; set; }
     public bool    OutputCoBopCo       { get; set; }
-    public float   DeltaTime           { get; set; }
+    public float     DeltaTime           { get; set; }
+    public LayerMask LayerMaskTuong     { get; set; }
 }
