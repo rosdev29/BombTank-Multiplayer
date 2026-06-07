@@ -1,13 +1,13 @@
 # Nhóm 11 — Ai làm gì (chỉ phần CODE)
 
-**Bắt đầu:** 25/05/2026 · **Hạn:** 21/06/2026  
-**Mục tiêu chung:** đồ án có AI — game đã có sẵn (tank LAN bắn nhau), nhóm thêm **bot tự chơi** + vài thứ làm game "đầy đủ" (cài đặt, âm thanh, màn kết thúc).
+**Bắt đầu:** 25/05/2026 · **Hạn Phase 2:** 21/06/2026 · **Nộp báo cáo:** 05/07/2026  
+**Mục tiêu chung:** đồ án có AI — game đã có sẵn (tank LAN bắn nhau), nhóm thêm **bot tự chơi** + vài thứ làm game "đầy đủ" (cài đặt, âm thanh, màn kết thúc). **Mấu chốt thắng/thua đồ án: bot AI** — phải test lặp cho đến khi bot **đi + bắn + đổi trạng thái** giống người chơi thật.
 
 **Sơ đồ Gantt:**
 
 ![Sơ đồ Gantt nhóm 11](Nhom11_Gantt.png)
 
-*Máu / combat hai chiều trên Gantt: **Thái: Đạn bot trừ máu (server)** + **Duy: Kill feed**. Mốc **07/06**.*
+*Gantt giữ nguyên 22 task Phase 1 + nối thêm Phase 2. Chú thích màu: An · Lộc · Hoàng · Duy · Thái · Phúc · Cả nhóm. **22–28/06** fix merge · **05/07** nộp báo cáo.*
 
 **Quy tắc Git:**
 
@@ -336,7 +336,9 @@ Nếu ai vắng dài (> 3 ngày): báo Zalo trước, leader chia lại việc c
 | 12/06 | Bảng điểm có ping của người thật                                                          |
 | 14/06 | 2 máy LAN chơi cùng, có 6 bot, hết giờ tự kết thúc trận, **bot có 3 cấp độ Dễ/Trung/Khó** |
 | 16/06 | **Bounty system**: ai > 100 coin có vương miện 👑, giết được +20% coin                    |
-| 21/06 | Build chạy ổn, sẵn sàng nộp                                                               |
+| **21/06** | **Phase 2 xong:** bot AI ổn · 3 item · SFX item · đèn 2D · coin drop 100% khi chết          |
+| **28/06** | Merge tất cả nhánh xong, fix bug còn lại                                                    |
+| **05/07** | Báo cáo + kịch bản thuyết trình (chia người trình bày — vote sau)                          |
 
 
 ---
@@ -381,3 +383,84 @@ Duy tick khi test LAN; người phụ trách sửa nếu chưa có.
 | 18 | Không sửa tay `Controls.cs` auto-gen | Cả nhóm | Regenerate từ `.inputactions` |
 
 **Demo tối thiểu 14/06:** 2 máy LAN + **bắn bot chết được** + bot bắn người trừ máu + kill feed + timer + bảng điểm + hết giờ kết thúc.
+
+---
+
+## 8. Phase 2 — sau nền tảng (hạn **21/06**)
+
+*Làm **sau khi** xong các task Phase 1 tương ứng. Chia công ban đầu có thể chưa đủ — phần bot AI đặc biệt cần **test đi test lại** cho đến khi đạt.*
+
+### An + Lộc — Bot AI hoàn thiện (mấu chốt đồ án)
+
+**Hạn:** 21/06 · **Bắt đầu sau 16/06** (khi Lộc xong Bounty + An xong ráp 4 trạng thái) · **Nhánh:** tiếp tục `feature/bot-brain`, `feature/bot-state-easy`, …
+
+**Tiêu chí thành công:** bot **tự di chuyển**, **tự bắn** (cả người thật lẫn bot khác), **đổi 4 trạng thái** đúng ngữ cảnh — cảm giác gần người chơi thật, không đứng im / chỉ bắn bot / đâm tường.
+
+**Việc lặp khi test (không cố định 1 lần):**
+
+- Sửa targeting: bot **bắn cả người thật** khi trong tầm.
+- Đồng bộ **xoay nòng** hiển thị trên client.
+- Giảm **đâm tường** (pathing / chọn điểm đi).
+- Bot cũng **nhặt item** (phối hợp Hoàng sau khi 3 item có).
+- Test Host solo + 2 máy LAN sau mỗi lần Duy merge.
+
+---
+
+### Hoàng — 3 loại item + huấn luyện bot nhặt
+
+**Hạn:** 21/06 · **Bắt đầu 07/06** (sau điều khiển xe bot) · **Phụ thuộc:** spawn + điều khiển xe xong (Phase 1).
+
+**3 item** (Duy tìm asset đồ họa sau; lúc code dùng **placeholder** màu để phân biệt):
+
+| Item | Hiệu ứng | Cách áp dụng |
+| ---- | -------- | ------------ |
+| **1 — Buff coin** | Effect vàng trên xe tăng | Dùng trong X giây (tự set, hợp lý) |
+| **2 — Trừ coin + máu** | Chớp đỏ trên xe | **Áp ngay** khi nhặt |
+| **3 — Hai nòng súng** | Đổi màu / effect trên xe | Dùng trong X giây |
+
+**Bot:** huấn luyện logic **nhặt hoặc không nhặt** — chia **tỉ lệ** (config Inspector).
+
+**Cách dùng item (chọn 1 trong 2):**
+
+1. **Giữ item** — hiển thị góc trái dưới; bấm **Q / E / R** (2 trong 3 nút) để dùng khi cần.
+2. **Nhặt là dùng luôn** — áp effect ngay (item 2 luôn kiểu này).
+
+**Bàn giao:** xong logic + placeholder → nhắn **Phúc** gắn SFX.
+
+---
+
+### Phúc — SFX nhặt 3 item
+
+**Hạn:** 21/06 · **Bắt đầu 19/06** (sau Hoàng có logic item) · **Phụ thuộc:** Hoàng làm 3 item từ 07/06.
+
+- **3 tiếng khác nhau**, vừa phải — không quá to.
+- Hook vào event nhặt từng loại item của Hoàng.
+- Vẫn nối `AudioManager` với Settings (Phase 1).
+
+---
+
+### Thái — Đèn 2D + hoàn thiện combat/UI
+
+**Hạn:** 21/06
+
+**Đã xong ~30/05** (nhánh `setting-damage-scoreboard`):
+
+- Bảng setting âm thanh (layout xong — Phúc nối clip).
+- Bảng kết thúc ranks/point, **UI hồi sinh**.
+- Fix damage bot ↔ người; **chết rớt 100% coin** đã nhặt (không 50%).
+
+**Phase 2 (từ 15/06) — Đèn 2D (URP):**
+
+- **Chỉ trên đá chắn** — gắn rải rác, **sau lưng đá** (không nhét trong mesh).
+- **Mọi xe tăng** đều có đèn — có thể dùng asset hoặc AI gen cho đẹp.
+
+---
+
+### Duy — Merge + fix bug + báo cáo
+
+| Giai đoạn | Việc |
+| --------- | ---- |
+| **22–28/06** | Merge tất cả nhánh Phase 2; cả nhóm báo bug Zalo; Duy + người phụ trách sửa |
+| **29/06–05/07** | Viết báo cáo, chia kịch bản demo, **vote** ai thuyết trình |
+
+**22–28/06:** không thêm feature mới — chỉ fix bug sau merge.
