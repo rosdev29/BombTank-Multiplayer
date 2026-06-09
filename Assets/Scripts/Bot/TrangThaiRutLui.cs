@@ -5,6 +5,8 @@ public class TrangThaiRutLui : IBotState
 {
     private Vector2 _diemMucTieu;   // diem bot dang huong toi
     private float   _timerRefresh;  // dem thoi gian chon lai diem moi
+    private Vector2 _viTriTruoc;    // vi tri lan truoc de phat hien bi ket tuong
+    private float   _timerBiKet;    // dem thoi gian dung yen
 
     private const float KHOANG_CACH_RUT_LUI       = 12f;  // buoc di moi lan chon huong
     private const float KHOANG_CACH_DA_TOI        = 2f;   // gan bao nhieu thi coi la toi noi
@@ -14,11 +16,15 @@ public class TrangThaiRutLui : IBotState
     private const float THOI_GIAN_REFRESH_NHANH  = 0.4f; // ne dich: cap nhat huong nhanh hon
     private const float TRONG_SO_HUONG_HOI_MAU    = 2f;   // uu tien huong ve vung hoi mau
     private const int   SO_HUONG_SAMPLE           = 16;   // so huong quet khi tim diem ne
+    private const float NGUONG_BI_KET             = 0.4f; // di chuyen it hon nay = bi ket
+    private const float THOI_GIAN_BI_KET          = 1.2f; // giay truoc khi chon huong khac
 
     public void OnEnter(BotContext ctx)
     {
         _diemMucTieu  = ChonDiemMucTieu(ctx);
         _timerRefresh = THOI_GIAN_REFRESH;
+        _viTriTruoc   = ctx.BotPosition;
+        _timerBiKet   = THOI_GIAN_BI_KET;
     }
 
     public BotCommand Update(BotContext ctx)
@@ -47,6 +53,23 @@ public class TrangThaiRutLui : IBotState
             _timerRefresh = dichNguyHiem ? THOI_GIAN_REFRESH_NHANH : THOI_GIAN_REFRESH;
         }
 
+        // Bi ket tuong -> chon huong khac ngay
+        _timerBiKet -= ctx.DeltaTime;
+        if (Vector2.Distance(ctx.BotPosition, _viTriTruoc) < NGUONG_BI_KET)
+        {
+            if (_timerBiKet <= 0f)
+            {
+                _diemMucTieu  = ChonDiemNeDich(ctx);
+                _timerRefresh = THOI_GIAN_REFRESH_NHANH;
+                _timerBiKet   = THOI_GIAN_BI_KET;
+            }
+        }
+        else
+        {
+            _viTriTruoc = ctx.BotPosition;
+            _timerBiKet = THOI_GIAN_BI_KET;
+        }
+
         BotCommand cmd = BotSteering.MoveTowards(ctx, _diemMucTieu);
         cmd.Fire = false;
         return cmd;
@@ -68,9 +91,10 @@ public class TrangThaiRutLui : IBotState
             return ChonDiemThoatGan(ctx);
         }
 
+        // An toan -> tim duong den heal zone (co quet tuong)
         if (ctx.NearestHealingZone != null && !CoDichNguyHiem(ctx))
         {
-            return ctx.HealingZonePosition;
+            return BotSteering.TimDuongDenZone(ctx.BotPosition, ctx.HealingZonePosition, KHOANG_CACH_RUT_LUI);
         }
 
         return ChonDiemNeDich(ctx);
@@ -85,7 +109,8 @@ public class TrangThaiRutLui : IBotState
             huongThoat = Random.insideUnitCircle.normalized;
         }
 
-        return ctx.BotPosition + huongThoat * KHOANG_CACH_RUT_LUI;
+        Vector2 diem = ctx.BotPosition + huongThoat * KHOANG_CACH_RUT_LUI;
+        return BotSteering.TimDiemTiepCan(ctx.BotPosition, diem, KHOANG_CACH_RUT_LUI);
     }
 
     // Quet nhieu huong, chon diem xa dich nhat (co the huong ve vung hoi mau)
@@ -115,7 +140,10 @@ public class TrangThaiRutLui : IBotState
     // Diem cang xa dich cang tot; cong them diem neu gan vung hoi mau hon
     private static float TinhDiemRutLui(Vector2 candidate, BotContext ctx)
     {
-        float tongDiem   = TinhKhoangCachAnToan(candidate, ctx);
+        // Bo qua huong bi tuong chan
+        if (!BotSteering.CoDuongThong(ctx.BotPosition, candidate)) { return float.MinValue; }
+
+        float tongDiem = TinhKhoangCachAnToan(candidate, ctx);
 
         if (ctx.NearestHealingZone != null)
         {
