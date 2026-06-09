@@ -20,6 +20,11 @@ public class BotContext
     public List<Coin>       DanhSachCoinGan { get; }      = new List<Coin>();
     public int              SoCoinHienTai   { get; set; }
 
+    // Thong tin vung hoi mau (do BotSense cap nhat moi chu ky)
+    public HealingZone NearestHealingZone    { get; set; }
+    public Vector2     HealingZonePosition   { get; set; }
+    public float       DistanceToHealingZone { get; set; } = float.MaxValue;
+
     public Vector2 BotPosition    => BodyTransform != null ? (Vector2)BodyTransform.position : Vector2.zero;
 
     public int   CurrentHealth => Health != null ? Health.MauHienTai.Value : 0;
