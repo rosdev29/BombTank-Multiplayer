@@ -25,7 +25,8 @@ public class BoPhongDan : NetworkBehaviour
 
     private bool isPointerOverUI;
     private bool duocTanCong;
-    private float timer;
+    private float timer;       // timer cho người chơi thật
+    private float timerBot;    // timer cooldown riêng cho bot
     private float henGioLoeNong;
 
     private int TeamIndexHienTai()
@@ -57,6 +58,12 @@ public class BoPhongDan : NetworkBehaviour
                 hieuUngLoeNong.SetActive(false);
             }
         }
+
+        if (IsServer && timerBot > 0f)
+        {
+            timerBot -= Time.deltaTime;
+        }
+
         if (!IsOwner || (player != null && player.IsBot.Value)) { return; }
 
         isPointerOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
@@ -90,6 +97,46 @@ public class BoPhongDan : NetworkBehaviour
         }
 
         this.duocTanCong = duocTanCong;
+    }
+
+    public void BanBot()
+    {
+        if (!IsServer) { return; }
+        if (DiemSpawnDan == null) { return; }
+        if (timerBot > 0f) { return; }  // cooldown được đếm trong Update()
+        if (wallet == null || wallet.TotalCoins.Value < ChiPhiBan) { return; }
+
+        // Trừ coin trực tiếp (đang trên server, hợp lệ)
+        wallet.SpendCoins(ChiPhiBan);
+
+        Vector3 viTriSpawn = DiemSpawnDan.position;
+        Vector3 huongDi    = DiemSpawnDan.up;
+        int     teamIndex  = TeamIndexHienTai();
+
+        // Spawn đạn thật trên server
+        GameObject danInstance = Instantiate(ServerDanPrefab, viTriSpawn, Quaternion.identity);
+        danInstance.transform.up = huongDi;
+
+        if (vaChamNguoiChoi != null)
+            Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
+
+        if (danInstance.TryGetComponent<SatThuongHoiMauVaCham>(out var gaySatThuong))
+            gaySatThuong.SetOwner(OwnerClientId, teamIndex);
+
+        if (danInstance.TryGetComponent<Projectile>(out var projectile))
+            projectile.Initialise(teamIndex);
+
+        if (danInstance.TryGetComponent<Rigidbody2D>(out var rb))
+            rb.velocity = rb.transform.up * TocDoDan;
+
+        // Broadcast đạn giả (visual) đến tất cả client
+        spawnDanGiaClientRpc(viTriSpawn, huongDi, teamIndex);
+
+        // Hiệu ứng lóe nòng
+        hieuUngLoeNong?.SetActive(true);
+        henGioLoeNong = thoiGianHieuUngBan;
+
+        timerBot = 1f / tanSuatTanCong;  // reset cooldown
     }
 
     [ServerRpc]
