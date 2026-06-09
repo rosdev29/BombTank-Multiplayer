@@ -20,6 +20,11 @@ public class TankDeathHandler : NetworkBehaviour
             mau = GetComponent<Mau>();
         }
 
+        if (mau == null)
+        {
+            mau = GetComponentInParent<Mau>();
+        }
+
         if (mau != null)
         {
             mau.KhiChet += HandleDeath;
