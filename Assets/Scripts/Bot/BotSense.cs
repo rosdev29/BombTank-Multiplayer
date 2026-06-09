@@ -10,6 +10,7 @@ public class BotSense : MonoBehaviour
     {
         DocGiacQuanCoin(ctx);
         DocGiacQuanDich(ctx);
+        DocGiacQuanHoiMau(ctx);
     }
 
     private void DocGiacQuanCoin(BotContext ctx)
@@ -59,5 +60,44 @@ public class BotSense : MonoBehaviour
                 ctx.EnemyPosition   = (Vector2)p.transform.position;
             }
         }
+    }
+
+    // Tim vung hoi mau gan nhat; uu tien vung con nang luong, khong thi chon vung gan nhat de cho
+    private void DocGiacQuanHoiMau(BotContext ctx)
+    {
+        ctx.NearestHealingZone    = null;
+        ctx.DistanceToHealingZone = float.MaxValue;
+
+        HealingZone ganNhatCoNangLuong = null;
+        float       khoangCachCoNangLuong = float.MaxValue;
+        HealingZone ganNhatBatKy = null;
+        float       khoangCachBatKy = float.MaxValue;
+
+        foreach (HealingZone zone in HealingZone.AllZones)
+        {
+            if (zone == null) { continue; }
+
+            float dist = Vector2.Distance(ctx.BotPosition, zone.Position);
+            if (dist < khoangCachBatKy)
+            {
+                khoangCachBatKy = dist;
+                ganNhatBatKy    = zone;
+            }
+
+            if (!zone.CoTheHoiMau) { continue; }
+
+            if (dist < khoangCachCoNangLuong)
+            {
+                khoangCachCoNangLuong = dist;
+                ganNhatCoNangLuong    = zone;
+            }
+        }
+
+        HealingZone chon = ganNhatCoNangLuong ?? ganNhatBatKy;
+        if (chon == null) { return; }
+
+        ctx.NearestHealingZone    = chon;
+        ctx.HealingZonePosition   = chon.Position;
+        ctx.DistanceToHealingZone = ganNhatCoNangLuong != null ? khoangCachCoNangLuong : khoangCachBatKy;
     }
 }
