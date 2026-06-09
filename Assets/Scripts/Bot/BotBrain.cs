@@ -23,10 +23,12 @@ public class BotBrain : NetworkBehaviour
     public static IReadOnlyList<TankPlayer> AllPlayers => _allPlayers;
     private static readonly List<TankPlayer> _allPlayers = new List<TankPlayer>();
 
-    private BotContext  ctx;
-    private BotSense    sense;
-    private TankPlayer  tankPlayer;
+    private BotContext ctx;
+    private BotSense sense;
+    private TankPlayer tankPlayer;
     private Rigidbody2D rb;
+    private BoPhongDan boPhongDan;
+    private Transform turretTransform;
 
     private IBotState stateTuanTra;
     private IBotState stateGiaoTranh;
@@ -39,28 +41,44 @@ public class BotBrain : NetworkBehaviour
     private void Awake()
     {
         tankPlayer = GetComponent<TankPlayer>();
-        sense      = GetComponent<BotSense>();
-        rb         = GetComponent<Rigidbody2D>();
+        sense = GetComponent<BotSense>();
+        rb = GetComponent<Rigidbody2D>();
+        boPhongDan = GetComponent<BoPhongDan>();
 
-        stateTuanTra   = new TrangThaiTuanTra();
+        Transform turretPivot = transform.Find("TurretPivot");
+        if (turretPivot != null)
+        {
+            turretTransform = turretPivot;
+        }
+
+        stateTuanTra = new TrangThaiTuanTra();
         stateGiaoTranh = new TrangThaiGiaoTranh();
-        stateNhatCoin  = new TrangThaiNhatCoin();
-        stateRutLui    = new TrangThaiRutLui();
+        stateNhatCoin = new TrangThaiNhatCoin();
+        stateRutLui = new TrangThaiRutLui();
     }
 
     public override void OnNetworkSpawn()
     {
-        if (!IsServer) { enabled = false; return; }
+        if (!IsServer)
+        {
+            enabled = false;
+            return;
+        }
 
-        TankPlayer.OnPlayerSpawned   += OnPlayerSpawned;
+        TankPlayer.OnPlayerSpawned += OnPlayerSpawned;
         TankPlayer.OnPlayerDespawned += OnPlayerDespawned;
+
+        if (!_allPlayers.Contains(tankPlayer))
+        {
+            _allPlayers.Add(tankPlayer);
+        }
 
         ctx = new BotContext
         {
-            Player        = tankPlayer,
+            Player = tankPlayer,
             BodyTransform = transform,
-            Health        = tankPlayer.Health,
-            Wallet        = tankPlayer.Wallet,
+            Health = tankPlayer.Health,
+            Wallet = tankPlayer.Wallet,
         };
 
         _timerDanhGia = RandomChuKy();
@@ -69,13 +87,16 @@ public class BotBrain : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        TankPlayer.OnPlayerSpawned   -= OnPlayerSpawned;
+        TankPlayer.OnPlayerSpawned -= OnPlayerSpawned;
         TankPlayer.OnPlayerDespawned -= OnPlayerDespawned;
+
+        _allPlayers.Remove(tankPlayer);
     }
 
     private void Update()
     {
         if (!IsServer) { return; }
+        if (ctx == null) { return; }
 
         _timerDanhGia -= Time.deltaTime;
         if (_timerDanhGia > 0f) { return; }
@@ -89,8 +110,8 @@ public class BotBrain : NetworkBehaviour
         BotCommand cmd = currentState.Update(ctx);
 
         ctx.OutputHuongDiChuyen = cmd.MoveInput;
-        ctx.OutputDiemNgam      = cmd.AimTarget ?? ctx.BotPosition;
-        ctx.OutputCoBopCo       = cmd.Fire;
+        ctx.OutputDiemNgam = cmd.AimTarget ?? ctx.BotPosition;
+        ctx.OutputCoBopCo = cmd.Fire;
 
         ThucThiLenh(cmd);
         CapNhatLabelDebug();
@@ -136,13 +157,33 @@ public class BotBrain : NetworkBehaviour
     {
         if (rb == null) { return; }
 
-        float steer     = cmd.MoveInput.x;
-        float throttle  = cmd.MoveInput.y;
-        float tocDo     = 5f;
+        float steer = cmd.MoveInput.x;
+        float throttle = cmd.MoveInput.y;
+        float tocDo = 5f;
         float tocDoXoay = 120f;
 
         ctx.BodyTransform.Rotate(0f, 0f, steer * -tocDoXoay * Time.deltaTime);
         rb.velocity = (Vector2)ctx.BodyTransform.up * throttle * tocDo;
+
+        if (turretTransform != null)
+        {
+            Vector2 aimDirection = ctx.OutputDiemNgam - (Vector2)turretTransform.position;
+
+            if (aimDirection.sqrMagnitude > 0.01f)
+            {
+                turretTransform.up = aimDirection;
+            }
+        }
+
+        if (cmd.Fire)
+        {
+            Debug.Log("BOT FIRE COMMAND: " + tankPlayer.PlayerName.Value);
+        }
+
+        if (cmd.Fire && boPhongDan != null)
+        {
+            boPhongDan.BotFire();
+        }
     }
 
     private void CapNhatLabelDebug()
@@ -154,21 +195,27 @@ public class BotBrain : NetworkBehaviour
     private static string TenTrangThai(IBotState s) => s switch
     {
         TrangThaiGiaoTranh => "⚔️ Giao tranh",
-        TrangThaiNhatCoin  => "💰 Nhặt coin",
-        TrangThaiRutLui    => "🏃 Rút lui",
-        TrangThaiTuanTra   => "🔍 Tuần tra",
-        _                  => s?.GetType().Name ?? "null"
+        TrangThaiNhatCoin => "💰 Nhặt coin",
+        TrangThaiRutLui => "🏃 Rút lui",
+        TrangThaiTuanTra => "🔍 Tuần tra",
+        _ => s?.GetType().Name ?? "null"
     };
 
     private float RandomChuKy() => Random.Range(chuKyDanhGiaMin, chuKyDanhGiaMax);
 
     private static void OnPlayerSpawned(TankPlayer p)
     {
-        if (!_allPlayers.Contains(p)) { _allPlayers.Add(p); }
+        if (!_allPlayers.Contains(p))
+        {
+            _allPlayers.Add(p);
+        }
     }
 
     private static void OnPlayerDespawned(TankPlayer p)
     {
         _allPlayers.Remove(p);
+
     }
+
+
 }

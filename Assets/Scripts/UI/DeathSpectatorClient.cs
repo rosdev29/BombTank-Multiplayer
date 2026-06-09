@@ -236,7 +236,23 @@ public class DeathSpectatorClient : MonoBehaviour
         if (!isSpectating) { return; }
 
         int seconds = Mathf.CeilToInt(Mathf.Max(0f, countdownRemaining));
-        GUIStyle style = new GUIStyle(GUI.skin.label)
+
+        float width = 560f;
+        float height = 330f;
+        float x = (Screen.width - width) / 2f;
+        float y = (Screen.height - height) / 2f;
+
+        GUIStyle boxStyle = new GUIStyle(GUI.skin.box);
+
+        GUIStyle titleStyle = new GUIStyle(GUI.skin.label)
+        {
+            alignment = TextAnchor.MiddleCenter,
+            fontSize = 34,
+            fontStyle = FontStyle.Bold,
+            normal = { textColor = Color.red }
+        };
+
+        GUIStyle messageStyle = new GUIStyle(GUI.skin.label)
         {
             alignment = TextAnchor.MiddleCenter,
             fontSize = 24,
@@ -244,18 +260,55 @@ public class DeathSpectatorClient : MonoBehaviour
             normal = { textColor = Color.white }
         };
 
-        Rect messageRect = new Rect(0f, Screen.height * 0.38f, Screen.width, 40f);
-        GUI.Label(messageRect, $"Ban da chet. Hoi sinh sau {seconds} giay...", style);
-
         GUIStyle hintStyle = new GUIStyle(GUI.skin.label)
         {
             alignment = TextAnchor.MiddleCenter,
             fontSize = 16,
             normal = { textColor = new Color(0.9f, 0.9f, 0.9f, 1f) }
         };
-        Rect hintRect = new Rect(0f, Screen.height * 0.44f, Screen.width, 30f);
-        GUI.Label(hintRect, "Che do theo doi: bam A/D hoac mui ten trai/phai de doi muc tieu", hintStyle);
+
+        GUIStyle buttonStyle = new GUIStyle(GUI.skin.button)
+        {
+            fontSize = 22,
+            fontStyle = FontStyle.Bold
+        };
+
+        GUI.Box(new Rect(x, y, width, height), "", boxStyle);
+
+        GUI.Label(new Rect(x, y + 25f, width, 50f), "YOU DIED", titleStyle);
+
+        GUI.Label(
+            new Rect(x + 40f, y + 95f, width - 80f, 45f),
+            $"Respawn in: {seconds}s",
+            messageStyle
+        );
+
+        GUI.Label(
+            new Rect(x + 40f, y + 150f, width - 80f, 50f),
+            "Follow mode : Press the A / D key to follow other players ",
+            hintStyle
+        );
+
+        if (GUI.Button(new Rect(x + (width - 170f) / 2f, y + 235f, 170f, 55f), "HOME", buttonStyle))
+        {
+            GoHome();
+        }
     }
+
+    private void GoHome()
+    {
+        isSpectating = false;
+        ReleaseBoost();
+        Time.timeScale = 1f;
+
+        if (Unity.Netcode.NetworkManager.Singleton != null)
+        {
+            Unity.Netcode.NetworkManager.Singleton.Shutdown();
+        }
+
+        UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+    }
+
 
     private bool IsPreviousTargetPressed()
     {
