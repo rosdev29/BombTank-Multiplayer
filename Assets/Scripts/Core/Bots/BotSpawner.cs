@@ -6,7 +6,7 @@ using UnityEngine;
 
 public class BotSpawner : MonoBehaviour
 {
-    private const int TargetTotalTanks = 8;
+    private const int TargetTotalTanks = 2;
     
     private List<TankPlayer> activeBots = new List<TankPlayer>();
     private int realPlayerCount = 0;
@@ -90,6 +90,7 @@ public class BotSpawner : MonoBehaviour
         if (player.IsBot.Value || player.GetComponent<BotTag>() != null)
         {
             activeBots.Remove(player);
+            UpdateBots();
         }
         else
         {
