@@ -113,26 +113,25 @@ public class TrangThaiRutLui : IBotState
     }
 
     // Diem cang xa dich cang tot; cong them diem neu gan vung hoi mau hon
-    private static float TinhDiemRutLui(Vector2 diem, BotContext ctx)
+    private static float TinhDiemRutLui(Vector2 candidate, BotContext ctx)
     {
-        float diemAnToan = TinhKhoangCachAnToan(diem, ctx);
-        float diem       = diemAnToan;
+        float tongDiem = TinhKhoangCachAnToan(candidate, ctx);
 
         if (ctx.NearestHealingZone != null)
         {
             float distHienTai = Vector2.Distance(ctx.BotPosition, ctx.HealingZonePosition);
-            float distMoi     = Vector2.Distance(diem, ctx.HealingZonePosition);
+            float distMoi     = Vector2.Distance(candidate, ctx.HealingZonePosition);
             if (distMoi < distHienTai)
             {
-                diem += TRONG_SO_HUONG_HOI_MAU * (distHienTai - distMoi);
+                tongDiem += TRONG_SO_HUONG_HOI_MAU * (distHienTai - distMoi);
             }
         }
 
-        return diem;
+        return tongDiem;
     }
 
     // Khoang cach toi dich gan nhat tai diem candidate
-    private static float TinhKhoangCachAnToan(Vector2 diem, BotContext ctx)
+    private static float TinhKhoangCachAnToan(Vector2 candidate, BotContext ctx)
     {
         if (ctx.DanhSachDichGan.Count == 0)
         {
@@ -144,7 +143,7 @@ public class TrangThaiRutLui : IBotState
         {
             if (dich == null) { continue; }
 
-            float dist = Vector2.Distance(diem, (Vector2)dich.transform.position);
+            float dist = Vector2.Distance(candidate, (Vector2)dich.transform.position);
             if (dist < minDist)
             {
                 minDist = dist;
