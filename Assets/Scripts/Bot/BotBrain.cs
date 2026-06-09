@@ -15,6 +15,7 @@ public class BotBrain : NetworkBehaviour
     [Header("Ngưỡng chuyển trạng thái")]
     [SerializeField] private float nguongMauThapDeRutLui = 0.35f;
     [SerializeField] private float banKinhGiaoTranh      = 10f;
+    [SerializeField] private float xacSuatNhatItem       = 0.5f;
 
     [Header("Debug")]
     [SerializeField] private TextMeshPro labelTrangThai;
@@ -74,7 +75,7 @@ public class BotBrain : NetworkBehaviour
 
     private void Update()
     {
-        if (!IsServer) { return; }
+        if (!IsServer || !IsSpawned || ctx == null) { return; }
 
         _timerDanhGia -= Time.deltaTime;
         if (_timerDanhGia > 0f) { return; }
@@ -107,6 +108,10 @@ public class BotBrain : NetworkBehaviour
         {
             muon = stateGiaoTranh;
         }
+        else if (ctx.NearestItem != null && Random.value < xacSuatNhatItem)
+        {
+            muon = stateNhatCoin; // Tái sử dụng stateNhatCoin để đi nhặt item
+        }
         else if (ctx.NearestCoin != null)
         {
             muon = stateNhatCoin;
@@ -119,6 +124,15 @@ public class BotBrain : NetworkBehaviour
         if (muon != currentState)
         {
             ChuyenTrangThai(muon);
+        }
+
+        // Tự động dùng item nếu đang có item lợi và đang giao tranh
+        if (currentState == stateGiaoTranh && tankPlayer.Inventory != null && tankPlayer.Inventory.CurrentItem.Value != ItemType.None)
+        {
+            if (tankPlayer.Inventory.CurrentItem.Value == ItemType.BuffCoin || tankPlayer.Inventory.CurrentItem.Value == ItemType.DoubleBarrel)
+            {
+                tankPlayer.Inventory.UseItem();
+            }
         }
     }
 
