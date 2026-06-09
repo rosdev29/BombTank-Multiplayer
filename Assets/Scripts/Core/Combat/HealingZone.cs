@@ -6,6 +6,13 @@ using UnityEngine.UI;
 
 public class HealingZone : NetworkBehaviour
 {
+    // Danh sach tat ca vung hoi mau tren map (bot dung de tim vi tri gan nhat)
+    private static readonly List<HealingZone> zones = new List<HealingZone>();
+
+    public static IReadOnlyList<HealingZone> AllZones => zones;
+    public Vector2 Position => transform.position;
+    public bool CoTheHoiMau => HealPower.Value > 0; // false khi het nang luong hoac dang cooldown
+
     [Header("References")]
     [SerializeField] private Image healPowerBar;
 
@@ -21,6 +28,20 @@ public class HealingZone : NetworkBehaviour
     private HashSet<TankPlayer> playersInZone = new HashSet<TankPlayer>();
 
     private NetworkVariable<int> HealPower = new NetworkVariable<int>();
+
+    // Dang ky / huy dang ky khi vung hoi mau bat/tat tren scene
+    private void OnEnable()
+    {
+        if (!zones.Contains(this))
+        {
+            zones.Add(this);
+        }
+    }
+
+    private void OnDisable()
+    {
+        zones.Remove(this);
+    }
 
     private void Awake()
     {
