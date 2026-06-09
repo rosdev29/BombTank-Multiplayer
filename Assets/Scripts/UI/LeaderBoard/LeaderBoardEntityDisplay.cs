@@ -55,6 +55,6 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
     {
         if (displayText == null) { return; }
         string nameToShow = string.IsNullOrWhiteSpace(displayName) ? "Unknown" : displayName;
-        displayText.text = $"{transform.GetSiblingIndex() + 1}. {nameToShow} ({Coins})";
+        displayText.text = $"{transform.GetSiblingIndex() + 1}. {nameToShow}: {Coins} điểm";
     }
 }
