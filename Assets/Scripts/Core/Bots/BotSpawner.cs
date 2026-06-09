@@ -144,18 +144,28 @@ public class BotSpawner : MonoBehaviour
         if (botInstance.GetComponent<BotSense>() == null)
             botInstance.gameObject.AddComponent<BotSense>();
 
-        if (botInstance.GetComponent<BotBrain>() == null)
-            botInstance.gameObject.AddComponent<BotBrain>();
+        if (botInstance.GetComponent<BotTurretController>() == null)
+            botInstance.gameObject.AddComponent<BotTurretController>();
+
+        if (botInstance.GetComponent<BotShooter>() == null)
+            botInstance.gameObject.AddComponent<BotShooter>();
+
+        BotBrain botBrain = botInstance.GetComponent<BotBrain>();
+        if (botBrain == null)
+        {
+            botBrain = botInstance.gameObject.AddComponent<BotBrain>();
+        }
+        botBrain.SetLayerMaskTuong(LayerMask.GetMask("Terrain"));
 
         TankPlayer tankPlayer = botInstance.GetComponent<TankPlayer>();
 
         botInstance.Spawn(true);
 
-        // Set values after spawn — never replace NetworkVariable instances (breaks Mau and other behaviours).
+        // Đặt giá trị thông qua .Value SAU KHI Spawn
         if (tankPlayer != null)
         {
             tankPlayer.IsBot.Value = true;
-            tankPlayer.PlayerName.Value = new FixedString32Bytes(GetRandomBotName());
+            tankPlayer.PlayerName.Value = new Unity.Collections.FixedString32Bytes(GetRandomBotName());
             tankPlayer.TeamIndex.Value = -1;
         }
     }
