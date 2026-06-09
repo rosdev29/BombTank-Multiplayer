@@ -6,7 +6,7 @@ using UnityEngine;
 
 public class BotSpawner : MonoBehaviour
 {
-    private const int TargetTotalTanks = 2;
+    private const int TargetTotalTanks = 3;
     
     private List<TankPlayer> activeBots = new List<TankPlayer>();
     private int realPlayerCount = 0;
