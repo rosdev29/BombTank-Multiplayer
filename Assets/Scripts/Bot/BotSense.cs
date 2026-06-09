@@ -5,11 +5,13 @@ public class BotSense : MonoBehaviour
     [Header("Bán kính phát hiện")]
     [SerializeField] public float BanKinhPhatHienDich = 15f;
     [SerializeField] public float BanKinhPhatHienCoin = 20f;
+    [SerializeField] public float BanKinhPhatHienItem = 25f;
 
     public void DocMoiTruong(BotContext ctx)
     {
         DocGiacQuanCoin(ctx);
         DocGiacQuanDich(ctx);
+        DocGiacQuanItem(ctx);
     }
 
     private void DocGiacQuanCoin(BotContext ctx)
@@ -34,6 +36,28 @@ public class BotSense : MonoBehaviour
         }
 
         ctx.SoCoinHienTai = ctx.Wallet != null ? ctx.Wallet.TotalCoins.Value : 0;
+    }
+
+    private void DocGiacQuanItem(BotContext ctx)
+    {
+        ctx.NearestItem    = null;
+        ctx.DistanceToItem = float.MaxValue;
+
+        Collider2D[] hits = Physics2D.OverlapCircleAll(ctx.BotPosition, BanKinhPhatHienItem);
+        foreach (Collider2D hit in hits)
+        {
+            if (hit == null) { continue; }
+            ItemPickup item = hit.GetComponent<ItemPickup>();
+            if (item == null) { continue; }
+
+            float dist = Vector2.Distance(ctx.BotPosition, (Vector2)item.transform.position);
+            if (dist < ctx.DistanceToItem)
+            {
+                ctx.DistanceToItem = dist;
+                ctx.NearestItem    = item;
+                ctx.ItemPosition   = (Vector2)item.transform.position;
+            }
+        }
     }
 
     private void DocGiacQuanDich(BotContext ctx)

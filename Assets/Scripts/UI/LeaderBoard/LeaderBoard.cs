@@ -230,6 +230,10 @@ public class Leaderboard : NetworkBehaviour
         if (isTearingDown) { return; }
         if (!IsServer || !IsSpawned || leaderboardEntities == null || player == null) { return; }
         if (NetworkManager == null || NetworkManager.ShutdownInProgress) { return; }
+        
+        // CHẶN BOT: Không cho phép Bot được đưa lên bảng Leaderboard
+        if (player.IsCurrentlyBot()) { return; }
+        
         for (int i = 0; i < leaderboardEntities.Count; i++)
         {
             if (leaderboardEntities[i].ClientId == player.OwnerClientId)
@@ -243,7 +247,7 @@ public class Leaderboard : NetworkBehaviour
             ClientId = player.OwnerClientId,
             PlayerName = player.PlayerName.Value,
             TeamIndex = player.TeamIndex.Value,
-            Coins = 0
+            Coins = player.Wallet != null ? player.Wallet.TotalCoins.Value : 0
         });
 
         if (player.Wallet != null && !coinChangedSubscriptions.ContainsKey(player.OwnerClientId))

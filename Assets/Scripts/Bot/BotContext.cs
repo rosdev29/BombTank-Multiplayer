@@ -18,6 +18,10 @@ public class BotContext
     public float   DistanceToCoin { get; set; } = float.MaxValue;
     public int     SoCoinHienTai  { get; set; }
 
+    public ItemPickup NearestItem    { get; set; }
+    public Vector2    ItemPosition   { get; set; }
+    public float      DistanceToItem { get; set; } = float.MaxValue;
+
     public Vector2 BotPosition    => BodyTransform != null ? (Vector2)BodyTransform.position : Vector2.zero;
 
     public int   CurrentHealth => Health != null ? Health.MauHienTai.Value : 0;
