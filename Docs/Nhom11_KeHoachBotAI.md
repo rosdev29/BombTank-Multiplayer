@@ -157,16 +157,27 @@ Bot brain đọc số từ config (không hard-code). **Không cần UI chọn c
 - Khi brain báo **bóp cò** → gọi API bắn của **Thái** (Hoàng không tự spawn đạn server).
 - Tắt camera của bot (camera chỉ dành cho người thật).
 
+**Phần 3 — Item + huấn luyện bot nhặt item + UI coin trong game (Phase 2):**
+
+- **3 item** rải trên map (07/06 → 10/06): **đã xong 10/06** ✅ (Phúc gắn SFX nhặt sau khi phần này xong — xem mục Phúc).
+- **Huấn luyện bot nhặt item (07/06 → ⚠️ xong 17/06):** dạy bot **quyết định nhặt hay không nhặt item theo tỉ lệ** (chia tỉ lệ nhặt/bỏ) — không phải lúc nào cũng lao vào nhặt. **Phải xong 17/06** vì Phúc cần phần này xong mới gắn được SFX nhặt item (18/06).
+- **UI coin trong game (mới, ⚠️ xong 17/06):** hiện player **không biết mình đã chi bao nhiêu coin và còn coin để bắn không**. Vì **hết coin = không bắn được** (sau khi Thái fix), cần 1 cụm UI trên màn chơi cho biết. **Phải xong 17/06** vì Phúc cần UI này xong mới gắn được **tiếng click trong game** kịp hạn 21/6. UI cần cho biết:
+  - Số coin **đang có** (real-time).
+  - Khi **cạn coin / không đủ để bắn** → báo rõ (đổi màu / icon mờ / chữ "Hết coin") để player biết vì sao bấm bắn mà không ra đạn.
+  - Bám theo **mẫu ý tưởng** chủ nhóm gửi trên Zalo + phong cách UI game hiện tại (chụp UI cũ đưa AI gen cho đồng bộ font/màu).
+
 **Bàn giao cho:**
 
 - An + Lộc: bot trên map để có chỗ cắm bot brain vào (sau phần 1).
 - Thái: nhãn bot để format bảng điểm (sau phần 1).
 - Duy: bot chạy được trên 1 máy để mang lên LAN test (sau phần 2).
+- Phúc: báo Phúc khi **huấn luyện bot nhặt item + UI coin trong game xong (17/06)** để Phúc gắn SFX nhặt + tiếng click từ 18/06, kịp hạn 21/06.
 
 **Xong khi:** 
 
 - Phần 1: vào trận thấy 7 xe bot đứng yên trên map, mỗi xe 1 tên khác nhau, rủ thêm 1 người vào thì bot tự bớt còn 6.
 - Phần 2: bot tự đi, tự xoay nòng; khi bóp cò thì Thái xử lý đạn (xem mục Thái).
+- Phần 3: 3 item rải trên map (xong 10/06); bot biết nhặt/bỏ item theo tỉ lệ; trong trận thấy rõ số coin còn lại, khi cạn coin thì UI báo rõ là không bắn được.
 
 ---
 
@@ -228,7 +239,7 @@ Bot brain đọc số từ config (không hard-code). **Không cần UI chọn c
 ### Thái — Đạn trừ máu + Cài đặt + Bảng điểm + Màn kết thúc
 
 **Nhánh:** `feature/bot-combat-damage`, `feature/settings`, `feature/scoreboard-bot`, `feature/match-end`  
-**Hạn:** **Đạn trừ máu 07/06** · Cài đặt 07/06 · Bảng điểm 11/06 · Màn kết thúc 14/06  
+**Hạn:** **Đạn trừ máu 07/06** · Cài đặt 07/06 · Bảng điểm 11/06 · Màn kết thúc 14/06 · **Coin drop 50% 15/06 · Ánh sáng/đèn xe 21/06 (Phase 2)**  
 **Phụ thuộc:** Đạn bot cần Hoàng spawn bot + An/Hoàng bot brain (bóp cò) trước 07/06. Bảng điểm cần nhãn bot Hoàng (31/05).  
 **Cần làm:**
 
@@ -251,6 +262,18 @@ Bot brain đọc số từ config (không hard-code). **Không cần UI chọn c
   - **Bot**: tên thường (màu trắng/xám), không có icon — đọc nhãn bot do Hoàng gắn để biết xe nào là bot.
 3. Màn Kết thúc trận: khi hết giờ hoặc đủ điều kiện, hiện ai thắng + bảng coin (cả 8 xe, người thật vẫn nổi bật màu vàng) + nút quay về menu.
 
+#### 4. Coin drop khi chết = 50% **tổng coin đã kiếm** (Phase 2, hạn 21/06)
+
+- Sửa lại logic rớt coin: khi 1 xe chết → người giết ăn **50% TỔNG coin xe đó đã kiếm được cả trận**, **KHÔNG PHẢI** 50% số coin **hiện đang cầm**.
+- Vì vậy cần lưu thêm 1 biến **tổng coin tích luỹ** cho mỗi xe (cộng dồn mỗi lần kiếm coin, không bị trừ khi bắn).
+- **Leaderboard cũng bị trừ** tương ứng khi mất coin lúc chết (số trên bảng phản ánh đúng coin thực có).
+
+#### 5. Ánh sáng + bóng tối cho map (Phase 2, hạn 21/06) — tham khảo [video](https://www.youtube.com/watch?v=Jf1w_wUibnA)
+
+- Làm **bóng tối** cho map (ban đêm), rải **vài tảng đá phát sáng** rải rác cho có điểm nhấn.
+- **Mọi xe tăng (bot lẫn player thật)** gắn **đèn** ngay **cái nòng hoặc nửa phần xe** (tuỳ thấy hợp lý).
+- ⚠️ **Đừng làm map tối quá** — **chụp ảnh gửi chủ nhóm duyệt độ sáng/tối TRƯỚC** khi làm tiếp.
+
 **Bàn giao cho Phúc:**
 
 - Đặt tên thanh trượt rõ (vd `MusicSlider`, `SFXSlider`) để Phúc gọi đúng.
@@ -270,7 +293,7 @@ Bot brain đọc số từ config (không hard-code). **Không cần UI chọn c
 ### Phúc — Hướng dẫn chơi + Âm thanh + Hiệu ứng SFX
 
 **Nhánh:** `feature/tutorial`, `feature/audio`, `feature/sfx-effects`  
-**Hạn:** Tutorial 04/06 · Âm thanh + SFX 11/06 · Nối với Settings 14/06  
+**Hạn:** Tutorial 04/06 · Âm thanh + SFX 11/06 · Nối với Settings 14/06 · **SFX nhặt 3 item + Popup thoát + Việt hoá UI 21/06 (Phase 2)**  
 **Phụ thuộc:** Cuối cùng nối nhạc với màn Cài đặt + Màn kết thúc của Thái.  
 **Cần làm:**
 
@@ -291,12 +314,21 @@ Bot brain đọc số từ config (không hard-code). **Không cần UI chọn c
 4. Viết 1 script quản lý âm thanh — chỗ duy nhất phát nhạc và hiệu ứng (để Settings điều chỉnh được).
 5. Khi Thái xong Cài đặt, nối thanh trượt âm lượng với script này.
 
+**Phase 2 (hạn 21/06):**
+
+6. **SFX nhặt 3 item + tiếng click trong game** (18/06 → 21/06): làm **3 tiếng khác nhau** cho 3 loại item + **tiếng click** cho các nút trong game. ⚠️ **Phụ thuộc Hoàng:** 2 việc này chỉ làm được **sau khi Hoàng xong huấn luyện bot nhặt item + UI coin trong game (xong 17/6)** → Phúc bắt đầu **18/6**, về đích **21/6**. Lưu ý: 3 tiếng nhặt **vừa phải, nghe vừa tai**, đừng chói/ồn.
+7. *(gộp vào mục 6 ở trên — tiếng click làm cùng đợt SFX nhặt item, sau khi Hoàng xong).*
+8. **Popup xác nhận thoát game**: ở chỗ bấm **Exit**, thêm popup *"Bạn có thực sự muốn thoát game không?"* → **Có** (thoát) / **Không** (ở lại). **Dùng AI gen** popup theo đúng **đồ hoạ game hiện tại** (chụp UI cũ đưa AI cho đồng bộ). Nhớ gắn luôn tiếng click cho 2 nút.
+9. **Việt hoá toàn bộ UI**: đổi **toàn bộ chữ tiếng Anh trong game → tiếng Việt**. **Giữ nguyên tên game "BombTank"** (không dịch).
+
 **Xong khi:**
 
 - Người mới đọc Tutorial là biết chơi.
-- Game có nhạc nền, có tiếng bắn, tiếng động cơ, tiếng trúng đạn, tiếng nổ.
+- Game có nhạc nền, có tiếng bắn, tiếng động cơ, tiếng trúng đạn, tiếng nổ, **tiếng click nút**, **3 tiếng nhặt item khác nhau**.
 - Hết trận có nhạc thắng/thua phát đúng lúc.
 - Kéo thanh trượt trong Cài đặt thì âm thanh to/nhỏ theo.
+- Bấm Exit hiện popup xác nhận; chọn Có thì thoát, Không thì ở lại.
+- Toàn bộ chữ trong game là tiếng Việt (trừ tên "BombTank").
 
 ---
 
@@ -332,13 +364,14 @@ Nếu ai vắng dài (> 3 ngày): báo Zalo trước, leader chia lại việc c
 | 05/06 | Chết có delay + spectator camera + màn "Hồi sinh sau X giây"                              |
 | 07/06 | **Người giết bot + bot giết người** đều trừ HP; Kill Feed giữa-trái màn hình              |
 | 09/06 | Match Timer đếm ngược ở góc trên giữa                                                     |
-| 10/06 | Bot có đủ 4 trạng thái — Tuần tra, Giao tranh, Rút lui, Nhặt coin                         |
+| 10/06 | Bot có đủ 4 trạng thái — Tuần tra, Giao tranh, Rút lui, Nhặt coin · **Hoàng xong 3 item** ✅ |
 | 12/06 | Bảng điểm có ping của người thật                                                          |
 | 14/06 | 2 máy LAN chơi cùng, có 6 bot, hết giờ tự kết thúc trận, **bot có 3 cấp độ Dễ/Trung/Khó** |
 | 16/06 | **Bounty system**: ai > 100 coin có vương miện 👑, giết được +20% coin                    |
-| **21/06** | **Phase 2 xong:** bot AI ổn · 3 item · SFX item · đèn 2D · coin drop 100% khi chết          |
-| **28/06** | Merge tất cả nhánh xong, fix bug còn lại                                                    |
-| **05/07** | Báo cáo + kịch bản thuyết trình (chia người trình bày — vote sau)                          |
+| 15/06 | **Coin drop = 50% tổng coin kiếm** (Thái) + leaderboard trừ đúng                          |
+| 21/06 | **Phase 2 xong**: UI coin trong game (Hoàng) · đèn xe + đá sáng + bóng tối (Thái) · SFX nhặt 3 item + popup thoát + việt hoá UI (Phúc) · Build chạy ổn, sẵn sàng nộp |
+| 28/06 | Merge tất cả nhánh xong, fix bug còn lại                                                  |
+| 05/07 | Báo cáo + kịch bản thuyết trình (chia người trình bày — vote sau)                         |
 
 
 ---
@@ -381,6 +414,15 @@ Duy tick khi test LAN; người phụ trách sửa nếu chưa có.
 | 16 | Tutorial ghi **LAN cùng WiFi** | Phúc | |
 | 17 | Không commit `.meta` folder trống | Cả nhóm | Music/UI/Docs rỗng |
 | 18 | Không sửa tay `Controls.cs` auto-gen | Cả nhóm | Regenerate từ `.inputactions` |
+| 19 | **Phase 2:** 3 item trên map (07/06 → xong 10/06) | Hoàng | Báo Phúc để gắn SFX |
+| 19b | **Phase 2:** Huấn luyện bot nhặt item (tỉ lệ nhặt/bỏ, 07/06 → **xong 17/6**) | Hoàng | Bot quyết định nhặt hay bỏ theo tỉ lệ; **xong 17/6** để Phúc gắn SFX |
+| 20 | **Phase 2:** UI coin trong game (đã chi / cạn coin) | Hoàng | Hết coin = không bắn được; **xong 17/6** để Phúc kịp gắn tiếng click |
+| 21 | **Phase 2:** Coin drop = 50% **tổng coin kiếm** + leaderboard trừ | Thái | Lưu biến tổng coin tích luỹ, không phải coin hiện có |
+| 22 | **Phase 2:** Đèn xe (bot+player) + đá sáng + bóng tối | Thái | Chụp ảnh duyệt độ sáng trước, đừng tối quá |
+| 23 | **Phase 2:** SFX nhặt 3 item + tiếng click trong game (18/6 → 21/6) | Phúc | **Chờ Hoàng xong huấn luyện bot nhặt item + UI coin (17/6)** rồi mới gắn |
+| 24 | *(đã gộp vào dòng 23 — tiếng click làm cùng đợt)* | Phúc | |
+| 25 | **Phase 2:** Popup xác nhận thoát game (AI gen) | Phúc | Có/Không, đồng bộ đồ hoạ game |
+| 26 | **Phase 2:** Việt hoá toàn bộ UI (giữ tên "BombTank") | Phúc | EN → VI |
 
 **Demo tối thiểu 14/06:** 2 máy LAN + **bắn bot chết được** + bot bắn người trừ máu + kill feed + timer + bảng điểm + hết giờ kết thúc.
 
