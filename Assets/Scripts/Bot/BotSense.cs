@@ -3,7 +3,7 @@ using UnityEngine;
 public class BotSense : MonoBehaviour
 {
     [Header("Bán kính phát hiện")]
-    [SerializeField] public float BanKinhPhatHienDich = 15f;
+    [SerializeField] public float BanKinhPhatHienDich = 20f;
     [SerializeField] public float BanKinhPhatHienCoin = 20f;
 
     public void DocMoiTruong(BotContext ctx)
