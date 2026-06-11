@@ -13,7 +13,7 @@ public class BotBrain : NetworkBehaviour
 
     [Header("Ngưỡng chuyển trạng thái")]
     [SerializeField] private float nguongMauThapDeRutLui = 0.35f;
-    [SerializeField] private float banKinhGiaoTranh      = 10f;
+    [SerializeField] private float banKinhGiaoTranh      = 20f;
     [SerializeField] private int   chiPhiBan             = 1;
 
     [Header("Debug")]
@@ -25,7 +25,7 @@ public class BotBrain : NetworkBehaviour
     [SerializeField] private float khoangKhanCap = 0.6f;
 
     [Header("Anti-Stuck")]
-    [SerializeField] private float thoiGianPhatHienKet  = 1.2f;
+    [SerializeField] private float thoiGianPhatHienKet  = 1.0f;
     [SerializeField] private float nguongDisplacementKet = 0.3f;
 
     public static IReadOnlyList<TankPlayer> AllPlayers => _allPlayers;
@@ -215,7 +215,8 @@ public class BotBrain : NetworkBehaviour
 
         if (ctx.HealthRatio < nguongMauThapDeRutLui)
             muon = stateRutLui;
-        else if (ctx.NearestEnemy != null && ctx.DistanceToEnemy < banKinhGiaoTranh)
+        else if (ctx.NearestEnemy != null && ctx.DistanceToEnemy < banKinhGiaoTranh
+                 && ctx.DuCoinDeBan(chiPhiBan))
             muon = stateGiaoTranh;
         else if (!ctx.DuCoinDeBan(chiPhiBan) && ctx.NearestCoin != null)
             muon = stateNhatCoin;
@@ -247,8 +248,9 @@ public class BotBrain : NetworkBehaviour
 
         float steer    = cmd.MoveInput.x;
         float throttle = cmd.MoveInput.y;
-        const float TOC_DO     = 5f;
-        const float TOC_DO_XOY = 120f;
+        const float TOC_DO         = 5f;
+        const float TOC_DO_XOY     = 120f;
+        const float TOC_DO_XOY_GOC = 200f; // xoay nhanh hơn khi kẹt góc khẩn cấp
 
         float steerNe = TinhSteerNeTuong(throttle, out bool khancap);
 
@@ -257,9 +259,13 @@ public class BotBrain : NetworkBehaviour
         float urgency    = khancap ? 1f : Mathf.Abs(_steerNeTuongTruoc);
         float throttleNe = throttle * (1f - urgency * 0.75f);
 
+        float tocDoXoayThucTe = khancap ? TOC_DO_XOY_GOC : TOC_DO_XOY;
+
         if (khancap)
         {
-            steer    = Mathf.Sign(steerNe + 0.001f);
+            // Nếu lực triệt tiêu (góc tường) → xoay theo hướng cố định để thoát
+            float huongNe = Mathf.Abs(steerNe) > 0.001f ? Mathf.Sign(steerNe) : 1f;
+            steer    = huongNe;
             throttle = throttleNe;
         }
         else
@@ -268,7 +274,7 @@ public class BotBrain : NetworkBehaviour
             throttle = throttleNe;
         }
 
-        ctx.BodyTransform.Rotate(0f, 0f, steer * -TOC_DO_XOY * dt);
+        ctx.BodyTransform.Rotate(0f, 0f, steer * -tocDoXoayThucTe * dt);
         rb.velocity = (Vector2)ctx.BodyTransform.up * throttle * TOC_DO;
     }
 
@@ -296,10 +302,15 @@ public class BotBrain : NetworkBehaviour
             lucKhanCap += hit.normal * (t * t);
         }
 
-        if (khanCap && lucKhanCap.sqrMagnitude > 0.0001f)
+        if (khanCap)
         {
-            float gocKC = Vector2.SignedAngle(huongTien, lucKhanCap.normalized);
-            return gocKC > 0f ? 1f : -1f;
+            // Nếu có lực rõ → xoay theo lực; nếu lực triệt tiêu (góc) → trả về 0 để caller xử lý
+            if (lucKhanCap.sqrMagnitude > 0.0001f)
+            {
+                float gocKC = Vector2.SignedAngle(huongTien, lucKhanCap.normalized);
+                return gocKC > 0f ? 1f : -1f;
+            }
+            return 0f; // góc tường: lực triệt tiêu, để ThucThiLenh dùng hướng mặc định
         }
 
         float[] cacGoc     = { 0f, 20f, -20f, 40f, -40f, 60f, -60f, 80f, -80f };
