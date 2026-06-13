@@ -1,11 +1,9 @@
 using UnityEngine;
 
+/// BotSense không còn giữ config bán kính riêng.
+/// Toàn bộ config nhận từ BotContext (Blackboard) do BotBrain set.
 public class BotSense : MonoBehaviour
 {
-    [Header("Bán kính phát hiện")]
-    [SerializeField] public float BanKinhPhatHienDich = 20f;
-    [SerializeField] public float BanKinhPhatHienCoin = 20f;
-
     public void DocMoiTruong(BotContext ctx)
     {
         DocGiacQuanCoin(ctx);
@@ -19,7 +17,7 @@ public class BotSense : MonoBehaviour
         ctx.DistanceToCoin  = float.MaxValue;
         ctx.DanhSachCoinGan.Clear();
 
-        Collider2D[] hits = Physics2D.OverlapCircleAll(ctx.BotPosition, BanKinhPhatHienCoin);
+        Collider2D[] hits = Physics2D.OverlapCircleAll(ctx.BotPosition, ctx.BanKinhPhatHienCoin);
         foreach (Collider2D hit in hits)
         {
             if (hit == null) { continue; }
@@ -57,7 +55,7 @@ public class BotSense : MonoBehaviour
             if (cungTeam) { continue; }
 
             float dist = Vector2.Distance(ctx.BotPosition, (Vector2)p.transform.position);
-            if (dist > BanKinhPhatHienDich) { continue; }
+            if (dist > ctx.BanKinhPhatHienDich) { continue; }
 
             ctx.DanhSachDichGan.Add(p);
 
