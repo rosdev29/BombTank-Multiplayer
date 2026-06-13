@@ -62,7 +62,22 @@ public class TankPlayer : NetworkBehaviour
 
                 if (userData != null)
                 {
-                    PlayerName.Value = userData.userName;
+                    string playerPrefsName = PlayerPrefs.GetString(NameSelector.PlayerNameKey, "");
+
+                    if (OwnerClientId == NetworkManager.ServerClientId &&
+                        !string.IsNullOrWhiteSpace(playerPrefsName))
+                    {
+                        PlayerName.Value = playerPrefsName;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(userData.userName))
+                    {
+                        PlayerName.Value = userData.userName;
+                    }
+                    else
+                    {
+                        PlayerName.Value = $"Player {OwnerClientId}";
+                    }
+
                     TeamIndex.Value = userData.teamIndex;
                 }
                 else
@@ -71,6 +86,7 @@ public class TankPlayer : NetworkBehaviour
                     string fallbackName = OwnerClientId == NetworkManager.ServerClientId
                         ? PlayerPrefs.GetString("PlayerName", $"Player {OwnerClientId}")
                         : $"Player {OwnerClientId}";
+
                     PlayerName.Value = fallbackName;
 
                     if (TeamIndex.Value == 0 && OwnerClientId != NetworkManager.ServerClientId)
@@ -79,7 +95,7 @@ public class TankPlayer : NetworkBehaviour
                     }
                 }
             }
-
+            PlayerName.OnValueChanged += HandlePlayerNameChanged;
             OnPlayerSpawned?.Invoke(this);
         }
 
@@ -94,8 +110,17 @@ public class TankPlayer : NetworkBehaviour
         }
     }
 
+    private void HandlePlayerNameChanged(FixedString32Bytes oldName, FixedString32Bytes newName)
+    {
+        if (!IsServer) { return; }
+
+        OnPlayerSpawned?.Invoke(this);
+    }
+
     public override void OnNetworkDespawn()
     {
+        PlayerName.OnValueChanged -= HandlePlayerNameChanged;
+
         if (IsServer && NetworkManager != null && !NetworkManager.ShutdownInProgress)
         {
             OnPlayerDespawned?.Invoke(this);

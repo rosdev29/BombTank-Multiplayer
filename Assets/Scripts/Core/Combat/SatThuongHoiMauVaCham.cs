@@ -44,9 +44,9 @@ public class SatThuongHoiMauVaCham : MonoBehaviour
         if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) { return; }
         if (col.attachedRigidbody == null ) {  return; }
 
-        if (col.attachedRigidbody.TryGetComponent<NetworkObject>(out NetworkObject netObj))
+        if (col.attachedRigidbody.TryGetComponent<TankPlayer>(out TankPlayer targetPlayer))
         {
-            if (ownerClientId == netObj.OwnerClientId)
+            if (ownerTank != null && targetPlayer == ownerTank)
             {
                 return;
             }
