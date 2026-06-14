@@ -12,9 +12,13 @@ public class BotBrain : NetworkBehaviour
     [SerializeField] private float chuKyDanhGiaMax = 0.5f;
 
     [Header("Ngưỡng chuyển trạng thái")]
-    [SerializeField] private float nguongMauThapDeRutLui = 0.35f;
-    [SerializeField] private float banKinhGiaoTranh      = 10f;
-    [SerializeField] private int   chiPhiBan             = 1;
+    // nguongMauThapDeRutLui đã XÓA — đọc từ ctx.Config.nguongRutLui
+    [SerializeField] private float banKinhGiaoTranh = 10f;
+    [SerializeField] private int   chiPhiBan        = 1;
+
+    [Header("Config độ khó (fallback dev)")]
+    [Tooltip("Kéo BotConfig_Medium vào đây. GanConfig() tự gọi trong OnNetworkSpawn nếu BotSpawner chưa wire.")]
+    [SerializeField] private BotConfig configMacDinh;
 
     [Header("Debug")]
     [SerializeField] private TextMeshPro labelTrangThai;
@@ -25,8 +29,8 @@ public class BotBrain : NetworkBehaviour
     [SerializeField] private float khoangKhanCap = 0.6f;
 
     [Header("Anti-Stuck")]
-    [SerializeField] private float thoiGianPhatHienKet  = 1.2f;
-    [SerializeField] private float nguongDisplacementKet = 0.3f;
+    [SerializeField] private float thoiGianPhatHienKet   = 1.2f;
+    [SerializeField] private float nguongDisplacementKet  = 0.3f;
 
     public static IReadOnlyList<TankPlayer> AllPlayers => _allPlayers;
     private static readonly List<TankPlayer> _allPlayers = new List<TankPlayer>();
@@ -76,19 +80,13 @@ public class BotBrain : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        if (!IsServer)
-        {
-            enabled = false;
-            return;
-        }
+        if (!IsServer) { enabled = false; return; }
 
         TankPlayer.OnPlayerSpawned   += OnPlayerSpawned;
         TankPlayer.OnPlayerDespawned += OnPlayerDespawned;
 
         if (!_allPlayers.Contains(tankPlayer))
-        {
             _allPlayers.Add(tankPlayer);
-        }
 
         ctx = new BotContext
         {
@@ -100,6 +98,10 @@ public class BotBrain : NetworkBehaviour
             LayerMaskTuong  = layerMaskTuong,
         };
 
+        // Fallback: BotSpawner chưa gọi GanConfig → dùng configMacDinh (kéo Medium asset vào prefab)
+        if (configMacDinh != null)
+            GanConfig(configMacDinh);
+
         _timerDanhGia   = RandomChuKy();
         _viTriKiemTraCu = (Vector2)transform.position;
         ChuyenTrangThai(stateTuanTra);
@@ -109,9 +111,39 @@ public class BotBrain : NetworkBehaviour
     {
         TankPlayer.OnPlayerSpawned   -= OnPlayerSpawned;
         TankPlayer.OnPlayerDespawned -= OnPlayerDespawned;
-
         _allPlayers.Remove(tankPlayer);
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Gán config độ khó. BotSpawner gọi ngay sau Spawn():
+    ///   botInstance.GetComponent&lt;BotBrain&gt;()?.GanConfig(pickedConfig);
+    /// </summary>
+    public void GanConfig(BotConfig config)
+    {
+        if (config == null) 
+        {
+            Debug.LogWarning("[BotBrain] GanConfig: config null, bỏ qua.");
+            return;
+        }
+
+        // Nếu ctx chưa sẵn (gọi trước OnNetworkSpawn), chỉ lưu vào configMacDinh
+        // để OnNetworkSpawn tự gọi lại sau.
+        if (ctx == null)
+        {
+            configMacDinh = config;
+            return;
+        }
+
+        ctx.Config = config;
+        tankPlayer.Health?.DatMauToiDa(config.mauToiDa);
+        GetComponent<BoPhongDan>()?.DatTanSuatBot(1f / config.thoiGianGiuaHaiVien);
+
+        Debug.Log($"[BotBrain] {tankPlayer.PlayerName.Value} GanConfig → " +
+                  $"mau={config.mauToiDa}  delay={config.thoiGianGiuaHaiVien}s  " +
+                  $"saiSo=±{config.saiSoNgamDo}°  rutLui={config.nguongRutLui:P0}");
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
     private void Update()
     {
@@ -135,6 +167,9 @@ public class BotBrain : NetworkBehaviour
 
             _currentCommand = currentState.Update(ctx);
 
+            // Áp dụng sai số ngắm từ config (1 lần / chu kỳ đánh giá)
+            ApDungSaiSoNgam(_currentCommand);
+
             ctx.OutputHuongDiChuyen = _currentCommand.MoveInput;
             ctx.OutputDiemNgam      = _currentCommand.AimTarget ?? ctx.BotPosition;
             ctx.OutputCoBopCo       = _currentCommand.Fire;
@@ -148,72 +183,41 @@ public class BotBrain : NetworkBehaviour
         ThucThiLenh(_currentCommand);
     }
 
-    private void CapNhatAntiStuck(float dt)
+    /// <summary>
+    /// Lệch điểm ngắm một góc ngẫu nhiên ±saiSoNgamDo° quanh mục tiêu thực.
+    /// Gọi 1 lần / chu kỳ đánh giá — không cộng dồn qua từng frame.
+    /// </summary>
+    private void ApDungSaiSoNgam(BotCommand cmd)
     {
-        if (_dangThoatKet) { return; }
+        if (cmd.AimTarget == null) { return; }
+        if (ctx.Config == null)    { return; }
 
-        _checkStuckTimer += dt;
-        if (_checkStuckTimer < STUCK_CHECK_INTERVAL) { return; }
+        float saiSo = ctx.Config.saiSoNgamDo;
+        if (saiSo <= 0f) { return; }
 
-        _checkStuckTimer = 0f;
+        Vector2 huong = cmd.AimTarget.Value - ctx.BotPosition;
+        float   dist  = huong.magnitude;
+        if (dist < 0.01f) { return; }
 
-        Vector2 viTriHienTai = ctx != null ? ctx.BotPosition : (Vector2)transform.position;
-        float displacement   = Vector2.Distance(viTriHienTai, _viTriKiemTraCu);
-        _viTriKiemTraCu = viTriHienTai;
+        float   rad  = Random.Range(-saiSo, saiSo) * Mathf.Deg2Rad;
+        float   cos  = Mathf.Cos(rad);
+        float   sin  = Mathf.Sin(rad);
+        Vector2 moi  = new Vector2(
+            huong.x * cos - huong.y * sin,
+            huong.x * sin + huong.y * cos
+        ).normalized;
 
-        bool dangDiChuyen = Mathf.Abs(_currentCommand.MoveInput.y) > 0.05f;
-        if (!dangDiChuyen)
-        {
-            _stuckTimer = 0f;
-            return;
-        }
-
-        if (displacement < nguongDisplacementKet)
-            _stuckTimer += STUCK_CHECK_INTERVAL;
-        else
-            _stuckTimer = Mathf.Max(0f, _stuckTimer - STUCK_CHECK_INTERVAL * 0.5f);
-
-        if (_stuckTimer >= thoiGianPhatHienKet)
-            KichHoatThoatKet();
-    }
-
-    private void KichHoatThoatKet()
-    {
-        _stuckTimer    = 0f;
-        _dangThoatKet  = true;
-        _thoatKetTimer = THOI_GIAN_LUI_THOAT + THOI_GIAN_XOAY_THOAT;
-        _steerThoatKet = Random.value > 0.5f ? 1f : -1f;
-        Debug.Log($"[BotBrain] {tankPlayer.PlayerName.Value} → Kich hoat thoat ket!");
-    }
-
-    private BotCommand LayLenhThoatKet(float dt)
-    {
-        if (!_dangThoatKet) { return null; }
-
-        _thoatKetTimer -= dt;
-
-        if (_thoatKetTimer <= 0f)
-        {
-            _dangThoatKet = false;
-            _stuckTimer   = 0f;
-            return null;
-        }
-
-        var cmd = new BotCommand();
-
-        if (_thoatKetTimer > THOI_GIAN_XOAY_THOAT)
-            cmd.MoveInput = new Vector2(_steerThoatKet, -1f);
-        else
-            cmd.MoveInput = new Vector2(_steerThoatKet, 0f);
-
-        return cmd;
+        cmd.AimTarget = ctx.BotPosition + moi * dist;
     }
 
     private void ChonTrangThai()
     {
+        // Đọc ngưỡng rút lui từ config; fallback 0.35f nếu chưa có config
+        float nguongRutLui = ctx.Config != null ? ctx.Config.nguongRutLui : 0.35f;
+
         IBotState muon;
 
-        if (ctx.HealthRatio < nguongMauThapDeRutLui)
+        if (ctx.HealthRatio < nguongRutLui)
             muon = stateRutLui;
         else if (ctx.NearestEnemy != null && ctx.DistanceToEnemy < banKinhGiaoTranh)
             muon = stateGiaoTranh;
@@ -231,8 +235,62 @@ public class BotBrain : NetworkBehaviour
         currentState?.OnExit(ctx);
         currentState = tiepTheo;
         currentState.OnEnter(ctx);
-
         Debug.Log($"[BotBrain] {tankPlayer.PlayerName.Value} → {TenTrangThai(currentState)}");
+    }
+
+    private void CapNhatAntiStuck(float dt)
+    {
+        if (_dangThoatKet) { return; }
+
+        _checkStuckTimer += dt;
+        if (_checkStuckTimer < STUCK_CHECK_INTERVAL) { return; }
+
+        _checkStuckTimer = 0f;
+
+        Vector2 viTriHienTai = ctx != null ? ctx.BotPosition : (Vector2)transform.position;
+        float   displacement = Vector2.Distance(viTriHienTai, _viTriKiemTraCu);
+        _viTriKiemTraCu = viTriHienTai;
+
+        bool dangDiChuyen = Mathf.Abs(_currentCommand.MoveInput.y) > 0.05f;
+        if (!dangDiChuyen) { _stuckTimer = 0f; return; }
+
+        if (displacement < nguongDisplacementKet)
+            _stuckTimer += STUCK_CHECK_INTERVAL;
+        else
+            _stuckTimer = Mathf.Max(0f, _stuckTimer - STUCK_CHECK_INTERVAL * 0.5f);
+
+        if (_stuckTimer >= thoiGianPhatHienKet)
+            KichHoatThoatKet();
+    }
+
+    private void KichHoatThoatKet()
+    {
+        _stuckTimer    = 0f;
+        _dangThoatKet  = true;
+        _thoatKetTimer = THOI_GIAN_LUI_THOAT + THOI_GIAN_XOAY_THOAT;
+        _steerThoatKet = Random.value > 0.5f ? 1f : -1f;
+        Debug.Log($"[BotBrain] {tankPlayer.PlayerName.Value} → Kích hoạt thoát kẹt!");
+    }
+
+    private BotCommand LayLenhThoatKet(float dt)
+    {
+        if (!_dangThoatKet) { return null; }
+
+        _thoatKetTimer -= dt;
+
+        if (_thoatKetTimer <= 0f)
+        {
+            _dangThoatKet = false;
+            _stuckTimer   = 0f;
+            return null;
+        }
+
+        var cmd = new BotCommand();
+        cmd.MoveInput = _thoatKetTimer > THOI_GIAN_XOAY_THOAT
+            ? new Vector2(_steerThoatKet, -1f)
+            : new Vector2(_steerThoatKet,  0f);
+
+        return cmd;
     }
 
     private void ThucThiLenh(BotCommand cmd)
@@ -242,22 +300,20 @@ public class BotBrain : NetworkBehaviour
         float dt = Time.deltaTime;
 
         BotCommand thoatKetCmd = LayLenhThoatKet(dt);
-        if (thoatKetCmd != null)
-            cmd = thoatKetCmd;
+        if (thoatKetCmd != null) { cmd = thoatKetCmd; }
 
         float steer    = cmd.MoveInput.x;
         float throttle = cmd.MoveInput.y;
         const float TOC_DO     = 5f;
         const float TOC_DO_XOY = 120f;
 
-        float steerNe = TinhSteerNeTuong(throttle, out bool khancap);
-
+        float steerNe = TinhSteerNeTuong(throttle, out bool khanCap);
         _steerNeTuongTruoc = Mathf.Lerp(_steerNeTuongTruoc, steerNe, 8f * dt);
 
-        float urgency    = khancap ? 1f : Mathf.Abs(_steerNeTuongTruoc);
+        float urgency    = khanCap ? 1f : Mathf.Abs(_steerNeTuongTruoc);
         float throttleNe = throttle * (1f - urgency * 0.75f);
 
-        if (khancap)
+        if (khanCap)
         {
             steer    = Mathf.Sign(steerNe + 0.001f);
             throttle = throttleNe;
@@ -275,7 +331,6 @@ public class BotBrain : NetworkBehaviour
     private float TinhSteerNeTuong(float throttle, out bool khanCap)
     {
         khanCap = false;
-
         if (Mathf.Abs(throttle) < 0.05f) { return 0f; }
         if (layerMaskTuong.value == 0)   { return 0f; }
 
@@ -291,8 +346,8 @@ public class BotBrain : NetworkBehaviour
             RaycastHit2D hit   = Physics2D.Raycast(viTri, huong, khoangKhanCap, layerMaskTuong);
             if (hit.collider == null) { continue; }
 
-            khanCap    = true;
-            float t    = 1f - (hit.distance / khoangKhanCap);
+            khanCap = true;
+            float t = 1f - (hit.distance / khoangKhanCap);
             lucKhanCap += hit.normal * (t * t);
         }
 
@@ -323,7 +378,6 @@ public class BotBrain : NetworkBehaviour
         float goc     = Vector2.SignedAngle(huongTien, lucDayTong.normalized);
         float huongNe = goc > 0f ? 1f : -1f;
         float cuongDo = Mathf.Clamp01(lucDayTong.magnitude);
-
         return huongNe * cuongDo;
     }
 
@@ -352,10 +406,7 @@ public class BotBrain : NetworkBehaviour
 
     private static void OnPlayerSpawned(TankPlayer p)
     {
-        if (!_allPlayers.Contains(p))
-        {
-            _allPlayers.Add(p);
-        }
+        if (!_allPlayers.Contains(p)) { _allPlayers.Add(p); }
     }
 
     private static void OnPlayerDespawned(TankPlayer p)
