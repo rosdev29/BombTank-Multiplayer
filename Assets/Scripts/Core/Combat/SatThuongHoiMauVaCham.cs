@@ -42,11 +42,12 @@ public class SatThuongHoiMauVaCham : MonoBehaviour
     private void OnTriggerEnter2D(Collider2D col)
     {
         if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) { return; }
-        if (col.attachedRigidbody == null ) {  return; }
+        if (col.attachedRigidbody == null) { return; }
 
-        if (col.attachedRigidbody.TryGetComponent<NetworkObject>(out NetworkObject netObj))
+        TankPlayer targetPlayer = col.attachedRigidbody.GetComponentInParent<TankPlayer>();
+        if (targetPlayer != null)
         {
-            if (ownerClientId == netObj.OwnerClientId)
+            if (ownerTank != null && targetPlayer == ownerTank)
             {
                 return;
             }
@@ -56,25 +57,22 @@ public class SatThuongHoiMauVaCham : MonoBehaviour
             ? ownerTeamIndex
             : (projectile != null ? projectile.TeamIndex : -1);
 
-        if (teamIndex != -1)
+        if (teamIndex != -1 && targetPlayer != null)
         {
-            if (col.attachedRigidbody.TryGetComponent<TankPlayer>(out TankPlayer player))
+            if (targetPlayer.TeamIndex.Value == teamIndex)
             {
-                if (player.TeamIndex.Value == teamIndex)
-                {
-                    return;
-                }
+                return;
             }
         }
 
-        if (col.attachedRigidbody.TryGetComponent<Mau>(out Mau mau))
-        {
-            if (ownerTank != null)
-            {
-                mau.GhiNhanSatThuongTu(ownerTank);
-            }
+        Mau mau = col.attachedRigidbody.GetComponentInParent<Mau>();
+        if (mau == null) { return; }
 
-            mau.NhanSatThuong(sathuong);
+        if (ownerTank != null)
+        {
+            mau.GhiNhanSatThuongTu(ownerTank);
         }
+
+        mau.NhanSatThuong(sathuong);
     }
 }

@@ -23,9 +23,10 @@ public class BoPhongDan : NetworkBehaviour
     [SerializeField] private float thoiGianHieuUngBan;
     [SerializeField] private int ChiPhiBan;
 
-    private bool isPointerOverUI;
-    private bool duocTanCong;
-    private float timer;
+    private bool  isPointerOverUI;
+    private bool  duocTanCong;
+    private float timer;       // cooldown người chơi thật
+    private float timerBot;    // cooldown riêng cho bot
     private float henGioLoeNong;
 
     private int TeamIndexHienTai()
@@ -33,7 +34,6 @@ public class BoPhongDan : NetworkBehaviour
         TankPlayer ownerPlayer = player != null ? player : GetComponent<TankPlayer>();
         return ownerPlayer != null ? ownerPlayer.TeamIndex.Value : -1;
     }
-
 
     public override void OnNetworkSpawn()
     {
@@ -47,91 +47,89 @@ public class BoPhongDan : NetworkBehaviour
         inputReader.PrimaryFireEvent -= xuLyTanCongChinh;
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Đặt tần suất bắn cho bot (viên/giây). Gọi từ BotBrain.GanConfig().
+    /// Ví dụ: thoiGianGiuaHaiVien=1.5s → DatTanSuatBot(1f/1.5f ≈ 0.667/s)
+    /// </summary>
+    public void DatTanSuatBot(float tanSuat)
+    {
+        if (tanSuat <= 0f)
+        {
+            Debug.LogWarning("[BoPhongDan] DatTanSuatBot: tanSuat phải > 0, bỏ qua.");
+            return;
+        }
+
+        tanSuatTanCong = tanSuat;
+        Debug.Log($"[BoPhongDan] DatTanSuatBot → {tanSuat:F3}/s (delay={1f / tanSuat:F2}s)");
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     private void Update()
     {
-        if(henGioLoeNong > 0f)
+        if (henGioLoeNong > 0f)
         {
             henGioLoeNong -= Time.deltaTime;
-            if(henGioLoeNong <= 0f)
-            {
+            if (henGioLoeNong <= 0f)
                 hieuUngLoeNong.SetActive(false);
-            }
         }
+
+        if (IsServer && timerBot > 0f)
+            timerBot -= Time.deltaTime;
+
         if (!IsOwner || (player != null && player.IsBot.Value)) { return; }
 
         isPointerOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
-        if (timer > 0 )
-        {
+        if (timer > 0)
             timer -= Time.deltaTime;
-        }
 
         if (!duocTanCong) { return; }
+        if (timer > 0)    { return; }
+        if (wallet.TotalCoins.Value < ChiPhiBan) { return; }
 
-
-        if (timer > 0 ) { return; }
-
-        if(wallet.TotalCoins.Value < ChiPhiBan) { return; }
-        
         int teamIndex = TeamIndexHienTai();
-
         xuLyBanChinhServerRpc(DiemSpawnDan.position, DiemSpawnDan.up);
-
         spawnDanGia(DiemSpawnDan.position, DiemSpawnDan.up, teamIndex);
-
         timer = 1 / tanSuatTanCong;
     }
 
     private void xuLyTanCongChinh(bool duocTanCong)
     {
-        if (duocTanCong)
-        {
-            if (isPointerOverUI) { return; }
-        }
-
+        if (duocTanCong && isPointerOverUI) { return; }
         this.duocTanCong = duocTanCong;
     }
 
-    [ServerRpc]
+    /// <summary>BotShooter gọi method này. Cooldown được kiểm soát qua timerBot.</summary>
+    public void BanBot()
+    {
+        if (!IsServer) { return; }
+        if (DiemSpawnDan == null) { return; }
+        if (timerBot > 0f) { return; }
+        if (wallet == null || wallet.TotalCoins.Value < ChiPhiBan) { return; }
 
+        Vector3 viTriSpawn = DiemSpawnDan.position;
+        Vector3 huongDi    = DiemSpawnDan.up;
+        int     teamIndex  = TeamIndexHienTai();
+
+        SpawnServerBullet(viTriSpawn, huongDi, teamIndex);
+        spawnDanGiaClientRpc(viTriSpawn, huongDi, teamIndex);
+
+        hieuUngLoeNong?.SetActive(true);
+        henGioLoeNong = thoiGianHieuUngBan;
+
+        timerBot = 1f / tanSuatTanCong;
+    }
+
+    [ServerRpc]
     private void xuLyBanChinhServerRpc(Vector3 viTriSpawn, Vector3 huongDi)
     {
-
-        if (wallet.TotalCoins.Value < ChiPhiBan) { return; }
-
-        wallet.SpendCoins(ChiPhiBan);
-
-        GameObject danInstance = Instantiate(
-            ServerDanPrefab,
-            viTriSpawn,
-            Quaternion.identity);
-
-        danInstance.transform.up = huongDi;
-
-        Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
-
-        if (danInstance.TryGetComponent<SatThuongHoiMauVaCham>(out SatThuongHoiMauVaCham gaySatThuong))
-        {
-            int teamIndex = TeamIndexHienTai();
-            TankPlayer ownerTank = player != null ? player : GetComponent<TankPlayer>();
-            gaySatThuong.SetOwner(ownerTank, teamIndex);
-        }    
-
-        if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
-        {
-            projectile.Initialise(TeamIndexHienTai());
-        }
-
-        if (danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
-        {
-            rb.velocity = rb.transform.up * TocDoDan;
-        }
-
-        spawnDanGiaClientRpc(viTriSpawn, huongDi, TeamIndexHienTai());
+        int teamIndex = TeamIndexHienTai();
+        SpawnServerBullet(viTriSpawn, huongDi, teamIndex);
+        spawnDanGiaClientRpc(viTriSpawn, huongDi, teamIndex);
     }
 
     [ClientRpc]
-
     private void spawnDanGiaClientRpc(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)
     {
         if (IsOwner) { return; }
@@ -143,23 +141,39 @@ public class BoPhongDan : NetworkBehaviour
         hieuUngLoeNong.SetActive(true);
         henGioLoeNong = thoiGianHieuUngBan;
 
-        GameObject danInstance = Instantiate(
-            ClientDanPrefab,
-            viTriSpawn,
-            Quaternion.identity);
-
+        GameObject danInstance = Instantiate(ClientDanPrefab, viTriSpawn, Quaternion.identity);
         danInstance.transform.up = huongDi;
 
         Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
 
         if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
-        {
             projectile.Initialise(teamIndex);
+
+        if (danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
+            rb.velocity = rb.transform.up * TocDoDan;
+    }
+
+    private void SpawnServerBullet(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)
+    {
+        if (wallet.TotalCoins.Value < ChiPhiBan) { return; }
+
+        wallet.SpendCoins(ChiPhiBan);
+
+        GameObject danInstance = Instantiate(ServerDanPrefab, viTriSpawn, Quaternion.identity);
+        danInstance.transform.up = huongDi;
+
+        Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
+
+        if (danInstance.TryGetComponent<SatThuongHoiMauVaCham>(out SatThuongHoiMauVaCham gaySatThuong))
+        {
+            TankPlayer ownerTank = player != null ? player : GetComponent<TankPlayer>();
+            gaySatThuong.SetOwner(ownerTank, teamIndex);
         }
 
-        if(danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb ))
-        {
+        if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
+            projectile.Initialise(teamIndex);
+
+        if (danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
             rb.velocity = rb.transform.up * TocDoDan;
-        }
     }
 }
