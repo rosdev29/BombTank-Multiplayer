@@ -229,10 +229,9 @@ public class BotBrain : NetworkBehaviour
     {
         if (ctx.NearestEnemy == null || ctx.DistanceToEnemy >= banKinhGiaoTranh) return 0f;
         
-        float score = 50f; // Giao tranh bình thường
-        if (ctx.HealthRatio > 0.8f) score += 15f; // Máu trâu, hiếu chiến hơn
+        float score = 75f; // Giao tranh cơ bản
 
-        // Nếu sắp hết đạn (ít hơn 20 coin), không muốn đánh nhau
+        // Nếu sắp hết đạn (ít hơn 20 coin), giảm mạnh điểm giao tranh để trốn/nhặt coin
         if (!ctx.DuCoinDeBan(20)) score -= 40f; 
 
         return score;
@@ -257,12 +256,28 @@ public class BotBrain : NetworkBehaviour
             }
         }
 
-        float score = 60f; // Rất thích nhặt Item
+        float score = 65f; // Điểm nhặt Item cơ bản
 
-        // Có địch gần thì rén một chút
-        if (ctx.NearestEnemy != null && ctx.DistanceToEnemy < 10f)
+        bool hasEnemy = ctx.NearestEnemy != null && ctx.DistanceToEnemy < 15f;
+
+        if (hasEnemy)
         {
-            score -= 15f;
+            // Tình huống 4, 6: Có địch và Item
+            if (ctx.DistanceToItem < 4f)
+            {
+                // Item sát bên -> Buff mạnh để lướt qua nhặt rồi mới đánh (85 > 75 Giao tranh)
+                score = 85f; 
+            }
+            else
+            {
+                // Item ở xa -> Tập trung đánh địch (50 < 75 Giao tranh)
+                score = 50f;
+            }
+        }
+        else
+        {
+            // Tình huống 2, 3: Không có địch -> Tăng nhẹ tùy số lượng
+            score += ctx.ItemCountNearby;
         }
 
         return score;
@@ -272,19 +287,42 @@ public class BotBrain : NetworkBehaviour
     {
         if (ctx.NearestCoin == null) return 0f;
 
-        float score = 30f; // Nhu cầu nhặt coin cơ bản
-
-        // Hết đạn thì cực kì thèm coin (ưu tiên hơn cả đánh nhau)
+        // Ưu tiên Tuyệt Đối: Hết đạn thì thèm vàng (vượt qua cả Item và Đánh nhau)
         if (!ctx.DuCoinDeBan(20))
         {
-            score += 40f; // Lên 70 điểm
+            return 80f + ctx.CoinCountNearby;
         }
 
-        // Đống vàng càng nhiều, càng mờ mắt
-        score += ctx.CoinCountNearby * 5f;
+        float score = 60f; // Điểm nhặt vàng cơ bản
+        bool hasEnemy = ctx.NearestEnemy != null && ctx.DistanceToEnemy < 15f;
 
-        // Vàng ở ngay sát bên thì quơ tay nhặt luôn
-        if (ctx.DistanceToCoin < 3f) score += 15f;
+        // Tình huống 5, 6: Có địch -> Lơ đẹp đống vàng để lo cái mạng
+        if (hasEnemy)
+        {
+            return 20f; // Bị ép xuống rất thấp (20 < 75 Giao tranh)
+        }
+
+        // Tình huống 7: Rất nhiều vàng (>=5) nhưng ít item (<=1)
+        if (ctx.CoinCountNearby >= 5 && ctx.ItemCountNearby <= 1)
+        {
+            score += 3f * ctx.CoinCountNearby; // Điểm vọt lên rất cao (> 75đ), lóa mắt vì mỏ vàng
+        }
+        else
+        {
+            // Tình huống 1: Chỉ có vàng -> Nhặt tà tà
+            score += ctx.CoinCountNearby;
+        }
+
+        // Tình huống 3: Có vàng và item (Bình thường Item=65 > Vàng=60)
+        // Nhưng nếu Vàng nằm ngay sát chân (<3m), tạo 20% khả năng Bot sẽ tham lam chộp luôn cục Vàng đó trước.
+        // Dùng GetInstanceID để giả lập random không bị lặp lại (State flapping) mỗi frame.
+        if (ctx.ItemCountNearby > 0 && ctx.DistanceToCoin < 3f)
+        {
+            if (ctx.NearestCoin.gameObject.GetInstanceID() % 5 == 0)
+            {
+                score = 70f; // Vượt mốc 65 của Item
+            }
+        }
 
         return score;
     }
