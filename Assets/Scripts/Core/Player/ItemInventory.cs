@@ -30,11 +30,12 @@ public class ItemInventory : NetworkBehaviour
     public static event Action<ItemType> OnItemPickedUp;
     public static event Action<ItemType> OnItemUsed;
 
+
     public override void OnNetworkSpawn()
     {
-        if (!IsOwner || (player != null && player.IsBot.Value)) { return; }
+        if (!IsOwner) { return; }
         
-        if (inputReader != null)
+        if (player != null && !player.IsBot.Value && inputReader != null)
         {
             inputReader.UseItemEvent += HandleUseItemInput;
         }
@@ -55,6 +56,9 @@ public class ItemInventory : NetworkBehaviour
         if (!IsServer) { return; }
 
         if (!col.TryGetComponent<ItemPickup>(out ItemPickup item)) { return; }
+
+        // AI Bot đã có tỉ lệ nhận diện và quyết định nhặt ở TankAgentUltra.cs
+        // Khi bot đã chạm vào item thì luôn nhặt thành công, giống người chơi thật.
 
         // Bẫy - Trừ máu, trừ coin từ từ trong 5s
         if (item.Type == ItemType.Trap)

@@ -33,4 +33,20 @@ public class ItemPickup : NetworkBehaviour
         // Sau khi nhặt thì xoá khỏi mạng
         NetworkObject.Despawn();
     }
+
+    /// <summary>
+    /// Đánh giá xem bot có nên nhặt item này hay không dựa theo ngữ cảnh hiện tại.
+    /// Logic này nằm ngay trong Item để dễ dàng tham chiếu các thuộc tính của Item.
+    /// </summary>
+    public bool CanBePickedUpByBot(BotContext ctx, float xacSuatNhatItem)
+    {
+        // 1. Tránh bẫy: Nếu là bẫy thì bot khôn luôn luôn bỏ qua.
+        if (itemType == ItemType.Trap)
+        {
+            return false;
+        }
+
+        // 2. Xét theo tỉ lệ xacSuatNhatItem cho các item lợi (Buff/Súng)
+        return Random.value <= xacSuatNhatItem;
+    }
 }

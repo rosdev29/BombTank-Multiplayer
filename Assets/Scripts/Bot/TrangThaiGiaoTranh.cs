@@ -6,7 +6,8 @@ public class TrangThaiGiaoTranh : IBotState
     private const float KHOANG_CACH_DUNG_LAI = 1.5f;
     private const float NGUONG_GOC_DE_BAN    = 15f;
     private const float TOC_DO_XE            = 1f;
-    private const int   CHI_PHI_BAN          = 1;
+
+    private float _timerBan;
 
     public void OnEnter(BotContext ctx) { }
 
@@ -30,10 +31,26 @@ public class TrangThaiGiaoTranh : IBotState
             throttle = -TOC_DO_XE;
 
         cmd.MoveInput = new Vector2(huongLai, throttle);
-        cmd.AimTarget = ctx.EnemyPosition;
+        
+        // Thêm sai số ngắm
+        float saiSo = ctx.Config != null ? ctx.Config.SaiSoNgam : 2f;
+        Vector2 diemNgamBiLech = ctx.EnemyPosition + Random.insideUnitCircle * saiSo;
+        cmd.AimTarget = diemNgamBiLech;
 
-        if (Mathf.Abs(gocLech) < NGUONG_GOC_DE_BAN && ctx.DuCoinDeBan(CHI_PHI_BAN))
+        _timerBan -= ctx.DeltaTime;
+
+        int chiPhi = 1;
+        if (ctx.Player.TryGetComponent<BoPhongDan>(out BoPhongDan combat))
+        {
+            chiPhi = combat.GetChiPhiBan();
+            if (combat.IsDoubleBarrelActive.Value) chiPhi *= 2;
+        }
+
+        if (Mathf.Abs(gocLech) < NGUONG_GOC_DE_BAN && ctx.DuCoinDeBan(chiPhi) && _timerBan <= 0f)
+        {
             cmd.Fire = true;
+            _timerBan = ctx.Config != null ? ctx.Config.ThoiGianChoBan : 1f;
+        }
 
         return cmd;
     }

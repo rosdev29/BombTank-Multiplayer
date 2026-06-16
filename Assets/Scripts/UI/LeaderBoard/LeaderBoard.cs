@@ -231,12 +231,9 @@ public class Leaderboard : NetworkBehaviour
         if (!IsServer || !IsSpawned || leaderboardEntities == null || player == null) { return; }
         if (NetworkManager == null || NetworkManager.ShutdownInProgress) { return; }
         
-        // CHẶN BOT: Không cho phép Bot được đưa lên bảng Leaderboard
-        if (player.IsCurrentlyBot()) { return; }
-        
         for (int i = 0; i < leaderboardEntities.Count; i++)
         {
-            if (leaderboardEntities[i].ClientId == player.OwnerClientId)
+            if (leaderboardEntities[i].ClientId == player.NetworkObjectId)
             {
                 return;
             }
@@ -244,17 +241,17 @@ public class Leaderboard : NetworkBehaviour
 
         leaderboardEntities.Add(new LeaderboardEntityState
         {
-            ClientId = player.OwnerClientId,
+            ClientId = player.NetworkObjectId,
             PlayerName = player.PlayerName.Value,
             TeamIndex = player.TeamIndex.Value,
             Coins = player.Wallet != null ? player.Wallet.TotalCoins.Value : 0
         });
 
-        if (player.Wallet != null && !coinChangedSubscriptions.ContainsKey(player.OwnerClientId))
+        if (player.Wallet != null && !coinChangedSubscriptions.ContainsKey(player.NetworkObjectId))
         {
             NetworkVariable<int>.OnValueChangedDelegate handler =
-                (oldCoins, newCoins) => HandleCoinsChanged(player.OwnerClientId, newCoins);
-            coinChangedSubscriptions[player.OwnerClientId] = new CoinChangedSubscription
+                (oldCoins, newCoins) => HandleCoinsChanged(player.NetworkObjectId, newCoins);
+            coinChangedSubscriptions[player.NetworkObjectId] = new CoinChangedSubscription
             {
                 wallet = player.Wallet,
                 handler = handler
@@ -270,7 +267,7 @@ public class Leaderboard : NetworkBehaviour
         if (!IsServer || leaderboardEntities == null) { return; }
         if (NetworkManager == null || NetworkManager.ShutdownInProgress) { return; }
 
-        RemoveLeaderboardEntity(player.OwnerClientId);
+        RemoveLeaderboardEntity(player.NetworkObjectId);
         UnsubscribeCoinHandler(player);
     }
 
@@ -297,8 +294,7 @@ public class Leaderboard : NetworkBehaviour
     private void HandleClientDisconnectedServer(ulong clientId)
     {
         if (isTearingDown) { return; }
-        RemoveLeaderboardEntity(clientId);
-        UnsubscribeCoinHandlerByClientId(clientId);
+        // We now track by NetworkObjectId, so client disconnect relies on HandlePlayerDespawned.
     }
 
     private void RemoveLeaderboardEntity(ulong clientId)
@@ -325,7 +321,7 @@ public class Leaderboard : NetworkBehaviour
     private void UnsubscribeCoinHandler(TankPlayer player)
     {
         if (player == null) { return; }
-        UnsubscribeCoinHandlerByClientId(player.OwnerClientId);
+        UnsubscribeCoinHandlerByClientId(player.NetworkObjectId);
     }
 
     private void UnsubscribeCoinHandlerByClientId(ulong clientId)
@@ -352,18 +348,17 @@ public class Leaderboard : NetworkBehaviour
         {
             TankPlayer activePlayer = activePlayers[i];
             if (activePlayer == null || !activePlayer.IsSpawned) { continue; }
-            activePlayerIds.Add(activePlayer.OwnerClientId);
+            activePlayerIds.Add(activePlayer.NetworkObjectId);
         }
 
         for (int i = leaderboardEntities.Count - 1; i >= 0; i--)
         {
-            ulong clientId = leaderboardEntities[i].ClientId;
-            bool isConnected = IsClientStillConnected(clientId);
-            bool hasActivePlayer = activePlayerIds.Contains(clientId);
-            if (isConnected && hasActivePlayer) { continue; }
+            ulong entityNetworkObjId = leaderboardEntities[i].ClientId;
+            bool hasActivePlayer = activePlayerIds.Contains(entityNetworkObjId);
+            if (hasActivePlayer) { continue; }
 
-            RemoveLeaderboardEntity(clientId);
-            UnsubscribeCoinHandlerByClientId(clientId);
+            RemoveLeaderboardEntity(entityNetworkObjId);
+            UnsubscribeCoinHandlerByClientId(entityNetworkObjId);
         }
     }
 

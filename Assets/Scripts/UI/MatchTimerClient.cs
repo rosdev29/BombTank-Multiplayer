@@ -37,6 +37,8 @@ public class MatchTimerClient : MonoBehaviour
 
     private void OnGUI()
     {
+        // Train Mode: An UI Thoi gian
+        /*
         if (timerSource == null || !timerSource.IsSpawned) { return; }
 
         int totalSeconds = Mathf.CeilToInt(Mathf.Max(0f, timerSource.TimeRemainingSeconds));
@@ -54,5 +56,6 @@ public class MatchTimerClient : MonoBehaviour
 
         Rect rect = new Rect(0f, 8f, Screen.width, 40f);
         GUI.Label(rect, text, style);
+        */
     }
 }

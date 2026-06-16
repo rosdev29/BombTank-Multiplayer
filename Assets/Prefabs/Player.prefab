@@ -5671,7 +5671,11 @@ GameObject:
   - component: {fileID: 7114059541313905306}
   - component: {fileID: -8512091747004092066}
   - component: {fileID: 6568095646496752717}
-  m_Layer: 0
+  - component: {fileID: 2682259853302794191}
+  - component: {fileID: 7087614646950807976}
+  - component: {fileID: 6333419861944200962}
+  - component: {fileID: 1677098324314212225}
+  m_Layer: 10
   m_Name: Player
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5696,6 +5700,7 @@ Transform:
   - {fileID: 6286592586107606620}
   - {fileID: 5239229222420529162}
   - {fileID: 330580126784943478}
+  - {fileID: 7433458009232884222}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &6669386753635323987
@@ -5710,7 +5715,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 344280559
+  GlobalObjectIdHash: 964848143
   InScenePlacedSourceGlobalObjectIdHash: 0
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
@@ -5877,7 +5882,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5767629436380736411}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 359412fa4731a15418d873746073be7e, type: 3}
   m_Name: 
@@ -5900,7 +5905,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5767629436380736411}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 85eebce82c831904aacd539ce19a4616, type: 3}
   m_Name: 
@@ -5991,9 +5996,134 @@ MonoBehaviour:
   colorDisplay: {fileID: 8077341493478667693}
   doubleBarrelDuration: 10
   buffCoinDuration: 5
-  coinsPerSecond: 10
+  trapDuration: 5
   CurrentItem:
     m_InternalValue: 0
+  IsCoinBuffActive:
+    m_InternalValue: 0
+  IsTrapActive:
+    m_InternalValue: 0
+--- !u!114 &2682259853302794191
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5767629436380736411}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b635a5495c615054990d150e5c61a7b5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cellSize: 2
+  maxPOI: 20
+  poiMaxAge: 90
+  pathHistoryLen: 30
+  healThreshold: 0.35
+  explorationRange: 20
+  goalReachedDist: 1.5
+  loopDetectRadius: 3
+  loopDetectWindow: 20
+  _pathWaypoints: []
+--- !u!114 &7087614646950807976
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5767629436380736411}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d1c4e0b1822b495aa52bc52839ecb30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_BrainParameters:
+    VectorObservationSize: 99
+    NumStackedVectorObservations: 1
+    m_ActionSpec:
+      m_NumContinuousActions: 3
+      BranchSizes: 02000000
+    VectorActionSize: 
+    VectorActionDescriptions: []
+    VectorActionSpaceType: 0
+    hasUpgradedBrainParametersWithActionSpec: 1
+  m_Model: {fileID: 5022602860645237092, guid: ca1cae8352485604ab33f101db3456e5, type: 3}
+  m_InferenceDevice: 0
+  m_BehaviorType: 2
+  m_BehaviorName: BotTankUltra
+  TeamId: 0
+  m_UseChildSensors: 1
+  m_UseChildActuators: 1
+  m_DeterministicInference: 0
+  m_ObservableAttributeHandling: 0
+--- !u!114 &6333419861944200962
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5767629436380736411}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe16fe54f48d4314abe46018d5ef7b84, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  agentParameters:
+    maxStep: 0
+  hasUpgradedFromAgentParameters: 1
+  MaxStep: 0
+  tankPlayer: {fileID: 6223019598537030959}
+  boPhongDan: {fileID: 6393240751483895355}
+  turretTransform: {fileID: 4058023226012938276}
+  diemSpawnDan: {fileID: 5523347170077017719}
+  tyLeNhatTaiNguyen: 0.5
+  layerVatCan:
+    serializedVersion: 2
+    m_Bits: 1
+  layerDich:
+    serializedVersion: 2
+    m_Bits: 1024
+  layerTaiNguyen:
+    serializedVersion: 2
+    m_Bits: 128
+  layerDan:
+    serializedVersion: 2
+    m_Bits: 64
+  tocDoXe: 5
+  tocDoXoay: 180
+  tocDoXoayNong: 150
+  khoangCachLyTuong: 7
+  khoangCachToiDa: 30
+  tocDoDan: 12
+  cooldownBan: 0.8
+  r_BanTrung: 0.5
+  r_TieuDiet: 2
+  r_NhatCoin: 0.1
+  r_NhatItem: 0.3
+  r_LeadShot: 0.75
+  p_BiDanh: -0.3
+  p_Chet: -3
+  p_TongTuong: -0.03
+  r_Strafe: 0.015
+  r_Cover: 0.025
+  r_Kiting: 0.01
+  r_NeDan: 0.1
+  r_TuanTra: 0.005
+--- !u!114 &1677098324314212225
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5767629436380736411}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a5c9d521e5ef4759a8246a07d52221e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  DecisionPeriod: 20
+  DecisionStep: 0
+  TakeActionsBetweenDecisions: 1
 --- !u!1 &5936809473909094933
 GameObject:
   m_ObjectHideFlags: 0
@@ -11094,6 +11224,74 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!1 &9054426064885179263
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7433458009232884222}
+  - component: {fileID: 6003990859032326010}
+  - component: {fileID: 5850346152930273331}
+  m_Layer: 0
+  m_Name: PathfindingManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7433458009232884222
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9054426064885179263}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -5.2771153, y: -2.070101, z: 520.87994}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6193478728654419264}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &6003990859032326010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9054426064885179263}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0aa68c76d5f480d4c9fefb1b761e48d9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  layerVatCan:
+    serializedVersion: 2
+    m_Bits: 0
+--- !u!114 &5850346152930273331
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9054426064885179263}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c53635d79c4462c4ab43f4f39323d5bc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  unwalkableMask:
+    serializedVersion: 2
+    m_Bits: 1
+  gridWorldSize: {x: 200, y: 200}
+  nodeRadius: 1
+  gridCenter: {x: 0, y: 0}
+  gridSizeX: 0
+  gridSizeY: 0
 --- !u!1 &9055933047180817283
 GameObject:
   m_ObjectHideFlags: 0

@@ -19,8 +19,8 @@ public class TankPlayer : NetworkBehaviour
     [SerializeField] private int ownerPriority = 15;
     [SerializeField] private Color ownerColour;
 
-    public NetworkVariable<FixedString32Bytes> PlayerName = new NetworkVariable<FixedString32Bytes>();
-    public NetworkVariable<int> TeamIndex = new NetworkVariable<int>();
+    public NetworkVariable<Unity.Collections.FixedString32Bytes> PlayerName = new NetworkVariable<Unity.Collections.FixedString32Bytes>(new Unity.Collections.FixedString32Bytes(""));
+    public NetworkVariable<int> TeamIndex = new NetworkVariable<int>(-1);
     public NetworkVariable<bool> IsBot = new NetworkVariable<bool>(false);
 
     public bool IsCurrentlyBot()
@@ -82,6 +82,32 @@ public class TankPlayer : NetworkBehaviour
                     if (TeamIndex.Value == 0 && OwnerClientId != NetworkManager.ServerClientId)
                     {
                         TeamIndex.Value = -1;
+                    }
+                }
+            }
+            else
+            {
+                // Đây là BOT
+                IsBot.Value = true; // Đánh dấu đây là Bot để các script của người chơi tự động tắt
+
+                if (PlayerName.Value.ToString() == "")
+                {
+                    if (GetComponent<TankAgentUltra>() != null)
+                    {
+                        // ML-Agents Bots
+                        string botName = "AI Bot " + Mathf.Abs(gameObject.GetInstanceID() % 1000);
+                        PlayerName.Value = botName;
+                        if (TeamIndex.Value == -1) TeamIndex.Value = gameObject.GetInstanceID();
+                    }
+                    else
+                    {
+                        // BotSpawner Bots
+                        if (BotSpawner.Instance != null)
+                            PlayerName.Value = BotSpawner.Instance.GetRandomBotName();
+                        else
+                            PlayerName.Value = "Bot " + Mathf.Abs(gameObject.GetInstanceID() % 100);
+                            
+                        if (TeamIndex.Value == -1) TeamIndex.Value = -1;
                     }
                 }
             }

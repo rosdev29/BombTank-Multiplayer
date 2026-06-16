@@ -44,7 +44,20 @@ public class SatThuongHoiMauVaCham : MonoBehaviour
         if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) { return; }
         if (col.attachedRigidbody == null ) {  return; }
 
-        if (col.attachedRigidbody.TryGetComponent<NetworkObject>(out NetworkObject netObj))
+        if (col.attachedRigidbody.TryGetComponent<TankPlayer>(out TankPlayer targetTank))
+        {
+            // Nếu có ownerTank, so sánh object để tránh tự sát thương (thay vì dùng OwnerClientId vì các bot đều là 0)
+            if (ownerTank != null && ownerTank == targetTank)
+            {
+                return;
+            }
+            // Fallback cho player thường nếu không set ownerTank
+            else if (ownerTank == null && ownerClientId == targetTank.OwnerClientId)
+            {
+                return;
+            }
+        }
+        else if (col.attachedRigidbody.TryGetComponent<NetworkObject>(out NetworkObject netObj))
         {
             if (ownerClientId == netObj.OwnerClientId)
             {

@@ -23,8 +23,10 @@ public class BotSpawner : MonoBehaviour
     {
         GameObject go = new GameObject("BotSpawner");
         DontDestroyOnLoad(go);
-        go.AddComponent<BotSpawner>();
+        Instance = go.AddComponent<BotSpawner>();
     }
+
+    public static BotSpawner Instance { get; private set; }
 
     private NetworkManager cachedNetworkManager;
 
@@ -150,18 +152,9 @@ public class BotSpawner : MonoBehaviour
         TankPlayer tankPlayer = botInstance.GetComponent<TankPlayer>();
 
         botInstance.Spawn(true);
-
-        // Set values after spawn — never replace NetworkVariable instances (breaks Mau and other behaviours).
-        if (tankPlayer != null)
-        {
-            tankPlayer.IsBot.Value = true;
-            tankPlayer.PlayerName.Value = new FixedString32Bytes(GetRandomBotName());
-            tankPlayer.TeamIndex.Value = -1;
-        }
     }
 
-
-    private string GetRandomBotName()
+    public string GetRandomBotName()
     {
         // Pick a random name that isn't already used by an active bot
         var usedNames = activeBots.Select(b => b.PlayerName.Value.ToString()).ToHashSet();

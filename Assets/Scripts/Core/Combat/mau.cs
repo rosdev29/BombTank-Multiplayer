@@ -57,6 +57,19 @@ public class Mau : NetworkBehaviour
         ThayDoiMau(giaTriHoi);
     }
 
+    /// <summary>
+    /// Reset sức khỏe về max cho ML-Agents training.
+    /// Gọi trong OnEpisodeBegin() để tránh bot bị kẹt vòng lặp chết.
+    /// </summary>
+    public void ResetForTraining()
+    {
+        if (!IsServer) { return; }
+        daChet = false;
+        lastAttacker = null;
+        lastAttackerTime = 0f;
+        MauHienTai.Value = MauToiDa;
+    }
+
     private void ThayDoiMau(int value)
     {
         if (daChet) { return;  }

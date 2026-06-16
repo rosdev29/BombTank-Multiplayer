@@ -22,6 +22,7 @@ public class BoPhongDan : NetworkBehaviour
     [SerializeField] private float tanSuatTanCong;
     [SerializeField] private float thoiGianHieuUngBan;
     [SerializeField] private int ChiPhiBan = 5;
+    public int GetChiPhiBan() => ChiPhiBan;
 
     public NetworkVariable<bool> IsDoubleBarrelActive = new NetworkVariable<bool>(false);
     private Coroutine doubleBarrelCoroutine;
@@ -40,6 +41,11 @@ public class BoPhongDan : NetworkBehaviour
     {
         TankPlayer ownerPlayer = player != null ? player : GetComponent<TankPlayer>();
         return ownerPlayer != null ? ownerPlayer.TeamIndex.Value : -1;
+    }
+
+    private void Awake()
+    {
+        if (wallet == null) wallet = GetComponent<CoinWallet>();
     }
 
     public override void OnNetworkSpawn()
@@ -184,6 +190,30 @@ public class BoPhongDan : NetworkBehaviour
         this.duocTanCong = duocTanCong;
     }
 
+    /// <summary>
+    /// Cho phép Bot yêu cầu bắn đạn trực tiếp từ script ML-Agents.
+    /// Giống với logic Update nhưng bỏ qua kiểm tra Input và UI.
+    /// </summary>
+    public void BotRequestFire()
+    {
+        if (!IsServer) return; // Bot chỉ chạy trên server
+
+        int soLuongDanCheck = IsDoubleBarrelActive.Value ? 2 : 1;
+        int tongChiPhiCheck = ChiPhiBan * soLuongDanCheck;
+
+        if (wallet.TotalCoins.Value < tongChiPhiCheck) { return; }
+        
+        int teamIndex = TeamIndexHienTai();
+
+        Vector3 spawnPos = DiemSpawnDan != null ? DiemSpawnDan.position : transform.position + transform.up * 1.5f;
+        Vector3 spawnDir = DiemSpawnDan != null ? DiemSpawnDan.up : transform.up;
+
+        xuLyBanChinhServerRpc(spawnPos, spawnDir);
+
+        // Hiển thị hiệu ứng cho bot
+        spawnDanGia(spawnPos, spawnDir, teamIndex);
+    }
+
     public void ActivateDoubleBarrel(float duration)
     {
         if (!IsServer) { return; }
@@ -234,7 +264,10 @@ public class BoPhongDan : NetworkBehaviour
 
             danInstance.transform.up = huongBan;
 
-        Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
+        if (vaChamNguoiChoi != null)
+        {
+            Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
+        }
 
         if (danInstance.TryGetComponent<SatThuongHoiMauVaCham>(out SatThuongHoiMauVaCham gaySatThuong))
         {
@@ -291,7 +324,10 @@ public class BoPhongDan : NetworkBehaviour
 
             danInstance.transform.up = huongBan;
 
-        Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
+        if (vaChamNguoiChoi != null)
+        {
+            Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
+        }
 
             if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
             {

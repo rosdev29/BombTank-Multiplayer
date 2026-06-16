@@ -21,6 +21,7 @@ public class HealingZone : NetworkBehaviour
     private HashSet<TankPlayer> playersInZone = new HashSet<TankPlayer>();
 
     private NetworkVariable<int> HealPower = new NetworkVariable<int>();
+    public int CurrentHealPower => HealPower.Value;
 
     private void Awake()
     {
@@ -56,6 +57,7 @@ public class HealingZone : NetworkBehaviour
     {
         if (!IsServer) { return; }
 
+        if (col.attachedRigidbody == null) { return; }
         if (!col.attachedRigidbody.TryGetComponent<TankPlayer>(out TankPlayer player)) { return; }
 
         if (playersInZone.Add(player))
@@ -68,6 +70,7 @@ public class HealingZone : NetworkBehaviour
     {
         if (!IsServer) { return; }
 
+        if (col.attachedRigidbody == null) { return; }
         if (!col.attachedRigidbody.TryGetComponent<TankPlayer>(out TankPlayer player)) { return; }
 
         if (playersInZone.Remove(player))

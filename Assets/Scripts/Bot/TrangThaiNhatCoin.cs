@@ -22,10 +22,7 @@ public class TrangThaiNhatCoin : IBotState
             return cmd;
         }
 
-        Vector2 huong = targetPos - ctx.BotPosition;
-        float gocLech = Vector2.SignedAngle((Vector2)ctx.BodyTransform.up, huong.normalized);
-
-        cmd.MoveInput = new Vector2(gocLech > 0 ? -1f : 1f, 1f);
+        cmd.PathDestination = targetPos;
 
         return cmd;
     }

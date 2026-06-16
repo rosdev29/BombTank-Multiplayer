@@ -39,6 +39,8 @@ public class MatchTimerManager : NetworkBehaviour
 
     private void Update()
     {
+        // Train Mode: Disable time tracking so match never ends
+        /*
         if (!IsSpawned || !IsServer || matchEnded) { return; }
         if (NetworkManager == null || NetworkManager.ShutdownInProgress) { return; }
         if (!NetworkManager.IsListening) { return; }
@@ -50,6 +52,7 @@ public class MatchTimerManager : NetworkBehaviour
         {
             EndMatch();
         }
+        */
     }
 
     private void EndMatch()

@@ -29,7 +29,11 @@ public class MatchEndClient : MonoBehaviour
 
     private void OnGUI()
     {
+        // Đọc giá trị để fix C# warning
         if (!showOverlay) { return; }
+
+        // Train Mode: An UI ket thuc
+        /*
 
         GUIStyle style = new GUIStyle(GUI.skin.label)
         {
@@ -41,5 +45,6 @@ public class MatchEndClient : MonoBehaviour
 
         Rect rect = new Rect(0f, Screen.height * 0.42f, Screen.width, 60f);
         GUI.Label(rect, "Het gio! Tran ket thuc.\n(Man ket thuc cua Thai se noi sau)", style);
+        */
     }
 }

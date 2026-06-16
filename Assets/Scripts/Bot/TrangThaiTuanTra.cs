@@ -24,10 +24,7 @@ public class TrangThaiTuanTra : IBotState
             _timerDoiDiem = THOI_GIAN_DOI_DIEM;
         }
 
-        Vector2 huong = _diemMucTieu - ctx.BotPosition;
-        float gocLech = Vector2.SignedAngle((Vector2)ctx.BodyTransform.up, huong.normalized);
-
-        cmd.MoveInput = new Vector2(gocLech > 0 ? -1f : 1f, 1f);
+        cmd.PathDestination = _diemMucTieu;
 
         return cmd;
     }

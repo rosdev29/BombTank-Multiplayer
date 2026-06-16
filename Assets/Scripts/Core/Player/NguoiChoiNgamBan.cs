@@ -6,7 +6,7 @@ using UnityEngine;
 public class NguoiChoiNgamBan : NetworkBehaviour
 {
     [SerializeField] private InputReader inputReader;
-    [SerializeField] private Transform turretTransform;
+    public Transform turretTransform;
 
     private void LateUpdate()
     {

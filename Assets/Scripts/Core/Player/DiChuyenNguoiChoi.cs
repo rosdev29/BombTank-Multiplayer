@@ -7,7 +7,7 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
 {
     [Header("Tham chieu")]
     [SerializeField] private InputReader docInput;
-    [SerializeField] private Transform bodyTransform;
+    [SerializeField] public Transform bodyTransform;
     [SerializeField] private Rigidbody2D rb;
     [SerializeField] private ParticleSystem dustTrail;
     [SerializeField] private ParticleSystem[] vetBanhTrails;

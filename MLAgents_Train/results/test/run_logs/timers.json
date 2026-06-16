@@ -1,0 +1,42 @@
+{
+    "name": "root",
+    "metadata": {
+        "timer_format_version": "0.1.0",
+        "start_time_seconds": "1781171593",
+        "python_version": "3.12.9 (tags/v3.12.9:fdb8142, Feb  4 2025, 15:27:58) [MSC v.1942 64 bit (AMD64)]",
+        "command_line_arguments": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\mlagents-learn BotTankUltra_config.yaml --run-id=test --time-scale 20 --num-envs 1 --force",
+        "mlagents_version": "0.28.0",
+        "mlagents_envs_version": "0.28.0",
+        "communication_protocol_version": "1.5.0",
+        "pytorch_version": "2.5.1+cu121",
+        "numpy_version": "1.26.4",
+        "end_time_seconds": "1781171656"
+    },
+    "total": 63.75158790004207,
+    "count": 1,
+    "self": 0.008518600021488965,
+    "children": {
+        "run_training.setup": {
+            "total": 0.1515652000089176,
+            "count": 1,
+            "self": 0.1515652000089176
+        },
+        "TrainerController.start_learning": {
+            "total": 63.59150410001166,
+            "count": 1,
+            "self": 0.00028850004309788346,
+            "children": {
+                "TrainerController._reset_env": {
+                    "total": 63.59117959998548,
+                    "count": 1,
+                    "self": 63.59117959998548
+                },
+                "TrainerController._save_models": {
+                    "total": 3.5999983083456755e-05,
+                    "count": 1,
+                    "self": 3.5999983083456755e-05
+                }
+            }
+        }
+    }
+}

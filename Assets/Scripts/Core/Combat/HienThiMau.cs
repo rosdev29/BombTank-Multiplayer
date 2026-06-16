@@ -13,6 +13,7 @@ public class HienThiMau : NetworkBehaviour
     private Image buffCoinImage;
     private Image doubleBarrelImage;
     private Image trapImage;
+    private Text coinTextUI;
     private TankPlayer player;
 
     public override void OnNetworkSpawn()
@@ -101,6 +102,26 @@ public class HienThiMau : NetworkBehaviour
             }
         }
 
+        // Tạo Text hiển thị Coin
+        GameObject textObj = new GameObject("CoinText");
+        textObj.transform.SetParent(ThanhMauImage.transform.parent, false);
+        textObj.transform.localPosition = new Vector3(0f, -healthRect.rect.height * 4.0f, 0); 
+        coinTextUI = textObj.AddComponent<Text>();
+        coinTextUI.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        coinTextUI.fontSize = Mathf.RoundToInt(healthRect.rect.height * 8f);
+        if (coinTextUI.fontSize == 0) coinTextUI.fontSize = 20;
+        coinTextUI.alignment = TextAnchor.MiddleCenter;
+        coinTextUI.horizontalOverflow = HorizontalWrapMode.Overflow;
+        coinTextUI.verticalOverflow = VerticalWrapMode.Overflow;
+        coinTextUI.rectTransform.sizeDelta = new Vector2(iconSize * 5f, iconSize);
+        coinTextUI.rectTransform.localScale = Vector3.one;
+
+        if (player != null && player.Wallet != null)
+        {
+            player.Wallet.TotalCoins.OnValueChanged += HandleCoinChanged;
+            HandleCoinChanged(0, player.Wallet.TotalCoins.Value);
+        }
+
         UpdateBuffUI();
     }
 
@@ -118,6 +139,8 @@ public class HienThiMau : NetworkBehaviour
             }
             if (player.TryGetComponent<BoPhongDan>(out BoPhongDan combat))
                 combat.IsDoubleBarrelActive.OnValueChanged -= HandleBuffChanged;
+            if (player.Wallet != null)
+                player.Wallet.TotalCoins.OnValueChanged -= HandleCoinChanged;
         }
     }
 
@@ -145,5 +168,28 @@ public class HienThiMau : NetworkBehaviour
     private void XuLyKhiMauThayDoi(int mauOld, int mauMoi)
     {
         ThanhMauImage.fillAmount = (float)mauMoi / mau.MauToiDa;
+    }
+
+    private void HandleCoinChanged(int oldVal, int newVal)
+    {
+        if (coinTextUI == null || player == null) return;
+
+        int requiredCoin = 0;
+        if (player.TryGetComponent<BoPhongDan>(out BoPhongDan combat))
+        {
+            requiredCoin = combat.GetChiPhiBan();
+            if (combat.IsDoubleBarrelActive.Value) requiredCoin *= 2;
+        }
+
+        if (newVal < requiredCoin)
+        {
+            coinTextUI.text = "HẾT COIN!";
+            coinTextUI.color = Color.red;
+        }
+        else
+        {
+            coinTextUI.text = "🪙 " + newVal.ToString();
+            coinTextUI.color = Color.yellow;
+        }
     }
 }

@@ -13,9 +13,17 @@ public class BotBrain : NetworkBehaviour
     [SerializeField] private float chuKyDanhGiaMax = 0.5f;
 
     [Header("Ngưỡng chuyển trạng thái")]
-    [SerializeField] private float nguongMauThapDeRutLui = 0.35f;
     [SerializeField] private float banKinhGiaoTranh      = 10f;
     [SerializeField] private float xacSuatNhatItem       = 0.5f;
+
+    [Header("Độ Khó (Cấu hình)")]
+    [SerializeField] private BotConfig[] botConfigs;
+    public BotConfig CurrentConfig { get; private set; }
+
+    [Header("Cảm biến tránh vật cản")]
+    [SerializeField] private LayerMask obstacleLayer;
+    [SerializeField] private float rayDistance = 3f;
+    [SerializeField] private float rayAngle = 30f;
 
     [Header("Debug")]
     [SerializeField] private TextMeshPro labelTrangThai;
@@ -35,6 +43,12 @@ public class BotBrain : NetworkBehaviour
     private IBotState currentState;
 
     private float _timerDanhGia;
+    
+    private HashSet<ItemPickup> ignoredItems = new HashSet<ItemPickup>();
+    private HashSet<ItemPickup> acceptedItems = new HashSet<ItemPickup>();
+
+    private BotCommand currentCommand;
+    private List<Vector2> currentPath;
 
     private void Awake()
     {
@@ -46,6 +60,12 @@ public class BotBrain : NetworkBehaviour
         stateGiaoTranh = new TrangThaiGiaoTranh();
         stateNhatCoin  = new TrangThaiNhatCoin();
         stateRutLui    = new TrangThaiRutLui();
+
+        if (obstacleLayer.value == 0)
+        {
+            // Mặc định dò mọi thứ ngoại trừ Player và các lớp không cần thiết
+            obstacleLayer = ~LayerMask.GetMask("Player", "Ignore Raycast");
+        }
     }
 
     public override void OnNetworkSpawn()
@@ -55,12 +75,22 @@ public class BotBrain : NetworkBehaviour
         TankPlayer.OnPlayerSpawned   += OnPlayerSpawned;
         TankPlayer.OnPlayerDespawned += OnPlayerDespawned;
 
+        if (botConfigs != null && botConfigs.Length > 0)
+        {
+            CurrentConfig = botConfigs[Random.Range(0, botConfigs.Length)];
+        }
+        else
+        {
+            CurrentConfig = ScriptableObject.CreateInstance<BotConfig>();
+        }
+
         ctx = new BotContext
         {
             Player        = tankPlayer,
             BodyTransform = transform,
             Health        = tankPlayer.Health,
             Wallet        = tankPlayer.Wallet,
+            Config        = CurrentConfig,
         };
 
         _timerDanhGia = RandomChuKy();
@@ -77,22 +107,46 @@ public class BotBrain : NetworkBehaviour
     {
         if (!IsServer || !IsSpawned || ctx == null) { return; }
 
-        _timerDanhGia -= Time.deltaTime;
-        if (_timerDanhGia > 0f) { return; }
+        if (_timerDanhGia <= 0f)
+        {
+            _timerDanhGia = RandomChuKy();
+            ctx.DeltaTime = Time.deltaTime;
 
-        _timerDanhGia = RandomChuKy();
-        ctx.DeltaTime = Time.deltaTime;
+            ignoredItems.RemoveWhere(i => i == null || !i.isActiveAndEnabled);
+            acceptedItems.RemoveWhere(i => i == null || !i.isActiveAndEnabled);
 
-        sense.DocMoiTruong(ctx);
-        ChonTrangThai();
+            sense.DocMoiTruong(ctx);
+            ChonTrangThai();
 
-        BotCommand cmd = currentState.Update(ctx);
+            currentCommand = currentState.Update(ctx);
 
-        ctx.OutputHuongDiChuyen = cmd.MoveInput;
-        ctx.OutputDiemNgam      = cmd.AimTarget ?? ctx.BotPosition;
-        ctx.OutputCoBopCo       = cmd.Fire;
+            if (currentCommand.PathDestination.HasValue)
+            {
+                if (AStarPathfinding.Instance != null)
+                {
+                    currentPath = AStarPathfinding.Instance.FindPath(ctx.BotPosition, currentCommand.PathDestination.Value);
+                }
+                else
+                {
+                    // Fallback nếu chưa có lưới
+                    currentPath = new List<Vector2> { currentCommand.PathDestination.Value };
+                }
+            }
+            else
+            {
+                currentPath = null;
+            }
+        }
 
-        ThucThiLenh(cmd);
+        if (currentCommand != null)
+        {
+            ctx.OutputHuongDiChuyen = currentCommand.MoveInput;
+            ctx.OutputDiemNgam      = currentCommand.AimTarget ?? ctx.BotPosition;
+            ctx.OutputCoBopCo       = currentCommand.Fire;
+
+            ThucThiLenhTheoPath();
+        }
+
         CapNhatLabelDebug();
     }
 
@@ -100,7 +154,9 @@ public class BotBrain : NetworkBehaviour
     {
         IBotState muon;
 
-        if (ctx.HealthRatio < nguongMauThapDeRutLui)
+        float nguongRutLui = CurrentConfig != null ? CurrentConfig.NguongMauRutLui : 0.3f;
+
+        if (ctx.HealthRatio < nguongRutLui)
         {
             muon = stateRutLui;
         }
@@ -108,9 +164,21 @@ public class BotBrain : NetworkBehaviour
         {
             muon = stateGiaoTranh;
         }
-        else if (ctx.NearestItem != null && Random.value < xacSuatNhatItem)
+        else if (ctx.NearestItem != null)
         {
-            muon = stateNhatCoin; // Tái sử dụng stateNhatCoin để đi nhặt item
+            if (!ignoredItems.Contains(ctx.NearestItem) && !acceptedItems.Contains(ctx.NearestItem))
+            {
+                // Gọi sang ItemPickup để item tự quyết định
+                if (ctx.NearestItem.CanBePickedUpByBot(ctx, xacSuatNhatItem))
+                    acceptedItems.Add(ctx.NearestItem);
+                else
+                    ignoredItems.Add(ctx.NearestItem);
+            }
+
+            if (acceptedItems.Contains(ctx.NearestItem))
+                muon = stateNhatCoin;
+            else
+                muon = stateTuanTra;
         }
         else if (ctx.NearestCoin != null)
         {
@@ -145,17 +213,102 @@ public class BotBrain : NetworkBehaviour
         Debug.Log($"[BotBrain] {tankPlayer.PlayerName.Value} → {TenTrangThai(currentState)}");
     }
 
-    private void ThucThiLenh(BotCommand cmd)
+    private void ThucThiLenhTheoPath()
     {
-        if (rb == null) { return; }
+        if (rb == null || currentCommand == null) { return; }
 
-        float steer     = cmd.MoveInput.x;
-        float throttle  = cmd.MoveInput.y;
+        float steer = currentCommand.MoveInput.x;
+        float throttle = currentCommand.MoveInput.y;
+
+        // Đi theo đường A* nếu có
+        if (currentPath != null && currentPath.Count > 0)
+        {
+            Vector2 targetNode = currentPath[0];
+            Vector2 huong = targetNode - ctx.BotPosition;
+            
+            // Xóa điểm nếu đã đến gần
+            if (huong.magnitude < 1.0f)
+            {
+                currentPath.RemoveAt(0);
+                if (currentPath.Count > 0)
+                {
+                    targetNode = currentPath[0];
+                    huong = targetNode - ctx.BotPosition;
+                }
+            }
+
+            if (currentPath.Count > 0)
+            {
+                float gocLech = Vector2.SignedAngle((Vector2)ctx.BodyTransform.up, huong.normalized);
+                steer = gocLech > 0 ? -1f : 1f;
+                throttle = 1f;
+
+                // Nếu lệch quá nhiều thì đứng lại xoay cho chuẩn
+                if (Mathf.Abs(gocLech) > 45f)
+                {
+                    throttle = 0.2f;
+                }
+            }
+            else
+            {
+                throttle = 0f;
+            }
+        }
+
         float tocDo     = 5f;
-        float tocDoXoay = 120f;
+        float tocDoXoay = 180f;
+
+        TranhVatCan(ref steer, ref throttle);
 
         ctx.BodyTransform.Rotate(0f, 0f, steer * -tocDoXoay * Time.deltaTime);
         rb.velocity = (Vector2)ctx.BodyTransform.up * throttle * tocDo;
+    }
+
+    private void TranhVatCan(ref float steer, ref float throttle)
+    {
+        if (throttle <= 0.1f) return; // Chỉ né khi đang đi tới
+
+        Vector2 origin = ctx.BodyTransform.position;
+        Vector2 forward = ctx.BodyTransform.up;
+        
+        Vector2 leftDir = Quaternion.Euler(0, 0, rayAngle) * forward;
+        Vector2 rightDir = Quaternion.Euler(0, 0, -rayAngle) * forward;
+
+        RaycastHit2D hitCenter = Physics2D.Raycast(origin, forward, rayDistance, obstacleLayer);
+        RaycastHit2D hitLeft = Physics2D.Raycast(origin, leftDir, rayDistance * 0.8f, obstacleLayer);
+        RaycastHit2D hitRight = Physics2D.Raycast(origin, rightDir, rayDistance * 0.8f, obstacleLayer);
+
+        if (hitCenter.collider != null)
+        {
+            // Nếu quá gần tường, cài số lùi
+            if (hitCenter.distance < 1.0f)
+            {
+                throttle = -1f;
+                steer = (Random.value > 0.5f) ? 1f : -1f; // Bẻ lái để thoát kẹt
+                return;
+            }
+
+            // Chọn bên nào trống hơn để bẻ lái
+            float leftDist = hitLeft.collider != null ? hitLeft.distance : rayDistance;
+            float rightDist = hitRight.collider != null ? hitRight.distance : rayDistance;
+
+            if (leftDist > rightDist)
+            {
+                steer = -1f; // Rẽ trái
+            }
+            else
+            {
+                steer = 1f;  // Rẽ phải
+            }
+        }
+        else if (hitLeft.collider != null && hitLeft.distance < 1.5f)
+        {
+            steer = 1f; // Rẽ phải nhẹ
+        }
+        else if (hitRight.collider != null && hitRight.distance < 1.5f)
+        {
+            steer = -1f; // Rẽ trái nhẹ
+        }
     }
 
     private void CapNhatLabelDebug()
@@ -183,5 +336,44 @@ public class BotBrain : NetworkBehaviour
     private static void OnPlayerDespawned(TankPlayer p)
     {
         _allPlayers.Remove(p);
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!Application.isPlaying || ctx == null || ctx.BodyTransform == null) return;
+
+        Vector2 origin = ctx.BodyTransform.position;
+        Vector2 forward = ctx.BodyTransform.up;
+        Vector2 leftDir = Quaternion.Euler(0, 0, rayAngle) * forward;
+        Vector2 rightDir = Quaternion.Euler(0, 0, -rayAngle) * forward;
+
+        DrawRayGizmo(origin, forward, rayDistance);
+        DrawRayGizmo(origin, leftDir, rayDistance * 0.8f);
+        DrawRayGizmo(origin, rightDir, rayDistance * 0.8f);
+
+        // Vẽ đường A*
+        if (currentPath != null)
+        {
+            Gizmos.color = Color.blue;
+            for (int i = 0; i < currentPath.Count - 1; i++)
+            {
+                Gizmos.DrawLine(currentPath[i], currentPath[i + 1]);
+            }
+        }
+    }
+
+    private void DrawRayGizmo(Vector2 origin, Vector2 dir, float dist)
+    {
+        RaycastHit2D hit = Physics2D.Raycast(origin, dir, dist, obstacleLayer);
+        if (hit.collider != null)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(origin, hit.point);
+        }
+        else
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawLine(origin, origin + dir * dist);
+        }
     }
 }
