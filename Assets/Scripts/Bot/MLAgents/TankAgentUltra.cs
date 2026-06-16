@@ -890,7 +890,27 @@ public class TankAgentUltra : Agent
         if (((1 << col.gameObject.layer) & layerTaiNguyen.value) != 0)
         {
             if (KiemTraGhiNhanTaiNguyen(col))
-                AddReward(r_NhatItem);
+            {
+                ItemPickup item = col.GetComponent<ItemPickup>();
+                if (item != null && item.Type == ItemType.Trap)
+                {
+                    // Vô tình giẫm phải bẫy -> Phạt nặng để Bot học cách né (dù đã lơ bẫy trong tầm nhìn)
+                    AddReward(-2.0f); 
+                }
+                else
+                {
+                    AddReward(r_NhatItem);
+                }
+            }
+            else
+            {
+                // Nếu đã quyết định bỏ qua (vd Bẫy) nhưng vẫn đụng trúng -> Phạt
+                ItemPickup item = col.GetComponent<ItemPickup>();
+                if (item != null && item.Type == ItemType.Trap)
+                {
+                    AddReward(-2.0f);
+                }
+            }
         }
     }
 
@@ -980,13 +1000,29 @@ public class TankAgentUltra : Agent
     {
         int id = col.gameObject.GetInstanceID();
         if (_boQuaTaiNguyen.Contains(id)) return false;
+        
         if (!_daXetTaiNguyen.Contains(id))
         {
             _daXetTaiNguyen.Add(id);
-            if (UnityEngine.Random.value > tyLeNhatTaiNguyen)
+
+            ItemPickup item = col.GetComponent<ItemPickup>();
+            if (item != null)
             {
-                _boQuaTaiNguyen.Add(id);
-                return false;
+                // Dùng chung logic thông minh (né bẫy, xét tỉ lệ) với BotBrain thường
+                if (!item.CanBePickedUpByBot(null, tyLeNhatTaiNguyen))
+                {
+                    _boQuaTaiNguyen.Add(id);
+                    return false;
+                }
+            }
+            else
+            {
+                // Coin bình thường
+                if (UnityEngine.Random.value > tyLeNhatTaiNguyen)
+                {
+                    _boQuaTaiNguyen.Add(id);
+                    return false;
+                }
             }
         }
         return true;
