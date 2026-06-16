@@ -102,6 +102,7 @@ public class TankAgentUltra : Agent
     // ═══════════════════════════════════════════════════════════════
     //  REWARDS
     // ═══════════════════════════════════════════════════════════════
+#pragma warning disable 0414 // Tạm ẩn warning biến không sử dụng
     [Header("Phần thưởng")]
     [SerializeField] private float r_BanTrung         =  0.5f;
     [SerializeField] private float r_TieuDiet         =  2.0f;
@@ -116,6 +117,7 @@ public class TankAgentUltra : Agent
     [SerializeField] private float r_Kiting          =  0.01f;
     [SerializeField] private float r_NeDan            =  0.1f;
     [SerializeField] private float r_TuanTra           =  0.05f;  // Di chuyển khi không có địch   // Tiến đến mục tiêu   // Đang quay vòng
+#pragma warning restore 0414
 
     // ═══════════════════════════════════════════════════════════════
     //  STATE
@@ -517,7 +519,6 @@ public class TankAgentUltra : Agent
         
         // [AUTO-PILOT HACK] Bỏ qua AI chưa train, ép Bot tự lái cứng bám theo đường màu Tím (A*)
         Vector2 toGoal = Vector2.zero;
-        bool isDodging = false;
 
         // 1. ĐỊNH HƯỚNG CHIẾN LƯỢC TỪ BỘ NHỚ (Đường A*, Giao Tranh, Rút Lui)
         if (memory != null)
@@ -649,7 +650,6 @@ public class TankAgentUltra : Agent
 
                     // CỘNG GỘP VECTOR: Vừa di chuyển theo chiến lược (rút lui/tấn công), vừa né đạn!
                     toGoal = toGoal.normalized + dodgeDir * 2f;
-                    isDodging = true;
                     break;
                 }
             }
