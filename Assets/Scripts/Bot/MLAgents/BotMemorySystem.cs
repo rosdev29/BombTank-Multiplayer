@@ -59,6 +59,11 @@ public class BotMemorySystem : MonoBehaviour
     // ─── DỮ LIỆU BỘ NHỚ ───────────────────────────────────────
     private HashSet<Vector2Int>   _visited     = new HashSet<Vector2Int>();
     private HashSet<Vector2Int>   _unreachableCells = new HashSet<Vector2Int>();
+
+    [Header("Cấu hình nhặt đồ")]
+    [Range(0f, 1f)] public float tiLeNhatItem = 0.5f;
+    private HashSet<Vector2Int>   _ignoredItems = new HashSet<Vector2Int>();
+
     private List<MemoryPOI>       _healPOIs    = new List<MemoryPOI>();
     private List<MemoryPOI>       _itemPOIs    = new List<MemoryPOI>();
     private List<MemoryPOI>       _coinPOIs    = new List<MemoryPOI>();
@@ -88,6 +93,7 @@ public class BotMemorySystem : MonoBehaviour
     {
         _visited.Clear();
         if (_unreachableCells != null) _unreachableCells.Clear();
+        _ignoredItems.Clear();
         _healPOIs.Clear();
         _itemPOIs.Clear();
         _coinPOIs.Clear();
@@ -150,7 +156,32 @@ public class BotMemorySystem : MonoBehaviour
         => ThemPOI(_healPOIs, pos, POIType.HealStation, 1.0f);
 
     public void GhiNhanItem(Vector2 pos)
-        => ThemPOI(_itemPOIs, pos, POIType.Item, 0.8f);
+    {
+        Vector2Int cell = WorldToCell(pos);
+        if (_ignoredItems.Contains(cell)) return;
+
+        bool daCo = false;
+        foreach (var p in _itemPOIs)
+        {
+            if (Vector2.Distance(p.worldPos, pos) < cellSize)
+            {
+                daCo = true; 
+                break;
+            }
+        }
+
+        if (!daCo)
+        {
+            // Lần đầu nhìn thấy -> Đổ xúc xắc xem có nhặt không
+            if (UnityEngine.Random.value > tiLeNhatItem)
+            {
+                _ignoredItems.Add(cell);
+                return; // Chê, bỏ qua!
+            }
+        }
+
+        ThemPOI(_itemPOIs, pos, POIType.Item, 0.8f);
+    }
 
     public void GhiNhanCoin(Vector2 pos)
         => ThemPOI(_coinPOIs, pos, POIType.Coin, 0.5f);
