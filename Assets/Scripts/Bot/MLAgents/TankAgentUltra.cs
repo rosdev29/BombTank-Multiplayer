@@ -147,6 +147,7 @@ public class TankAgentUltra : Agent
     private float             _coverSearchTimer;
     private float             _unstuckTimer;
     private float             _waypointDistTruoc;
+    private bool              _isReversingGear = false;
 
     // Biến Debug Giao Tranh
     private string            _debugCombatPhase = "";
@@ -677,8 +678,17 @@ public class TankAgentUltra : Agent
                                 {
                                     // Kẹt thì lạng bên kia
                                     ziczacDir = (moveDir * 2f - orthoDir * randomSide * 3f).normalized;
-                                    chosenDir = ziczacDir;
-                                    _debugCombatPhase = "Giai đoạn 3: Ziczac đổi hướng";
+                                    
+                                    if (!Physics2D.CircleCast(transform.position, 0.45f, ziczacDir, moveDist, layerVatCan))
+                                    {
+                                        chosenDir = ziczacDir;
+                                        _debugCombatPhase = "Giai đoạn 3: Ziczac đổi hướng";
+                                    }
+                                    else
+                                    {
+                                        chosenDir = moveDir; // Hai bên đều kẹt tường -> Đi thẳng!
+                                        _debugCombatPhase = "Giai đoạn 3: Ziczac kẹt tường";
+                                    }
                                 }
                             }
                         }
@@ -687,7 +697,7 @@ public class TankAgentUltra : Agent
                         if (chosenDir != Vector2.zero)
                         {
                             _fixedCombatTarget = (Vector2)transform.position + chosenDir * moveDist;
-                            _fixedCombatTimer = 3.5f; // Tăng lên 3.5s để chốt vị trí, đợi nó di chuyển đến nơi rồi mới đổi phase
+                            // Đã xóa dòng set timer 3.5f sai lầm gây bug!
                             // Yêu cầu Bộ nhớ dùng A* vẽ đường tránh tường tới điểm chiến lược!
                             memory.SetCombatTarget(_fixedCombatTarget.Value);
                         }
@@ -792,12 +802,12 @@ public class TankAgentUltra : Agent
                 // ── LÁI NHẠY VÀ LINH HOẠT HƠN (Arcade Tank Steering & Hysteresis Reverse) ──
                 float dot = Vector2.Dot(currentUp, toGoal.normalized);
                 
-                // Hysteresis: Nếu xe đang lùi nhanh, ưu tiên giữ số lùi để dứt khoát, không bị giật khựng tiến-lùi
-                bool isCurrentlyReversing = Vector2.Dot(GetComponent<Rigidbody2D>().velocity, currentUp) < -0.5f;
-                float reverseThreshold = isCurrentlyReversing ? -0.2f : -0.7f; 
+                // Hysteresis: Sử dụng biến trạng thái thay vì vận tốc để chống giật hoàn toàn
+                float reverseThreshold = _isReversingGear ? -0.2f : -0.7f; 
 
                 if (dot < reverseThreshold)
                 {
+                    _isReversingGear = true;
                     // Mục tiêu ở đằng sau -> Chạy lùi linh hoạt thay vì xoay compa
                     gas = -1f;
                     
@@ -808,6 +818,7 @@ public class TankAgentUltra : Agent
                 }
                 else
                 {
+                    _isReversingGear = false;
                     // Mục tiêu ở phía trước hoặc ngang hông -> Chạy tới
                     gas = Mathf.Lerp(0.4f, 1.0f, (dot + 1f) / 2f); // Ga nhạy theo góc cua
                     steer = -angle / 25f; // Xoay cực nhạy
