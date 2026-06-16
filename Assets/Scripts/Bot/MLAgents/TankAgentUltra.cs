@@ -607,19 +607,29 @@ public class TankAgentUltra : Agent
                         bool hasLOSToEnemy = CoLOS(transform.position, _dich.transform.position);
                         if (hasLOSToEnemy)
                         {
-                            // Vẫn giữ nguyên hướng đi theo A* (toGoal đã được gán ở dòng 508)
-                            // Nhưng cộng thêm một Vector dao động vuông góc với hướng đi
+                            // Cộng thêm một Vector dao động vuông góc với hướng A*
                             Vector2 moveDir = toGoal.normalized;
                             Vector2 orthoDir = new Vector2(-moveDir.y, moveDir.x);
                             
-                            // Tạo sóng Sine liên tục theo thời gian: Biên độ 1.5m, Tần số 2Hz
-                            float sineOffset = Mathf.Sin(Time.time * 0.5f) * 2.0f; // Giảm tần số xuống 0.5Hz để không bị rung giật
+                            // Tạo sóng Sine liên tục theo thời gian: Biên độ rộng hơn, Tần số nhanh hơn
+                            float sineOffset = Mathf.Sin(Time.time * 2f) * 4.0f; 
                             
-                            // Bắn tia kiểm tra xem đánh võng có văng vào tường không
-                            if (!Physics2D.CircleCast(transform.position, 0.45f, orthoDir * Mathf.Sign(sineOffset), 1.5f, layerVatCan))
+                            Vector2 targetZiczac = moveDir * 3f + orthoDir * sineOffset;
+
+                            if (!Physics2D.CircleCast(transform.position, 0.45f, targetZiczac.normalized, 1.5f, layerVatCan))
                             {
-                                toGoal = moveDir * 2f + orthoDir * sineOffset; // Cộng gộp thành đường đi Ziczac
+                                toGoal = targetZiczac; 
                                 _debugCombatPhase = "Giai đoạn 3: Ziczac đánh võng";
+                            }
+                            else
+                            {
+                                // Nếu kẹt, thử lượn hướng ngược lại
+                                targetZiczac = moveDir * 3f - orthoDir * sineOffset;
+                                if (!Physics2D.CircleCast(transform.position, 0.45f, targetZiczac.normalized, 1.5f, layerVatCan))
+                                {
+                                    toGoal = targetZiczac;
+                                    _debugCombatPhase = "Giai đoạn 3: Ziczac lách vật cản";
+                                }
                             }
                         }
                     }
@@ -712,19 +722,26 @@ public class TankAgentUltra : Agent
             else
             {
                 // ── LÁI NHẠY VÀ LINH HOẠT HƠN (Arcade Tank Steering) ──
-                steer = -angle / 25f; // Xoay cực nhạy (25f thay vì 45f cũ)
+                steer = -angle / 25f; // Xoay cực nhạy
                 steer = Mathf.Clamp(steer, -1f, 1f);
 
-                // KIỂM SOÁT CHÂN GA CHIẾN THUẬT (Bỏ gài số lùi, xoay xe tại chỗ)
-                if (Mathf.Abs(angle) > 90f)
+                // KIỂM SOÁT CHÂN GA CHIẾN THUẬT
+                if (Mathf.Abs(angle) > 135f)
                 {
-                    // Mục tiêu tít sau lưng -> Tank xoay tại chỗ (gas = 0), tránh đập tường
+                    // Mục tiêu tít sau lưng (Backpedal/Lùi khẩn cấp) -> Chạy lùi thay vì quay đầu
+                    gas = -1f; 
+                    // Khi lùi, thao tác bẻ lái bị ngược
+                    steer = angle > 0 ? 1f : -1f;
+                }
+                else if (Mathf.Abs(angle) > 90f)
+                {
+                    // Mục tiêu đằng sau nhưng chưa đến mức lùi thẳng -> Tank xoay tại chỗ (gas = 0), tránh đập tường
                     gas = 0f; 
                     steer = angle > 0 ? -1f : 1f;
                 }
                 else if (Mathf.Abs(angle) > 45f)
                 {
-                    // Bo cua gắt -> Đạp 70% ga (0.7f). Bỏ mức 0.2f cà rề cà rề cũ
+                    // Bo cua gắt -> Đạp 70% ga
                     gas = 0.7f;
                 }
                 else
