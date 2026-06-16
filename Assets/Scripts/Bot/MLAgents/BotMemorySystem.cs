@@ -207,6 +207,31 @@ public class BotMemorySystem : MonoBehaviour
         // Nếu đang trong quá trình đi hồi máu hoặc đang đứng hồi máu, cấm bị xao nhãng cho tới khi đạt 80% máu
         bool isHysteresisHeal = (CurrentGoal == GoalType.Heal && healthRatio < 0.8f);
 
+        // Bị kỳ đà cản mũi khi đang hồi máu
+        if (isHysteresisHeal && enemy != null && hasLOSToEnemy)
+        {
+            float dist = Vector2.Distance(botPos, enemy.transform.position);
+            if (dist < 8f) // Địch mò tới tận trạm hồi máu
+            {
+                Mau enemyHealth = enemy.GetComponent<Mau>();
+                float enemyRatio = enemyHealth != null ? enemyHealth.GetCurrentHealthRatio() : 1.0f;
+                
+                if (healthRatio < enemyRatio)
+                {
+                    // Đang yếu máu hơn mà nó đuổi tới -> Bỏ trạm hồi máu, Rút lui khẩn cấp!
+                    Vector2 safeNode = AStarPathfinding.Instance.FindSafeRetreatNode(botPos, enemy.transform.position);
+                    DatMucTieu(GoalType.Retreat, safeNode, 0.9f, botPos, enemy.transform.position);
+                    return;
+                }
+                else if (currentCoins >= chiPhiBan)
+                {
+                    // Máu mình bằng hoặc trâu hơn nó -> Không thèm hồi nữa, quay ra đấm nó luôn!
+                    DatMucTieu(GoalType.Combat, enemy.transform.position, 1.0f, botPos);
+                    return;
+                }
+            }
+        }
+
         if (!isHysteresisHeal)
         {
             // ── Ưu tiên TỐI THƯỢNG: Sắp tông vào địch -> Bắt buộc Giao tranh để lách vòng tròn ──
