@@ -531,6 +531,12 @@ public class TankAgentUltra : Agent
         {
             toGoal = memory.GoalPosition - (Vector2)transform.position;
 
+            // CHIẾN THUẬT RÚT LUI: BỎ CHẠY THEO ĐƯỜNG A* ĐÃ VẼ
+            if (memory.CurrentGoal == BotMemorySystem.GoalType.Retreat)
+            {
+                _debugCombatPhase = "Rút lui khẩn cấp (Retreat)";
+            }
+
             // CHIẾN THUẬT GIAO TRANH: NÚP VÀ BẮN (Peek and Shoot)
             if (memory.CurrentGoal == BotMemorySystem.GoalType.Combat && _dich != null)
             {
@@ -622,25 +628,53 @@ public class TankAgentUltra : Agent
                         }
                         else
                         {
-                            // Giai đoạn 3: Ziczac tiếp cận
-                            Vector2 moveDir = toEnemyDirect.normalized; // Đừng dùng toGoal vì toGoal có thể bằng 0 nếu đang tạm dừng!
-                            Vector2 orthoDir = new Vector2(-moveDir.y, moveDir.x);
-                            
-                            // Lạng sang một bên ngẫu nhiên
-                            float randomSide = UnityEngine.Random.value > 0.5f ? 1f : -1f;
-                            Vector2 ziczacDir = (moveDir * 2f + orthoDir * randomSide * 3f).normalized;
+                            Mau enemyHealth = _dich.GetComponent<Mau>();
+                            bool enemyIsRetreating = enemyHealth != null && enemyHealth.GetCurrentHealthRatio() < 0.4f;
 
-                            if (!Physics2D.CircleCast(transform.position, 0.45f, ziczacDir, moveDist, layerVatCan))
+                            if (enemyIsRetreating)
                             {
-                                chosenDir = ziczacDir; 
-                                _debugCombatPhase = "Giai đoạn 3: Ziczac " + (randomSide > 0 ? "Phải" : "Trái");
+                                // TRUY ĐUỔI: Địch yếu máu -> Phóng thẳng tới làm thịt, không ziczac câu giờ!
+                                Vector2 moveDir = toEnemyDirect.normalized;
+                                if (!Physics2D.CircleCast(transform.position, 0.45f, moveDir, moveDist, layerVatCan))
+                                {
+                                    chosenDir = moveDir; 
+                                    _debugCombatPhase = "Truy đuổi dứt điểm (Pursuit)";
+                                }
+                                else
+                                {
+                                    // Kẹt thì lách nhẹ sang bên
+                                    bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir1, moveDist, layerVatCan);
+                                    bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir2, moveDist, layerVatCan);
+                                    
+                                    if (canStrafe1) chosenDir = (moveDir + strafeDir1).normalized;
+                                    else if (canStrafe2) chosenDir = (moveDir + strafeDir2).normalized;
+                                    else chosenDir = moveDir;
+                                    
+                                    _debugCombatPhase = "Truy đuổi (Lách vật cản)";
+                                }
                             }
                             else
                             {
-                                // Kẹt thì lạng bên kia
-                                ziczacDir = (moveDir * 2f - orthoDir * randomSide * 3f).normalized;
-                                chosenDir = ziczacDir;
-                                _debugCombatPhase = "Giai đoạn 3: Ziczac đổi hướng";
+                                // Giai đoạn 3: Ziczac tiếp cận (để né đạn khi địch còn khỏe)
+                                Vector2 moveDir = toEnemyDirect.normalized; // Đừng dùng toGoal vì toGoal có thể bằng 0 nếu đang tạm dừng!
+                                Vector2 orthoDir = new Vector2(-moveDir.y, moveDir.x);
+                                
+                                // Lạng sang một bên ngẫu nhiên
+                                float randomSide = UnityEngine.Random.value > 0.5f ? 1f : -1f;
+                                Vector2 ziczacDir = (moveDir * 2f + orthoDir * randomSide * 3f).normalized;
+
+                                if (!Physics2D.CircleCast(transform.position, 0.45f, ziczacDir, moveDist, layerVatCan))
+                                {
+                                    chosenDir = ziczacDir; 
+                                    _debugCombatPhase = "Giai đoạn 3: Ziczac " + (randomSide > 0 ? "Phải" : "Trái");
+                                }
+                                else
+                                {
+                                    // Kẹt thì lạng bên kia
+                                    ziczacDir = (moveDir * 2f - orthoDir * randomSide * 3f).normalized;
+                                    chosenDir = ziczacDir;
+                                    _debugCombatPhase = "Giai đoạn 3: Ziczac đổi hướng";
+                                }
                             }
                         }
 
