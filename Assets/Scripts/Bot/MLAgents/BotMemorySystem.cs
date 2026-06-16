@@ -662,8 +662,23 @@ public class BotMemorySystem : MonoBehaviour
             }
             _lastPathCalcTime = Time.time;
             _lastTargetPos = finalPos;
-            GoalPosition = finalPos; // Tạm thời
-            PathRequestManager.RequestPath(botPos, finalPos, OnPathFound);
+            
+            if (AStarPathfinding.Instance != null)
+            {
+                _pathWaypoints = AStarPathfinding.Instance.FindPath(botPos, finalPos);
+                if (_pathWaypoints != null && _pathWaypoints.Count > 0)
+                {
+                    GoalPosition = _pathWaypoints[0];
+                }
+                else
+                {
+                    GoalPosition = finalPos;
+                }
+            }
+            else
+            {
+                GoalPosition = finalPos;
+            }
         }
         else
         {
