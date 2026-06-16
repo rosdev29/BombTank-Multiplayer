@@ -688,18 +688,24 @@ public class TankAgentUltra : Agent
             }
         }
 
-            // THUẬT TOÁN TÁCH BẦY (Boids Separation) & TRÁNH TƯỜNG CỤC BỘ: Giữ khoảng cách 2.5m
-            Collider2D[] nearbyObstacles = Physics2D.OverlapCircleAll(transform.position, 2.5f, layerVatCan | layerDich);
+            // THUẬT TOÁN TÁCH BẦY (Tách riêng Địch và Tường để không phá hỏng đường A*)
+            Collider2D[] nearbyObstacles = Physics2D.OverlapCircleAll(transform.position, 2.0f, layerVatCan | layerDich);
             foreach (var col in nearbyObstacles)
             {
                 if (col.isTrigger || col.transform.root == transform.root) continue;
+                
+                bool isWall = ((1 << col.gameObject.layer) & layerVatCan) != 0;
+                float repelRadius = isWall ? 0.6f : 2.0f; // Tường chỉ đẩy nhẹ ở 0.6m (vì A* đã lo vụ né tường), Địch thì đẩy 2m để tách bầy
+                float forceMult = isWall ? 1.5f : 3.0f;
+
                 Vector2 closestPoint = col.ClosestPoint(transform.position);
                 Vector2 away = (Vector2)transform.position - closestPoint;
                 float dist = away.magnitude;
-                if (dist > 0.01f && dist < 2.5f)
+
+                if (dist > 0.01f && dist < repelRadius)
                 {
-                    // Lực đẩy ra xa bề mặt (càng gần đẩy càng mạnh)
-                    toGoal += away.normalized * (2.5f - dist) * 4f;
+                    // Lực đẩy ra xa bề mặt
+                    toGoal += away.normalized * (repelRadius - dist) * forceMult;
                 }
             }
 
@@ -748,29 +754,13 @@ public class TankAgentUltra : Agent
                 steer = -angle / 25f; // Xoay cực nhạy
                 steer = Mathf.Clamp(steer, -1f, 1f);
 
-                // KIỂM SOÁT CHÂN GA CHIẾN THUẬT (Không bao giờ cho gas = 0 để tránh khựng)
-                if (Mathf.Abs(angle) > 135f)
-                {
-                    // Mục tiêu tít sau lưng -> Chạy lùi
-                    gas = -1f; 
-                    steer = angle > 0 ? 1f : -1f;
-                }
-                else if (Mathf.Abs(angle) > 60f)
-                {
-                    // Bo cua ngang hoặc gắt -> Vừa xoay vừa đạp nhẹ ga (không bằng 0)
-                    gas = 0.5f; 
-                    steer = angle > 0 ? -1f : 1f;
-                }
-                else if (Mathf.Abs(angle) > 25f)
-                {
-                    // Bo cua nhẹ -> Đạp 75% ga
-                    gas = 0.75f;
-                }
-                else
-                {
-                    // Đường thẳng -> Bơm lút ga
-                    gas = 1f;
-                }
+                // KIỂM SOÁT CHÂN GA CHIẾN THUẬT (Không dùng số lùi khi theo Waypoint để tránh dao động tiến/lùi)
+                // dot chạy từ -1 (sau lưng) đến 1 (trước mặt)
+                float dot = Vector2.Dot(currentUp, toGoal.normalized);
+                
+                // Khi rẽ gấp (mục tiêu ở đằng sau), ga giảm còn 40% để có thời gian ôm cua dứt điểm
+                // Khi đi thẳng, ga tăng lên 100%
+                gas = Mathf.Lerp(0.4f, 1.0f, (dot + 1f) / 2f); 
             }
         }
 
