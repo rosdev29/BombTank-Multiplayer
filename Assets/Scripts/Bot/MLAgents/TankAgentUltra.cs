@@ -629,7 +629,7 @@ public class TankAgentUltra : Agent
                         else
                         {
                             Mau enemyHealth = _dich.GetComponent<Mau>();
-                            bool enemyIsRetreating = enemyHealth != null && enemyHealth.GetCurrentHealthRatio() < 0.4f;
+                            bool enemyIsRetreating = enemyHealth != null && ((float)enemyHealth.MauHienTai.Value / enemyHealth.MauToiDa) < 0.4f;
 
                             if (enemyIsRetreating)
                             {
@@ -642,12 +642,17 @@ public class TankAgentUltra : Agent
                                 }
                                 else
                                 {
+                                    // Tính lại hướng lách vì kẹt
+                                    Vector2 orthoDir = new Vector2(-moveDir.y, moveDir.x);
+                                    Vector2 lachDir1 = (moveDir + orthoDir).normalized;
+                                    Vector2 lachDir2 = (moveDir - orthoDir).normalized;
+
                                     // Kẹt thì lách nhẹ sang bên
-                                    bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir1, moveDist, layerVatCan);
-                                    bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir2, moveDist, layerVatCan);
+                                    bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, lachDir1, moveDist, layerVatCan);
+                                    bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, lachDir2, moveDist, layerVatCan);
                                     
-                                    if (canStrafe1) chosenDir = (moveDir + strafeDir1).normalized;
-                                    else if (canStrafe2) chosenDir = (moveDir + strafeDir2).normalized;
+                                    if (canStrafe1) chosenDir = lachDir1;
+                                    else if (canStrafe2) chosenDir = lachDir2;
                                     else chosenDir = moveDir;
                                     
                                     _debugCombatPhase = "Truy đuổi (Lách vật cản)";
