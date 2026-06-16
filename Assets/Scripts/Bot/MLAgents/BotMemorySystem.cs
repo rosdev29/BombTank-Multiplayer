@@ -198,7 +198,6 @@ public class BotMemorySystem : MonoBehaviour
             if (enemy != null && hasLOSToEnemy && Vector2.Distance(botPos, enemy.transform.position) < 2.5f)
             {
                 if (CurrentGoal != GoalType.Combat) DatMucTieu(GoalType.Combat, enemy.transform.position, 1.0f, botPos);
-                else { FinalGoalPosition = enemy.transform.position; GoalPosition = FinalGoalPosition; }
                 return;
             }
 
@@ -213,7 +212,6 @@ public class BotMemorySystem : MonoBehaviour
             if (enemy != null && hasLOSToEnemy && healthRatio >= healThreshold && currentCoins >= chiPhiBan)
             {
                 if (CurrentGoal != GoalType.Combat) DatMucTieu(GoalType.Combat, enemy.transform.position, 0.8f, botPos);
-                else { FinalGoalPosition = enemy.transform.position; GoalPosition = FinalGoalPosition; }
                 return;
             }
         }

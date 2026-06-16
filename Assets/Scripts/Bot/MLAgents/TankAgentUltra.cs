@@ -542,17 +542,24 @@ public class TankAgentUltra : Agent
                     {
                         _currentCoverPos = FindCoverPosition(transform.position, _dich.transform.position);
                         _coverSearchTimer = 0.5f; // Cập nhật chỗ nấp mỗi 0.5s
+                        
+                        if (_currentCoverPos != (Vector2)transform.position)
+                        {
+                            memory.SetCombatTarget(_currentCoverPos);
+                        }
+                        else
+                        {
+                            Vector2 backPos = (Vector2)transform.position + ((Vector2)transform.position - (Vector2)_dich.transform.position).normalized * 4f;
+                            memory.SetCombatTarget(backPos);
+                        }
                     }
 
                     if (_currentCoverPos != (Vector2)transform.position)
                     {
-                        toGoal = _currentCoverPos - (Vector2)transform.position; // Chạy ra sau vật cản
                         _debugCombatPhase = "Núp & Nạp đạn";
                     }
                     else 
                     {
-                        // Nếu không tìm được chỗ nấp, chạy lùi ra xa
-                        toGoal = (Vector2)transform.position - (Vector2)_dich.transform.position;
                         _debugCombatPhase = "Lùi khẩn cấp";
                     }
                 }
