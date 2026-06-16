@@ -201,6 +201,22 @@ public class BotBrain : NetworkBehaviour
     private float TichDiemRutLui()
     {
         float nguongRutLui = CurrentConfig != null ? CurrentConfig.NguongMauRutLui : 0.3f;
+        
+        // CƠ CHẾ BÁM TRẠNG THÁI (Hysteresis):
+        // Nếu đang trong trạng thái Rút lui (hồi máu), phải giữ trạng thái này cho tới khi máu đủ an toàn (80%).
+        // Không để vàng hay item cám dỗ giữa chừng.
+        if (currentState == stateRutLui)
+        {
+            if (ctx.HealthRatio < 0.8f)
+            {
+                // Ép điểm cực cao để đè bẹp mọi state khác (nhặt item = 60, vàng = 70)
+                return 100f; 
+            }
+            // Đã hồi đủ 80%, cho phép làm việc khác
+            return 0f;
+        }
+
+        // Nếu bình thường máu tụt qua ngưỡng nguy hiểm thì bắt đầu kích hoạt
         if (ctx.HealthRatio < nguongRutLui)
         {
             // Điểm từ 80 - 100 tùy độ yếu máu
