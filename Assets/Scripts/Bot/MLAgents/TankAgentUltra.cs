@@ -144,10 +144,11 @@ public class TankAgentUltra : Agent
     private Vector2           _currentCoverPos;
     private float             _coverSearchTimer;
     private float             _unstuckTimer;
-    private float   _waypointDistTruoc;
+    private float             _waypointDistTruoc;
 
-
-    // ═══════════════════════════════════════════════════════════════
+    // Biến Debug Giao Tranh
+    private string            _debugCombatPhase = "";
+    private Vector2           _debugCombatDir = Vector2.zero;    // ═══════════════════════════════════════════════════════════════
     //  0. HỒI SINH (3s Delay)
     // ═══════════════════════════════════════════════════════════════
     private System.Collections.IEnumerator XuLyChetVaHoiSinh()
@@ -539,11 +540,13 @@ public class TankAgentUltra : Agent
                     if (_currentCoverPos != (Vector2)transform.position)
                     {
                         toGoal = _currentCoverPos - (Vector2)transform.position; // Chạy ra sau vật cản
+                        _debugCombatPhase = "Núp & Nạp đạn";
                     }
                     else 
                     {
                         // Nếu không tìm được chỗ nấp, chạy lùi ra xa
                         toGoal = (Vector2)transform.position - (Vector2)_dich.transform.position;
+                        _debugCombatPhase = "Lùi khẩn cấp";
                     }
                 }
                 else
@@ -565,6 +568,7 @@ public class TankAgentUltra : Agent
                             if (!Physics2D.CircleCast(transform.position, 0.45f, backpedalDir, 1.5f, layerVatCan))
                             {
                                 toGoal = backpedalDir; // Lùi an toàn
+                                _debugCombatPhase = "Giai đoạn 1: Backpedal (Lùi)";
                             }
                             else
                             {
@@ -575,6 +579,7 @@ public class TankAgentUltra : Agent
                                 if (canStrafe1 && !canStrafe2) toGoal = strafeDir1;
                                 else if (canStrafe2 && !canStrafe1) toGoal = strafeDir2;
                                 else toGoal = strafeDir1;
+                                _debugCombatPhase = "Giai đoạn 1: Lách tường";
                             }
                         }
                         else
@@ -590,10 +595,12 @@ public class TankAgentUltra : Agent
                             if (canStrafe1 && (!canStrafe2 || dot1 >= dot2)) toGoal = strafeDir1;
                             else if (canStrafe2) toGoal = strafeDir2;
                             else toGoal = -backpedalDir;
+                            _debugCombatPhase = "Giai đoạn 2: Strafing (Cắn trộm)";
                         }
                     }
                     else
                     {
+                        _debugCombatPhase = "Giai đoạn 3: Rút ngắn cự ly";
                         // ── DI CHUYỂN ZICZAC & ĐÁNH VÕNG (Serpentine Juking) ──
                         // Nếu ở xa (> 6m) và đang bị địch nhìn thấy, đi theo đường ziczac lượn sóng
                         bool hasLOSToEnemy = CoLOS(transform.position, _dich.transform.position);
@@ -611,12 +618,16 @@ public class TankAgentUltra : Agent
                             if (!Physics2D.CircleCast(transform.position, 0.45f, orthoDir * Mathf.Sign(sineOffset), 1.5f, layerVatCan))
                             {
                                 toGoal = moveDir * 2f + orthoDir * sineOffset; // Cộng gộp thành đường đi Ziczac
+                                _debugCombatPhase = "Giai đoạn 3: Ziczac đánh võng";
                             }
                         }
                     }
                 }
             }
         }
+
+        // Lưu lại để vẽ Gizmos
+        _debugCombatDir = toGoal;
 
         // 2. PHẢN XẠ NÉ ĐẠN THẦN THÁNH (Vừa né đạn vừa chạy theo mục tiêu chiến lược)
         if (_danhSachDan != null)
@@ -1216,6 +1227,35 @@ public class TankAgentUltra : Agent
             if (danRb == null) continue;
             Vector2 v = danRb.velocity.magnitude > 0.1f ? danRb.velocity : (Vector2)danRb.transform.up * tocDoDan;
             Gizmos.DrawLine(danRb.position, danRb.position + v * 0.6f);
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        // Vẽ chiến thuật Giao tranh nếu đang ở chế độ Combat
+        if (Application.isPlaying && memory != null && memory.CurrentGoal == BotMemorySystem.GoalType.Combat && _dich != null)
+        {
+            Vector2 start = transform.position;
+            Vector2 end = start + _debugCombatDir.normalized * 3f;
+
+            if (_debugCombatPhase.Contains("Núp")) Gizmos.color = Color.gray;
+            else if (_debugCombatPhase.Contains("1")) Gizmos.color = Color.red;
+            else if (_debugCombatPhase.Contains("2")) Gizmos.color = Color.yellow;
+            else if (_debugCombatPhase.Contains("3")) Gizmos.color = Color.cyan;
+            else Gizmos.color = Color.magenta;
+
+            // Vẽ mũi tên hướng đi chiến thuật
+            Gizmos.DrawLine(start, end);
+            Gizmos.DrawSphere(end, 0.3f);
+            
+            // Vẽ đường nối thẳng tới kẻ địch (xác định mục tiêu)
+            Gizmos.color = new Color(1f, 0f, 0f, 0.4f);
+            Gizmos.DrawLine(start, _dich.transform.position);
+
+#if UNITY_EDITOR
+            // Hiển thị tên giai đoạn
+            UnityEditor.Handles.Label(end + (Vector2)Vector3.up * 0.5f, _debugCombatPhase);
+#endif
         }
     }
 }
