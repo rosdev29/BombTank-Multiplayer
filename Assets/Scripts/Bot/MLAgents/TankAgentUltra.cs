@@ -750,17 +750,30 @@ public class TankAgentUltra : Agent
             }
             else
             {
-                // ── LÁI NHẠY VÀ LINH HOẠT HƠN (Arcade Tank Steering) ──
-                steer = -angle / 25f; // Xoay cực nhạy
-                steer = Mathf.Clamp(steer, -1f, 1f);
-
-                // KIỂM SOÁT CHÂN GA CHIẾN THUẬT (Không dùng số lùi khi theo Waypoint để tránh dao động tiến/lùi)
-                // dot chạy từ -1 (sau lưng) đến 1 (trước mặt)
+                // ── LÁI NHẠY VÀ LINH HOẠT HƠN (Arcade Tank Steering & Hysteresis Reverse) ──
                 float dot = Vector2.Dot(currentUp, toGoal.normalized);
                 
-                // Khi rẽ gấp (mục tiêu ở đằng sau), ga giảm còn 40% để có thời gian ôm cua dứt điểm
-                // Khi đi thẳng, ga tăng lên 100%
-                gas = Mathf.Lerp(0.4f, 1.0f, (dot + 1f) / 2f); 
+                // Hysteresis: Nếu xe đang lùi nhanh, ưu tiên giữ số lùi để dứt khoát, không bị giật khựng tiến-lùi
+                bool isCurrentlyReversing = Vector2.Dot(GetComponent<Rigidbody2D>().velocity, currentUp) < -0.5f;
+                float reverseThreshold = isCurrentlyReversing ? -0.2f : -0.7f; 
+
+                if (dot < reverseThreshold)
+                {
+                    // Mục tiêu ở đằng sau -> Chạy lùi linh hoạt thay vì xoay compa
+                    gas = -1f;
+                    
+                    // Tính góc sai lệch so với phía sau đuôi xe (180 độ)
+                    float backAngle = angle > 0 ? 180f - angle : -180f - angle; 
+                    steer = backAngle / 25f; // Lái mượt mà để đuôi xe chĩa vào mục tiêu
+                    steer = Mathf.Clamp(steer, -1f, 1f);
+                }
+                else
+                {
+                    // Mục tiêu ở phía trước hoặc ngang hông -> Chạy tới
+                    gas = Mathf.Lerp(0.4f, 1.0f, (dot + 1f) / 2f); // Ga nhạy theo góc cua
+                    steer = -angle / 25f; // Xoay cực nhạy
+                    steer = Mathf.Clamp(steer, -1f, 1f);
+                }
             }
         }
 
