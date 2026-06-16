@@ -188,27 +188,34 @@ public class BotMemorySystem : MonoBehaviour
             return;
         }
 
-        // ── Ưu tiên TỐI THƯỢNG: Sắp tông vào địch -> Bắt buộc Giao tranh để lách vòng tròn ──
-        if (enemy != null && hasLOSToEnemy && Vector2.Distance(botPos, enemy.transform.position) < 2.5f)
-        {
-            if (CurrentGoal != GoalType.Combat) DatMucTieu(GoalType.Combat, enemy.transform.position, 1.0f, botPos);
-            else { FinalGoalPosition = enemy.transform.position; GoalPosition = FinalGoalPosition; }
-            return;
-        }
+        // ── CƠ CHẾ BÁM TRẠNG THÁI (Hysteresis) ──
+        // Nếu đang trong quá trình đi hồi máu hoặc đang đứng hồi máu, cấm bị xao nhãng cho tới khi đạt 80% máu
+        bool isHysteresisHeal = (CurrentGoal == GoalType.Heal && healthRatio < 0.8f);
 
-        // Kiểm tra lại điều kiện ưu tiên cao: Máu cực thấp (và phải đủ tiền viện phí)
-        if (healthRatio < healThreshold && currentCoins >= 10 && TimPOITotNhat(_healPOIs, botPos, enemy != null ? (Vector2)enemy.transform.position : null) != null && CurrentGoal != GoalType.Heal)
+        if (!isHysteresisHeal)
         {
-            DatMucTieu(GoalType.Heal, TimPOITotNhat(_healPOIs, botPos, enemy != null ? (Vector2)enemy.transform.position : null).Value.worldPos, 1.0f, botPos);
-            return;
-        }
+            // ── Ưu tiên TỐI THƯỢNG: Sắp tông vào địch -> Bắt buộc Giao tranh để lách vòng tròn ──
+            if (enemy != null && hasLOSToEnemy && Vector2.Distance(botPos, enemy.transform.position) < 2.5f)
+            {
+                if (CurrentGoal != GoalType.Combat) DatMucTieu(GoalType.Combat, enemy.transform.position, 1.0f, botPos);
+                else { FinalGoalPosition = enemy.transform.position; GoalPosition = FinalGoalPosition; }
+                return;
+            }
 
-        // Kiểm tra ưu tiên cao: Địch ngay trước mặt (Chỉ khi CÓ TIỀN BẮN ĐẠN)
-        if (enemy != null && hasLOSToEnemy && healthRatio >= healThreshold && currentCoins >= chiPhiBan)
-        {
-            if (CurrentGoal != GoalType.Combat) DatMucTieu(GoalType.Combat, enemy.transform.position, 0.8f, botPos);
-            else { FinalGoalPosition = enemy.transform.position; GoalPosition = FinalGoalPosition; }
-            return;
+            // Kiểm tra lại điều kiện ưu tiên cao: Máu cực thấp (và phải đủ tiền viện phí)
+            if (healthRatio < healThreshold && currentCoins >= 10 && TimPOITotNhat(_healPOIs, botPos, enemy != null ? (Vector2)enemy.transform.position : null) != null && CurrentGoal != GoalType.Heal)
+            {
+                DatMucTieu(GoalType.Heal, TimPOITotNhat(_healPOIs, botPos, enemy != null ? (Vector2)enemy.transform.position : null).Value.worldPos, 1.0f, botPos);
+                return;
+            }
+
+            // Kiểm tra ưu tiên cao: Địch ngay trước mặt (Chỉ khi CÓ TIỀN BẮN ĐẠN)
+            if (enemy != null && hasLOSToEnemy && healthRatio >= healThreshold && currentCoins >= chiPhiBan)
+            {
+                if (CurrentGoal != GoalType.Combat) DatMucTieu(GoalType.Combat, enemy.transform.position, 0.8f, botPos);
+                else { FinalGoalPosition = enemy.transform.position; GoalPosition = FinalGoalPosition; }
+                return;
+            }
         }
 
         // Chuyển trạm (Waypoint) hoặc Đích đến (Goal)
@@ -249,17 +256,23 @@ public class BotMemorySystem : MonoBehaviour
             }
 
             // Đã đến trạm cuối cùng của đường đi (hoặc kẹt)!
-            if (CurrentGoal == GoalType.Loot || CurrentGoal == GoalType.Heal)
+            if (CurrentGoal == GoalType.Loot)
             {
-                // Nếu đi đến tận nơi rồi mà vẫn còn hàm này chạy -> Vật phẩm chưa bị ăn!
-                // Rất có thể nó nằm trong góc lag vật lý hoặc xuyên tường. Xóa sổ nó!
+                // Loot rớt trên mặt đất, nếu đi đến nơi rồi mà hàm này vẫn chạy -> kẹt vô góc hoặc xuyên tường
                 XoaPOI(FinalGoalPosition);
             }
             else if (CurrentGoal == GoalType.Explore)
             {
-                // Nếu đích đến là Khám Phá mà lại bị kẹt (IsLooping) hoặc không tới sát được tâm ô
-                // Ta phải ép đưa nó vào danh sách "Đã thăm" để lần sau không chọn lại ô chết dẫm này nữa!
+                // Đích khám phá bị kẹt -> ép vào list đã thăm
                 _visited.Add(WorldToCell(FinalGoalPosition));
+            }
+
+            // CƠ CHẾ BÁM TRẠNG THÁI HỒI MÁU (Hysteresis)
+            if (CurrentGoal == GoalType.Heal && healthRatio < 0.8f)
+            {
+                // Vẫn đang cần hồi máu, KHÔNG chọn mục tiêu mới
+                GoalPosition = FinalGoalPosition; // Đứng yên tại chỗ
+                return;
             }
 
             // Hết trạm trung chuyển -> Chọn lại đích đến hoàn toàn mới
