@@ -214,7 +214,7 @@ public class BotMemorySystem : MonoBehaviour
             if (dist < 8f) // Địch mò tới tận trạm hồi máu
             {
                 Mau enemyHealth = enemy.GetComponent<Mau>();
-                float enemyRatio = enemyHealth != null ? enemyHealth.GetCurrentHealthRatio() : 1.0f;
+                float enemyRatio = enemyHealth != null ? (float)enemyHealth.MauHienTai.Value / enemyHealth.MauToiDa : 1.0f;
                 
                 if (healthRatio < enemyRatio)
                 {
