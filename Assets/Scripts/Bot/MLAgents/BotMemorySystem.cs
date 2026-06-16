@@ -631,6 +631,11 @@ public class BotMemorySystem : MonoBehaviour
         return botPos + Random.insideUnitCircle.normalized * explorationRange;
     }
 
+    public void SetCombatTarget(Vector2 targetPos)
+    {
+        DatMucTieu(GoalType.Combat, targetPos, 1.0f, transform.position);
+    }
+
     private void DatMucTieu(GoalType type, Vector2 finalPos, float urgency, Vector2 botPos, Vector2? threatPos = null)
     {
         if (GridManager.Instance != null)
@@ -648,9 +653,17 @@ public class BotMemorySystem : MonoBehaviour
 
         if (type == GoalType.Combat)
         {
-            // Trong giao tranh, ML-Agents lo việc né đạn, không dùng A* gò bó
-            _pathWaypoints?.Clear();
-            GoalPosition = finalPos;
+            // [UPDATED] Dùng A* trong giao tranh để vẽ đường chiến lược chia thành nhiều phần tránh tường
+            if (Time.time - _lastPathCalcTime < 0.25f && Vector2.Distance(_lastTargetPos, finalPos) < 1f)
+            {
+                // Tránh spam A* liên tục
+                if (_pathWaypoints == null || _pathWaypoints.Count == 0) GoalPosition = finalPos;
+                return;
+            }
+            _lastPathCalcTime = Time.time;
+            _lastTargetPos = finalPos;
+            GoalPosition = finalPos; // Tạm thời
+            PathRequestManager.RequestPath(botPos, finalPos, OnPathFound);
         }
         else
         {

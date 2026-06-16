@@ -642,14 +642,13 @@ public class TankAgentUltra : Agent
                         {
                             _fixedCombatTarget = (Vector2)transform.position + chosenDir * moveDist;
                             _fixedCombatTimer = 1.5f; // Khóa mục tiêu tối đa 1.5 giây
+                            // Yêu cầu Bộ nhớ dùng A* vẽ đường tránh tường tới điểm chiến lược!
+                            memory.SetCombatTarget(_fixedCombatTarget.Value);
                         }
                     }
 
-                    // Bot BẮT BUỘC phải đi đến điểm đã cố định
-                    if (_fixedCombatTarget != null)
-                    {
-                        toGoal = _fixedCombatTarget.Value - (Vector2)transform.position;
-                    }
+                    // Đã loại bỏ việc bắt buộc hướng mũi xe tới điểm thẳng (toGoal = _fixed...);
+                    // Bot bây giờ sẽ đi theo toGoal của A* path để né tường an toàn
                 }
             }
         }
@@ -742,24 +741,23 @@ public class TankAgentUltra : Agent
                 steer = -angle / 25f; // Xoay cực nhạy
                 steer = Mathf.Clamp(steer, -1f, 1f);
 
-                // KIỂM SOÁT CHÂN GA CHIẾN THUẬT
+                // KIỂM SOÁT CHÂN GA CHIẾN THUẬT (Không bao giờ cho gas = 0 để tránh khựng)
                 if (Mathf.Abs(angle) > 135f)
                 {
-                    // Mục tiêu tít sau lưng (Backpedal/Lùi khẩn cấp) -> Chạy lùi thay vì quay đầu
+                    // Mục tiêu tít sau lưng -> Chạy lùi
                     gas = -1f; 
-                    // Khi lùi, thao tác bẻ lái bị ngược
                     steer = angle > 0 ? 1f : -1f;
                 }
-                else if (Mathf.Abs(angle) > 90f)
+                else if (Mathf.Abs(angle) > 60f)
                 {
-                    // Mục tiêu đằng sau nhưng chưa đến mức lùi thẳng -> Tank xoay tại chỗ (gas = 0), tránh đập tường
-                    gas = 0f; 
+                    // Bo cua ngang hoặc gắt -> Vừa xoay vừa đạp nhẹ ga (không bằng 0)
+                    gas = 0.5f; 
                     steer = angle > 0 ? -1f : 1f;
                 }
-                else if (Mathf.Abs(angle) > 45f)
+                else if (Mathf.Abs(angle) > 25f)
                 {
-                    // Bo cua gắt -> Đạp 70% ga
-                    gas = 0.7f;
+                    // Bo cua nhẹ -> Đạp 75% ga
+                    gas = 0.75f;
                 }
                 else
                 {
