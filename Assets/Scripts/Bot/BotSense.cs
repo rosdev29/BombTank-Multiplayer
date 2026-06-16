@@ -18,6 +18,7 @@ public class BotSense : MonoBehaviour
     {
         ctx.NearestCoin    = null;
         ctx.DistanceToCoin = float.MaxValue;
+        ctx.CoinCountNearby = 0;
 
         Collider2D[] hits = Physics2D.OverlapCircleAll(ctx.BotPosition, BanKinhPhatHienCoin);
         foreach (Collider2D hit in hits)
@@ -25,6 +26,8 @@ public class BotSense : MonoBehaviour
             if (hit == null) { continue; }
             Coin coin = hit.GetComponent<Coin>();
             if (coin == null) { continue; }
+
+            ctx.CoinCountNearby++;
 
             float dist = Vector2.Distance(ctx.BotPosition, (Vector2)coin.transform.position);
             if (dist < ctx.DistanceToCoin)
@@ -42,6 +45,7 @@ public class BotSense : MonoBehaviour
     {
         ctx.NearestItem    = null;
         ctx.DistanceToItem = float.MaxValue;
+        ctx.ItemCountNearby = 0;
 
         Collider2D[] hits = Physics2D.OverlapCircleAll(ctx.BotPosition, BanKinhPhatHienItem);
         foreach (Collider2D hit in hits)
@@ -49,6 +53,8 @@ public class BotSense : MonoBehaviour
             if (hit == null) { continue; }
             ItemPickup item = hit.GetComponent<ItemPickup>();
             if (item == null) { continue; }
+
+            ctx.ItemCountNearby++;
 
             float dist = Vector2.Distance(ctx.BotPosition, (Vector2)item.transform.position);
             if (dist < ctx.DistanceToItem)

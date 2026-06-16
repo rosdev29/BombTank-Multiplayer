@@ -18,10 +18,12 @@ public class BotContext
     public Vector2 CoinPosition   { get; set; }
     public float   DistanceToCoin { get; set; } = float.MaxValue;
     public int     SoCoinHienTai  { get; set; }
+    public int     CoinCountNearby{ get; set; }
 
     public ItemPickup NearestItem    { get; set; }
     public Vector2    ItemPosition   { get; set; }
     public float      DistanceToItem { get; set; } = float.MaxValue;
+    public int        ItemCountNearby{ get; set; }
 
     public Vector2 BotPosition    => BodyTransform != null ? (Vector2)BodyTransform.position : Vector2.zero;
 

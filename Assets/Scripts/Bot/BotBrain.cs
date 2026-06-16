@@ -152,41 +152,35 @@ public class BotBrain : NetworkBehaviour
 
     private void ChonTrangThai()
     {
-        IBotState muon;
+        float scoreRutLui = TichDiemRutLui();
+        float scoreGiaoTranh = TichDiemGiaoTranh();
+        float scoreNhatItem = TichDiemNhatItem();
+        float scoreNhatCoin = TichDiemNhatCoin();
 
-        float nguongRutLui = CurrentConfig != null ? CurrentConfig.NguongMauRutLui : 0.3f;
+        // Mặc định là tuần tra (điểm số thấp nhất)
+        IBotState muon = stateTuanTra;
+        float maxScore = 0.1f;
 
-        if (ctx.HealthRatio < nguongRutLui)
+        if (scoreRutLui > maxScore)
         {
+            maxScore = scoreRutLui;
             muon = stateRutLui;
         }
-        else if (ctx.NearestEnemy != null && ctx.DistanceToEnemy < banKinhGiaoTranh)
+        if (scoreGiaoTranh > maxScore)
         {
+            maxScore = scoreGiaoTranh;
             muon = stateGiaoTranh;
         }
-        else if (ctx.NearestItem != null)
+        if (scoreNhatItem > maxScore)
         {
-            if (!ignoredItems.Contains(ctx.NearestItem) && !acceptedItems.Contains(ctx.NearestItem))
-            {
-                // Gọi sang ItemPickup để item tự quyết định
-                if (ctx.NearestItem.CanBePickedUpByBot(ctx, xacSuatNhatItem))
-                    acceptedItems.Add(ctx.NearestItem);
-                else
-                    ignoredItems.Add(ctx.NearestItem);
-            }
-
-            if (acceptedItems.Contains(ctx.NearestItem))
-                muon = stateNhatCoin;
-            else
-                muon = stateTuanTra;
+            maxScore = scoreNhatItem;
+            // TargetPos ở trong stateNhatCoin sẽ tự ưu tiên Item nếu có
+            muon = stateNhatCoin; 
         }
-        else if (ctx.NearestCoin != null)
+        if (scoreNhatCoin > maxScore)
         {
+            maxScore = scoreNhatCoin;
             muon = stateNhatCoin;
-        }
-        else
-        {
-            muon = stateTuanTra;
         }
 
         if (muon != currentState)
@@ -202,6 +196,81 @@ public class BotBrain : NetworkBehaviour
                 tankPlayer.Inventory.UseItem();
             }
         }
+    }
+
+    private float TichDiemRutLui()
+    {
+        float nguongRutLui = CurrentConfig != null ? CurrentConfig.NguongMauRutLui : 0.3f;
+        if (ctx.HealthRatio < nguongRutLui)
+        {
+            // Điểm từ 80 - 100 tùy độ yếu máu
+            return 80f + 20f * (1f - ctx.HealthRatio);
+        }
+        return 0f;
+    }
+
+    private float TichDiemGiaoTranh()
+    {
+        if (ctx.NearestEnemy == null || ctx.DistanceToEnemy >= banKinhGiaoTranh) return 0f;
+        
+        float score = 50f; // Giao tranh bình thường
+        if (ctx.HealthRatio > 0.8f) score += 15f; // Máu trâu, hiếu chiến hơn
+
+        // Nếu sắp hết đạn (ít hơn 20 coin), không muốn đánh nhau
+        if (!ctx.DuCoinDeBan(20)) score -= 40f; 
+
+        return score;
+    }
+
+    private float TichDiemNhatItem()
+    {
+        if (ctx.NearestItem == null) return 0f;
+
+        if (ignoredItems.Contains(ctx.NearestItem)) return 0f;
+
+        if (!acceptedItems.Contains(ctx.NearestItem))
+        {
+            if (ctx.NearestItem.CanBePickedUpByBot(ctx, xacSuatNhatItem))
+            {
+                acceptedItems.Add(ctx.NearestItem);
+            }
+            else
+            {
+                ignoredItems.Add(ctx.NearestItem);
+                return 0f;
+            }
+        }
+
+        float score = 60f; // Rất thích nhặt Item
+
+        // Có địch gần thì rén một chút
+        if (ctx.NearestEnemy != null && ctx.DistanceToEnemy < 10f)
+        {
+            score -= 15f;
+        }
+
+        return score;
+    }
+
+    private float TichDiemNhatCoin()
+    {
+        if (ctx.NearestCoin == null) return 0f;
+
+        float score = 30f; // Nhu cầu nhặt coin cơ bản
+
+        // Hết đạn thì cực kì thèm coin (ưu tiên hơn cả đánh nhau)
+        if (!ctx.DuCoinDeBan(20))
+        {
+            score += 40f; // Lên 70 điểm
+        }
+
+        // Đống vàng càng nhiều, càng mờ mắt
+        score += ctx.CoinCountNearby * 5f;
+
+        // Vàng ở ngay sát bên thì quơ tay nhặt luôn
+        if (ctx.DistanceToCoin < 3f) score += 15f;
+
+        return score;
     }
 
     private void ChuyenTrangThai(IBotState tiepTheo)
