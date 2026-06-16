@@ -569,8 +569,8 @@ public class TankAgentUltra : Agent
                     _fixedCombatTimer -= Time.fixedDeltaTime;
                     float distToTarget = _fixedCombatTarget != null ? Vector2.Distance(transform.position, _fixedCombatTarget.Value) : 0f;
 
-                    // Giải phóng mục tiêu nếu đã đến gần, hết giờ, hoặc địch khuất bóng
-                    if (_fixedCombatTimer <= 0f || distToTarget < 1.0f || !CoLOS(transform.position, _dich.transform.position))
+                    // Giải phóng mục tiêu nếu đã đến gần hoặc hết giờ
+                    if (_fixedCombatTimer <= 0f || distToTarget < 1.0f)
                     {
                         Vector2 toEnemyDirect = (Vector2)_dich.transform.position - (Vector2)transform.position;
                         float distToEnemy = toEnemyDirect.magnitude;
@@ -623,7 +623,7 @@ public class TankAgentUltra : Agent
                         else
                         {
                             // Giai đoạn 3: Ziczac tiếp cận
-                            Vector2 moveDir = toGoal.normalized; // toGoal ban đầu là A* vector
+                            Vector2 moveDir = toEnemyDirect.normalized; // Đừng dùng toGoal vì toGoal có thể bằng 0 nếu đang tạm dừng!
                             Vector2 orthoDir = new Vector2(-moveDir.y, moveDir.x);
                             
                             // Lạng sang một bên ngẫu nhiên
@@ -648,7 +648,7 @@ public class TankAgentUltra : Agent
                         if (chosenDir != Vector2.zero)
                         {
                             _fixedCombatTarget = (Vector2)transform.position + chosenDir * moveDist;
-                            _fixedCombatTimer = 1.5f; // Khóa mục tiêu tối đa 1.5 giây
+                            _fixedCombatTimer = 3.5f; // Tăng lên 3.5s để chốt vị trí, đợi nó di chuyển đến nơi rồi mới đổi phase
                             // Yêu cầu Bộ nhớ dùng A* vẽ đường tránh tường tới điểm chiến lược!
                             memory.SetCombatTarget(_fixedCombatTarget.Value);
                         }

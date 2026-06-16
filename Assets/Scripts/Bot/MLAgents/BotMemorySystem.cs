@@ -172,8 +172,23 @@ public class BotMemorySystem : MonoBehaviour
         var bpd = GetComponent<BoPhongDan>();
         if (bpd != null) chiPhiBan = bpd.GetChiPhiBan();
 
-        // Thoát khỏi Combat/Retreat nếu kẻ địch đã biến mất HOẶC khuất tầm nhìn
-        if ((enemy == null || !hasLOSToEnemy) && (CurrentGoal == GoalType.Combat || CurrentGoal == GoalType.Retreat))
+        // Tìm xem còn nhớ vị trí địch gần đây không (trong vòng 3 giây)
+        bool enemyLostForLongTime = true;
+        if (!hasLOSToEnemy)
+        {
+            var recentEnemy = TimPOITotNhat(_enemyPOIs, botPos, null);
+            if (recentEnemy != null && (Time.time - recentEnemy.Value.timeAdded) < 3.0f)
+            {
+                enemyLostForLongTime = false; // Vẫn còn nhớ vị trí địch, tiếp tục giao tranh/flank
+            }
+        }
+        else
+        {
+            enemyLostForLongTime = false;
+        }
+
+        // Thoát khỏi Combat/Retreat nếu kẻ địch đã chết HOẶC khuất tầm nhìn quá 3 giây
+        if ((enemy == null || enemyLostForLongTime) && (CurrentGoal == GoalType.Combat || CurrentGoal == GoalType.Retreat))
         {
             CurrentGoal = GoalType.Explore;
             ChonMucTieuMoi(botPos, healthRatio, enemy, hasLOSToEnemy);
