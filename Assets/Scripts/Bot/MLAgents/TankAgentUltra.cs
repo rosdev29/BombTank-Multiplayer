@@ -150,7 +150,13 @@ public class TankAgentUltra : Agent
 
     // Biến Debug Giao Tranh
     private string            _debugCombatPhase = "";
-    private Vector2           _debugCombatDir = Vector2.zero;    // ═══════════════════════════════════════════════════════════════
+    private Vector2           _debugCombatDir = Vector2.zero;
+    
+    public Vector2?           DebugFixedCombatTarget => _fixedCombatTarget;
+    private Vector2?          _fixedCombatTarget = null;
+    private float             _fixedCombatTimer = 0f;
+
+    // ═══════════════════════════════════════════════════════════════
     //  0. HỒI SINH (3s Delay)
     // ═══════════════════════════════════════════════════════════════
     private System.Collections.IEnumerator XuLyChetVaHoiSinh()
@@ -552,86 +558,97 @@ public class TankAgentUltra : Agent
                 }
                 else
                 {
-                    // [UPDATED] Sẵn sàng bắn -> Thò mặt ra, hoặc giữ khoảng cách strafe
-                    Vector2 toEnemyDirect = (Vector2)_dich.transform.position - (Vector2)transform.position;
-                    float distToEnemy = toEnemyDirect.magnitude;
+                    // [UPDATED] TÌM ĐIỂM CHIẾN LƯỢC VÀ CỐ ĐỊNH NÓ TRONG VÀI GIÂY ĐỂ DỨT KHOÁT
+                    _fixedCombatTimer -= Time.fixedDeltaTime;
+                    float distToTarget = _fixedCombatTarget != null ? Vector2.Distance(transform.position, _fixedCombatTarget.Value) : 0f;
 
-                    if (distToEnemy < 6f)
+                    // Giải phóng mục tiêu nếu đã đến gần, hết giờ, hoặc địch khuất bóng
+                    if (_fixedCombatTimer <= 0f || distToTarget < 1.0f || !CoLOS(transform.position, _dich.transform.position))
                     {
-                        // ── THUẬT TOÁN PHÂN CHIA GIAI ĐOẠN THÔNG MINH (Chống kẹt tường) ──
-                        Vector2 backpedalDir = -toEnemyDirect.normalized;
-                        Vector2 strafeDir1 = new Vector2(-backpedalDir.y, backpedalDir.x);
-                        Vector2 strafeDir2 = -strafeDir1;
+                        Vector2 toEnemyDirect = (Vector2)_dich.transform.position - (Vector2)transform.position;
+                        float distToEnemy = toEnemyDirect.magnitude;
 
-                        if (distToEnemy < 3.5f)
+                        Vector2 chosenDir = Vector2.zero;
+                        float moveDist = 4.0f; // Quãng đường dứt khoát cho mỗi lần chọn (4 mét)
+
+                        if (distToEnemy < 6f)
                         {
-                            // Giai đoạn 1: Bị ép quá sát (< 3.5m) -> Ưu tiên Lùi (Backpedal)
-                            if (!Physics2D.CircleCast(transform.position, 0.45f, backpedalDir, 1.5f, layerVatCan))
+                            Vector2 backpedalDir = -toEnemyDirect.normalized;
+                            Vector2 strafeDir1 = new Vector2(-backpedalDir.y, backpedalDir.x);
+                            Vector2 strafeDir2 = -strafeDir1;
+
+                            if (distToEnemy < 3.5f)
                             {
-                                toGoal = backpedalDir; // Lùi an toàn
-                                _debugCombatPhase = "Giai đoạn 1: Backpedal (Lùi)";
+                                // Giai đoạn 1: Bị ép quá sát -> Ưu tiên Lùi (Backpedal)
+                                if (!Physics2D.CircleCast(transform.position, 0.45f, backpedalDir, moveDist, layerVatCan))
+                                {
+                                    chosenDir = backpedalDir;
+                                    _debugCombatPhase = "Giai đoạn 1: Backpedal (Lùi)";
+                                }
+                                else
+                                {
+                                    // Kẹt tường -> Strafe
+                                    bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir1, moveDist, layerVatCan);
+                                    bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir2, moveDist, layerVatCan);
+                                    
+                                    if (canStrafe1) chosenDir = strafeDir1;
+                                    else if (canStrafe2) chosenDir = strafeDir2;
+                                    else chosenDir = strafeDir1;
+                                    _debugCombatPhase = "Giai đoạn 1: Lách tường";
+                                }
                             }
                             else
                             {
-                                // Kẹt tường -> Strafe
-                                bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir1, 1.5f, layerVatCan);
-                                bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir2, 1.5f, layerVatCan);
+                                // Giai đoạn 2: Cự ly đẹp -> Chạy vòng tròn (Strafe)
+                                bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir1, moveDist, layerVatCan);
+                                bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir2, moveDist, layerVatCan);
                                 
-                                if (canStrafe1 && !canStrafe2) toGoal = strafeDir1;
-                                else if (canStrafe2 && !canStrafe1) toGoal = strafeDir2;
-                                else toGoal = strafeDir1;
-                                _debugCombatPhase = "Giai đoạn 1: Lách tường";
+                                Vector2 currentVel = rb.velocity.normalized;
+                                float dot1 = Vector2.Dot(currentVel, strafeDir1);
+                                float dot2 = Vector2.Dot(currentVel, strafeDir2);
+
+                                if (canStrafe1 && (!canStrafe2 || dot1 >= dot2)) chosenDir = strafeDir1;
+                                else if (canStrafe2) chosenDir = strafeDir2;
+                                else chosenDir = -backpedalDir; // Bí quá thì lùi
+                                _debugCombatPhase = "Giai đoạn 2: Strafing";
                             }
                         }
                         else
                         {
-                            // Giai đoạn 2: Cự ly đẹp (3.5m - 6m) -> Chạy vòng tròn (Strafe)
-                            bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir1, 2.0f, layerVatCan);
-                            bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir2, 2.0f, layerVatCan);
-                            
-                            Vector2 currentVel = rb.velocity.normalized;
-                            float dot1 = Vector2.Dot(currentVel, strafeDir1);
-                            float dot2 = Vector2.Dot(currentVel, strafeDir2);
-
-                            if (canStrafe1 && (!canStrafe2 || dot1 >= dot2)) toGoal = strafeDir1;
-                            else if (canStrafe2) toGoal = strafeDir2;
-                            else toGoal = -backpedalDir;
-                            _debugCombatPhase = "Giai đoạn 2: Strafing (Cắn trộm)";
-                        }
-                    }
-                    else
-                    {
-                        _debugCombatPhase = "Giai đoạn 3: Rút ngắn cự ly";
-                        // ── DI CHUYỂN ZICZAC & ĐÁNH VÕNG (Serpentine Juking) ──
-                        // Nếu ở xa (> 6m) và đang bị địch nhìn thấy, đi theo đường ziczac lượn sóng
-                        bool hasLOSToEnemy = CoLOS(transform.position, _dich.transform.position);
-                        if (hasLOSToEnemy)
-                        {
-                            // Cộng thêm một Vector dao động vuông góc với hướng A*
-                            Vector2 moveDir = toGoal.normalized;
+                            // Giai đoạn 3: Ziczac tiếp cận
+                            Vector2 moveDir = toGoal.normalized; // toGoal ban đầu là A* vector
                             Vector2 orthoDir = new Vector2(-moveDir.y, moveDir.x);
                             
-                            // Tạo sóng Sine liên tục theo thời gian: Biên độ rộng hơn, Tần số nhanh hơn
-                            float sineOffset = Mathf.Sin(Time.time * 2f) * 4.0f; 
-                            
-                            Vector2 targetZiczac = moveDir * 3f + orthoDir * sineOffset;
+                            // Lạng sang một bên ngẫu nhiên
+                            float randomSide = UnityEngine.Random.value > 0.5f ? 1f : -1f;
+                            Vector2 ziczacDir = (moveDir * 2f + orthoDir * randomSide * 3f).normalized;
 
-                            if (!Physics2D.CircleCast(transform.position, 0.45f, targetZiczac.normalized, 1.5f, layerVatCan))
+                            if (!Physics2D.CircleCast(transform.position, 0.45f, ziczacDir, moveDist, layerVatCan))
                             {
-                                toGoal = targetZiczac; 
-                                _debugCombatPhase = "Giai đoạn 3: Ziczac đánh võng";
+                                chosenDir = ziczacDir; 
+                                _debugCombatPhase = "Giai đoạn 3: Ziczac " + (randomSide > 0 ? "Phải" : "Trái");
                             }
                             else
                             {
-                                // Nếu kẹt, thử lượn hướng ngược lại
-                                targetZiczac = moveDir * 3f - orthoDir * sineOffset;
-                                if (!Physics2D.CircleCast(transform.position, 0.45f, targetZiczac.normalized, 1.5f, layerVatCan))
-                                {
-                                    toGoal = targetZiczac;
-                                    _debugCombatPhase = "Giai đoạn 3: Ziczac lách vật cản";
-                                }
+                                // Kẹt thì lạng bên kia
+                                ziczacDir = (moveDir * 2f - orthoDir * randomSide * 3f).normalized;
+                                chosenDir = ziczacDir;
+                                _debugCombatPhase = "Giai đoạn 3: Ziczac đổi hướng";
                             }
                         }
+
+                        // Cố định điểm đến chiến lược!
+                        if (chosenDir != Vector2.zero)
+                        {
+                            _fixedCombatTarget = (Vector2)transform.position + chosenDir * moveDist;
+                            _fixedCombatTimer = 1.5f; // Khóa mục tiêu tối đa 1.5 giây
+                        }
+                    }
+
+                    // Bot BẮT BUỘC phải đi đến điểm đã cố định
+                    if (_fixedCombatTarget != null)
+                    {
+                        toGoal = _fixedCombatTarget.Value - (Vector2)transform.position;
                     }
                 }
             }
@@ -1252,26 +1269,33 @@ public class TankAgentUltra : Agent
         // Vẽ chiến thuật Giao tranh nếu đang ở chế độ Combat
         if (Application.isPlaying && memory != null && memory.CurrentGoal == BotMemorySystem.GoalType.Combat && _dich != null)
         {
-            Vector2 start = transform.position;
-            Vector2 end = start + _debugCombatDir.normalized * 3f;
-
             if (_debugCombatPhase.Contains("Núp")) Gizmos.color = Color.gray;
             else if (_debugCombatPhase.Contains("1")) Gizmos.color = Color.red;
             else if (_debugCombatPhase.Contains("2")) Gizmos.color = Color.yellow;
             else if (_debugCombatPhase.Contains("3")) Gizmos.color = Color.cyan;
             else Gizmos.color = Color.magenta;
 
-            // Vẽ mũi tên hướng đi chiến thuật
-            Gizmos.DrawLine(start, end);
-            Gizmos.DrawSphere(end, 0.3f);
+            Vector2 targetPos;
+            if (_fixedCombatTarget != null)
+            {
+                targetPos = _fixedCombatTarget.Value;
+                Gizmos.DrawLine(transform.position, targetPos);
+                Gizmos.DrawWireSphere(targetPos, 0.4f);
+            }
+            else
+            {
+                targetPos = (Vector2)transform.position + _debugCombatDir.normalized * 3f;
+                Gizmos.DrawLine(transform.position, targetPos);
+                Gizmos.DrawSphere(targetPos, 0.3f);
+            }
             
             // Vẽ đường nối thẳng tới kẻ địch (xác định mục tiêu)
             Gizmos.color = new Color(1f, 0f, 0f, 0.4f);
-            Gizmos.DrawLine(start, _dich.transform.position);
+            Gizmos.DrawLine(transform.position, _dich.transform.position);
 
 #if UNITY_EDITOR
             // Hiển thị tên giai đoạn
-            UnityEditor.Handles.Label(end + (Vector2)Vector3.up * 0.5f, _debugCombatPhase);
+            UnityEditor.Handles.Label(targetPos + (Vector2)Vector3.up * 0.5f, _debugCombatPhase);
 #endif
         }
     }
