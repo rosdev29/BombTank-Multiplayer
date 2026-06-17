@@ -36,6 +36,12 @@ public class BoPhongDan : NetworkBehaviour
     private GameObject rightBarrel;
     private SpriteRenderer originalTurretRenderer;
 
+    public int GetShootingCost()
+    {
+        int soLuongDanCheck = IsDoubleBarrelActive.Value ? 2 : 1;
+        return ChiPhiBan * soLuongDanCheck;
+    }
+
     private int TeamIndexHienTai()
     {
         TankPlayer ownerPlayer = player != null ? player : GetComponent<TankPlayer>();
