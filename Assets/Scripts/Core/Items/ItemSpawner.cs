@@ -11,8 +11,8 @@ public class ItemSpawner : NetworkBehaviour
     public ItemPickup doubleBarrelPrefab;
 
     [Header("Settings")]
-    [SerializeField] private int maxItemsOnMap = 15;
-    [SerializeField] private float respawnTime = 5f;
+    [SerializeField] private int maxItemsOnMap = 20; // Đã tăng từ 15 lên 40
+    [SerializeField] private float respawnTime = 5f;  // Rút ngắn thời gian hồi từ 5s xuống 1s
     [SerializeField] private Vector2 xSpawnRange = new Vector2(-20, 20);
     [SerializeField] private Vector2 ySpawnRange = new Vector2(-20, 20);
     [SerializeField] private LayerMask layerMask;

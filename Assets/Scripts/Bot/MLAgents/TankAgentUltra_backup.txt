@@ -9,20 +9,13 @@ using UnityEngine;
 /// File duy nhất. Xóa TankAgent.cs, TankAgentPro.cs.
 ///
 /// ═══════════════════════════════════════════════════════
-/// TỔNG ĐẦU VÀO: 1400 giá trị (Space Size trong Unity)
+/// TỔNG ĐẦU VÀO: 98 giá trị (Space Size trong Unity)
 /// ═══════════════════════════════════════════════════════
-/// (Phân vuốt: Bỏ V3/V4 radar + giảm tờ tử 32→16 để train nhanh hơn ~3x)
-///
-/// [A] Lưới Radar LOS-Filtered — 2 vòng, 10m tầm nhìn = 1250
-///     Vòng 1 CẬN  ( 9× 9, 0.7m/ô, ~3m):  81ô × 5kênh = 405  [Né đạn tức thì]
-///     Vòng 2 GẦN  (13×13, 1.5m/ô, ~10m): 169ô × 5kênh = 845  [Hành lang + cover]
-///
-///     5 Kênh (V1+V2): Tường | Địch | Coin/Item | ✨ Tactical Score | Đạn bay
-///
-///     ✨ Tactical Score (thay Openness cũ): giá trị trong [-1, 1]
-///        +  Cover quality  (tường che mình khỏi địch)
-///        +  Flanking bonus (ô nằm ở hông / lưng địch)
-///        -  Danger level   (đạn sắp bay qua ô này)
+/// [A] Quét Môi Trường (16 tia) = 32
+/// [B] Tự quan sát (Self) = 6
+/// [C] Waypoint = 3
+/// [D] Dự đoán đạn (6 viên) = 36
+/// [E] Trạng thái + Chiến lược = 21
 ///
 /// [B] 32 Tia Định Hướng (30m) × 4 = 128
 ///     Khoảng cách | Loại vật thể | Hành lang Trái | Hành lang Phải
@@ -109,13 +102,13 @@ public class TankAgentUltra : Agent
     // ═══════════════════════════════════════════════════════════════
     //  REWARDS
     // ═══════════════════════════════════════════════════════════════
+#pragma warning disable 0414 // Tạm ẩn warning biến không sử dụng
     [Header("Phần thưởng")]
     [SerializeField] private float r_BanTrung         =  0.5f;
     [SerializeField] private float r_TieuDiet         =  2.0f;
     [SerializeField] private float r_NhatCoin         =  0.1f;
     [SerializeField] private float r_NhatItem         =  0.3f;
     [SerializeField] private float r_LeadShot         =  0.75f;  // Bắn trúng chì đạn
-    [SerializeField] private float r_Flanking         =  1.0f;   // Bắn vào hông/lưng
     [SerializeField] private float p_BiDanh           = -0.3f;
     [SerializeField] private float p_Chet             = -3.0f;
     [SerializeField] private float p_TongTuong        = -0.03f;
@@ -123,35 +116,46 @@ public class TankAgentUltra : Agent
     [SerializeField] private float r_Cover            =  0.025f;
     [SerializeField] private float r_Kiting          =  0.01f;
     [SerializeField] private float r_NeDan            =  0.1f;
-    [SerializeField] private float r_LachHanhLang     =  0.02f;
-    [SerializeField] private float r_MoRongKhongGian  =  0.01f;
-    [SerializeField] private float r_TuanTra           =  0.05f;  // Di chuyển khi không có địch
-    [SerializeField] private float r_GoalProgress       =  0.02f;   // Tiến đến mục tiêu
-    [SerializeField] private float p_Looping            = -0.05f;   // Đang quay vòng
+    [SerializeField] private float r_TuanTra           =  0.05f;  // Di chuyển khi không có địch   // Tiến đến mục tiêu   // Đang quay vòng
+#pragma warning restore 0414
 
     // ═══════════════════════════════════════════════════════════════
     //  STATE
-    // ═══════════════════════════════════════════════════════════════
-    private Rigidbody2D    rb;
+    // ═══════════════════════════════════════════════════════════════    // ── Tham chiếu nội bộ ──
+    private Rigidbody2D rb;
     private Mau            healthComp;
     private CoinWallet     wallet;
     private BotMemorySystem memory;
+    private Transform bodyTransform; // Thêm tham chiếu đến bodyTransform để xoay đúng
 
     private int   _mauTruoc;
     private int   _coinTruoc;
     private float _timerBan;
-    private float _opennessTruoc;
     private bool  _danSapTrung;
-    private float _goalDistTruoc;  // Khoảng cách mục tiêu frame trước
     private bool  _dangChoHoiSinh;
 
     private Queue<Vector2>    _memDich     = new Queue<Vector2>();
+    private TankPlayer[] _allPlayers => FindObjectsByType<TankPlayer>(FindObjectsSortMode.None);
     private TankPlayer        _dich;
-    private TankPlayer[]      _allPlayers;
     private List<Rigidbody2D> _danhSachDan = new List<Rigidbody2D>();
     private float             _currentGas;
     private float             _currentSteer;
     private float             _currentTurretRot;
+
+    // Biến phụ trợ cho Núp và Bắn
+    private Vector2           _currentCoverPos;
+    private float             _coverSearchTimer;
+    private float             _unstuckTimer;
+    private float             _waypointDistTruoc;
+    private bool              _isReversingGear = false;
+
+    // Biến Debug Giao Tranh
+    private string            _debugCombatPhase = "";
+    private Vector2           _debugCombatDir = Vector2.zero;
+    
+    public Vector2?           DebugFixedCombatTarget => _fixedCombatTarget;
+    private Vector2?          _fixedCombatTarget = null;
+    private float             _fixedCombatTimer = 0f;
 
     // ═══════════════════════════════════════════════════════════════
     //  0. HỒI SINH (3s Delay)
@@ -181,6 +185,9 @@ public class TankAgentUltra : Agent
         rb     = GetComponent<Rigidbody2D>();
         memory = GetComponent<BotMemorySystem>();
         if (memory == null) memory = gameObject.AddComponent<BotMemorySystem>();
+        
+        // Thiết lập bộ nhớ vĩnh viễn (lưu trọn đời cho đến khi chết)
+        memory.poiMaxAge = float.MaxValue;
 
         if (tankPlayer == null) tankPlayer = GetComponent<TankPlayer>();
         if (tankPlayer != null)
@@ -188,11 +195,30 @@ public class TankAgentUltra : Agent
             healthComp = tankPlayer.Health;
             wallet     = tankPlayer.Wallet;
             if (boPhongDan == null) boPhongDan = tankPlayer.GetComponent<BoPhongDan>();
+            
+            // Xoay nòng:
             if (turretTransform == null)
             {
                 var ngam = tankPlayer.GetComponentInChildren<NguoiChoiNgamBan>();
-                if (ngam != null) turretTransform = ngam.transform;
+                if (ngam != null) turretTransform = ngam.turretTransform; // Lấy đúng nòng súng
+            
+                // Fallback nếu người dùng đã gỡ script NguoiChoiNgamBan
+                if (turretTransform == null)
+                {
+                    var pivot = transform.Find("TurretPivot");
+                    if (pivot != null) turretTransform = pivot;
+                }
             }
+        }
+
+        var diChuyen = GetComponent<DiChuyenNguoiChoi>();
+        if (diChuyen != null) bodyTransform = diChuyen.bodyTransform;
+        
+        // Cứu cánh nếu Bot bị gỡ script DiChuyenNguoiChoi
+        if (bodyTransform == null)
+        {
+            Transform foundBody = transform.Find("TankBody");
+            if (foundBody != null) bodyTransform = foundBody;
         }
     }
 
@@ -201,9 +227,7 @@ public class TankAgentUltra : Agent
     // ═══════════════════════════════════════════════════════════════
     public override void OnEpisodeBegin()
     {
-        _allPlayers = FindObjectsOfType<TankPlayer>();
-
-        // ⚠️ RESET SỨC KHỎE TRƯỚC TIÊN — tránh bot bị kẹt vòng lặp chết
+        _mauTruoc      = healthComp != null ? healthComp.MauHienTai.Value : 0;
         if (healthComp != null) healthComp.ResetForTraining();
 
         transform.position = LayViTriSpawn();
@@ -214,10 +238,9 @@ public class TankAgentUltra : Agent
         _mauTruoc      = healthComp != null ? healthComp.MauHienTai.Value : 0;
         _coinTruoc     = wallet     != null ? wallet.TotalCoins.Value      : 0;
         _timerBan      = 0f;
-        _opennessTruoc = 0f;
         _danSapTrung   = false;
-        _goalDistTruoc = float.MaxValue;
         _memDich.Clear();
+        _waypointDistTruoc = float.MaxValue;
 
         _daXetTaiNguyen.Clear();
         _boQuaTaiNguyen.Clear();
@@ -233,40 +256,50 @@ public class TankAgentUltra : Agent
     {
         if (_dangChoHoiSinh) 
         {
-            // Trả về 1400 giá trị 0 nếu đang chết
-            for (int i = 0; i < 1400; i++) sensor.AddObservation(0f);
+            for (int i = 0; i < 99; i++) sensor.AddObservation(0f);
             return;
         }
 
         Vector2 botPos = transform.position;
 
-        // ─── [A] LƯỚI RADAR LOS-FILTERED ─────────────────────────
-        // V3/V4 đã bị cắt để tăng tốc độ train
-        LuoiLOSFiltered(sensor, V1, C1, K1, botPos); // 405
-        LuoiLOSFiltered(sensor, V2, C2, K2, botPos); // 845
-
-        // ─── [B] 32 TIA ĐỊNH HƯỚNG × 4 = 128 ────────────────────
-        for (int i = 0; i < SO_TIA; i++)
+        // ✅ PHẢI CẬP NHẬT TRƯỚC KHI DÙNG
+        _dich = TimDich();
+        CapNhatDan();
+        ScanVaGhiNhanPOI();
+        // [SYNC] Force IDE update
+        if (memory != null)
         {
-            float   goc = i * (360f / SO_TIA);
-            Vector2 dir = Quaternion.Euler(0, 0, goc) * (Vector2)transform.up;
-            Vector2 perp = new Vector2(-dir.y, dir.x);
-
-            RaycastHit2D hit = Physics2D.Raycast(botPos, dir, TAM_TIA,
-                                   layerVatCan | layerDich | layerTaiNguyen | layerDan);
-
-            sensor.AddObservation(hit.collider != null ? hit.distance / TAM_TIA : 1f);
-            sensor.AddObservation(hit.collider != null ? PhanLoai(hit.collider) : 0f);
-
-            // Đo độ rộng hành lang (2 tia vuông góc)
-            RaycastHit2D hL = Physics2D.Raycast(botPos, -perp, TAM_HANH_LANG, layerVatCan);
-            RaycastHit2D hR = Physics2D.Raycast(botPos,  perp, TAM_HANH_LANG, layerVatCan);
-            sensor.AddObservation(hL.collider != null ? hL.distance / TAM_HANH_LANG : 1f);
-            sensor.AddObservation(hR.collider != null ? hR.distance / TAM_HANH_LANG : 1f);
+            float healthRatioNow = healthComp != null ? (float)healthComp.MauHienTai.Value / Mathf.Max(1, healthComp.MauToiDa) : 1f;
+            bool losToEnemy = _dich != null && CoLOS(botPos, (Vector2)_dich.transform.position);
+            
+            memory.UpdateMemory(botPos);
+            if (_dich != null && losToEnemy) memory.GhiNhanDich(_dich.transform.position);
+            
+            memory.CapNhatMucTieu(botPos, healthRatioNow, _dich, losToEnemy);
         }
 
-        // ─── [C] DỰ ĐOÁN QUỸ ĐẠO ĐẠN — 6 × 6 = 36 ─────────────
-        CapNhatDan();
+        // ── Thay đổi 1: Quét môi trường (32 obs) ──
+        QuetMoiTruong(sensor, botPos);
+
+        // ── Thay đổi 2: Tự quan sát bản thân (6 obs) ──
+        sensor.AddObservation(_currentGas);
+        sensor.AddObservation(_currentSteer);
+        sensor.AddObservation(Mathf.Clamp(rb.velocity.x / tocDoXe, -1f, 1f));
+        sensor.AddObservation(Mathf.Clamp(rb.velocity.y / tocDoXe, -1f, 1f));
+        sensor.AddObservation(Mathf.Clamp(_currentSteer, -1f, 1f));
+        
+        Vector2 currentUp = bodyTransform != null ? (Vector2)bodyTransform.up : (Vector2)transform.up;
+        sensor.AddObservation(Vector2.Dot(rb.velocity.normalized, currentUp));
+
+        // ── Thay đổi 3: Hệ thống Waypoint A* (3 obs) ──
+        Vector2 goalPos = memory != null ? memory.GoalPosition : botPos;
+        Vector2 toWaypoint   = goalPos - botPos;
+        sensor.AddObservation(Mathf.Clamp(toWaypoint.x / 30f, -1f, 1f));
+        sensor.AddObservation(Mathf.Clamp(toWaypoint.y / 30f, -1f, 1f));
+        sensor.AddObservation(Mathf.Clamp01(toWaypoint.magnitude / 30f));
+        sensor.AddObservation(toWaypoint.normalized.y);
+
+        // ── Dự đoán quỹ đạo đạn (36 obs) ──
         int cnt = 0;
         foreach (Rigidbody2D danRb in _danhSachDan)
         {
@@ -274,10 +307,8 @@ public class TankAgentUltra : Agent
             if (danRb == null) continue;
 
             Vector2 vel = danRb.velocity.magnitude > 0.1f
-                ? danRb.velocity
-                : (Vector2)danRb.transform.up * tocDoDan;
+                ? danRb.velocity : (Vector2)danRb.transform.up * tocDoDan;
 
-            // 3 vị trí dự đoán: hiện tại, +0.3s, +0.6s
             for (int step = 0; step < 3; step++)
             {
                 Vector2 futureWorld = danRb.position + vel * (step * 0.3f);
@@ -290,150 +321,105 @@ public class TankAgentUltra : Agent
         for (int i = cnt; i < MAX_DAN; i++)
             for (int j = 0; j < 6; j++) sensor.AddObservation(0f);
 
-        // ─── [D] BỘ NHỚ 4 FRAMES ĐỊA CHỈNH — 8 giá trị ─────────
-        _dich = TimDich();
-        Vector2 ePosNow = _dich != null ? (Vector2)_dich.transform.position : botPos;
-
-        _memDich.Enqueue(ePosNow);
-        while (_memDich.Count > MEMORY_LEN) _memDich.Dequeue();
-
-        Vector2[] mem = new List<Vector2>(_memDich).ToArray();
-        for (int i = 0; i < MEMORY_LEN; i++)
-        {
-            Vector2 p  = i < mem.Length ? mem[i] : ePosNow;
-            Vector2 lp = transform.InverseTransformPoint(p);
-            sensor.AddObservation(Mathf.Clamp(lp.x / 30f, -1f, 1f));
-            sensor.AddObservation(Mathf.Clamp(lp.y / 30f, -1f, 1f));
-        }
-
-        // ─── [E] TRẠNG THÁI + CHIẾN LƯỢC — 18 giá trị ───────────
-
-        // 1. Máu %
+        // ── Thông tin kẻ địch và trạng thái (21 obs) ──
         float mauMax = healthComp != null ? Mathf.Max(1, healthComp.MauToiDa)  : 1f;
         float mauHT  = healthComp != null ? healthComp.MauHienTai.Value         : 0f;
-        sensor.AddObservation(mauHT / mauMax);
+        sensor.AddObservation(mauHT / mauMax);                                   // 1
 
-        // 2. Tiền / 100
         float coin = wallet != null ? wallet.TotalCoins.Value : 0f;
-        sensor.AddObservation(Mathf.Clamp01(coin / 100f));
+        sensor.AddObservation(Mathf.Clamp01(coin / 100f));                       // 2
 
-        // 3-4. Velocity
-        sensor.AddObservation(rb.velocity.x / tocDoXe);
-        sensor.AddObservation(rb.velocity.y / tocDoXe);
-
-        // 5. Hướng tiến (forward)
-        sensor.AddObservation(Vector2.Dot(transform.up, Vector2.up));
-
-        // 6. Độ thông thoáng xung quanh (openness)
         float openness = DoOpenness();
-        sensor.AddObservation(openness / 360f);
+        sensor.AddObservation(openness / 360f);                                  // 3
 
         if (_dich != null)
         {
+            Vector2 ePosNow = _dich.transform.position;
             bool   losEnemy   = CoLOS(botPos, ePosNow);
             Vector2 toEnemy   = ePosNow - botPos;
             float  dist       = toEnemy.magnitude;
 
-            // 7. Khoảng cách địch / max
-            sensor.AddObservation(Mathf.Clamp01(dist / khoangCachToiDa));
+            // --- Cập nhật Memory cho Địch ---
+            Vector2 ePosForMem = ePosNow;
+            _memDich.Enqueue(ePosForMem);
+            while (_memDich.Count > MEMORY_LEN) _memDich.Dequeue();
 
-            // 7b. Bản năng sát thủ: Đọc máu địch (Thêm 1 dây thần kinh)
+            Vector2[] memArr = new System.Collections.Generic.List<Vector2>(_memDich).ToArray();
+            Vector2 velDich  = memArr.Length >= 2
+                ? (memArr[memArr.Length - 1] - memArr[0]) / MEMORY_LEN_F
+                : Vector2.zero;
+            // ---------------------------------
+
+            sensor.AddObservation(Mathf.Clamp01(dist / khoangCachToiDa));        // 4
+            
             float enemyHealth = 1f;
             if (_dich.TryGetComponent<Mau>(out var enemyHp))
-            {
                 enemyHealth = (float)enemyHp.MauHienTai.Value / Mathf.Max(1, enemyHp.MauToiDa);
-            }
-            sensor.AddObservation(enemyHealth);
+            sensor.AddObservation(enemyHealth);                                  // 5
 
-            // 8. Góc thân xe → địch
-            sensor.AddObservation(Vector2.SignedAngle(transform.up, toEnemy.normalized) / 180f);
+            sensor.AddObservation(Vector2.SignedAngle(currentUp, toEnemy.normalized) / 180f); // 6
 
-            // ── HỆ THỐNG NGẮM CHÌ ĐẠN (Lead Targeting) ────────────
-            // Tính vận tốc địch từ memory
-            Vector2 velDich = Vector2.zero;
-            if (mem.Length >= 2)
-                velDich = (mem[mem.Length - 1] - mem[0]) / MEMORY_LEN_F;
-
-            // Dự đoán vị trí địch khi đạn đến
-            float   tBay      = dist / Mathf.Max(0.1f, tocDoDan);
-            Vector2 leadPos   = ePosNow + velDich * tBay;
-
-            // Kiểm tra leadPos có hợp lý không (không xuyên tường)
+            // Tính lead position thực sự
+            float   tBay    = dist / Mathf.Max(0.1f, tocDoDan);
+            Vector2 leadPos = ePosNow + velDich * tBay;
             if (!CoLOS(botPos, leadPos)) leadPos = ePosNow;
 
-            // 9. Góc nòng → LEAD TARGET (đây là "hướng cần ngắm" chính xác)
             if (turretTransform != null)
             {
                 Vector2 toLead     = leadPos - botPos;
-                float   gocLead    = Vector2.SignedAngle(turretTransform.up, toLead.normalized);
-                sensor.AddObservation(gocLead / 180f);   // 9. Góc cần xoay nòng
-
-                // 10. Khoảng cách lead target (để biết cần bắn xa không)
-                sensor.AddObservation(Mathf.Clamp01(toLead.magnitude / khoangCachToiDa));
+                sensor.AddObservation(Vector2.SignedAngle(turretTransform.up, toLead.normalized) / 180f); // 7
+                sensor.AddObservation(Mathf.Clamp01(toLead.magnitude / khoangCachToiDa));                 // 8
             }
             else
             {
-                sensor.AddObservation(0f);
-                sensor.AddObservation(0f);
+                sensor.AddObservation(0f); // 7
+                sensor.AddObservation(0f); // 8
             }
 
-            // 11. Địch có nhìn thấy được không? (hay bị tường che)
-            sensor.AddObservation(losEnemy ? 1f : 0f);
+            sensor.AddObservation(losEnemy ? 1f : 0f); // 9
 
-            // 12. Góc flanking (hông/lưng địch)
-            float faceAngle = Vector2.SignedAngle(_dich.transform.up,
-                                  (botPos - ePosNow).normalized);
-            sensor.AddObservation(faceAngle / 180f);
+            float faceAngle = Vector2.SignedAngle(_dich.transform.up, (botPos - ePosNow).normalized);
+            sensor.AddObservation(faceAngle / 180f);   // 10
 
-            // 13-14. Vận tốc địch (để não model tự suy luận thêm)
-            sensor.AddObservation(velDich.x / tocDoXe);
-            sensor.AddObservation(velDich.y / tocDoXe);
-
-            // 15. Bot có đang ở sau cover không?
+            // Thay 4 obs = 0f bằng velDich + situational flags
+            sensor.AddObservation(Mathf.Clamp(velDich.x / tocDoXe, -1f, 1f)); // 11
+            sensor.AddObservation(Mathf.Clamp(velDich.y / tocDoXe, -1f, 1f)); // 12
+            sensor.AddObservation(dist < khoangCachLyTuong ? 1f : 0f);        // 13
+            sensor.AddObservation(losEnemy && dist < 10f ? 1f : 0f);          // 14
+            
             bool inCover = KiemTraCover(botPos, ePosNow, dist);
-            sensor.AddObservation(inCover ? 1f : 0f);
+            sensor.AddObservation(inCover ? 1f : 0f);  // 15
         }
         else
         {
-            // Không có địch → fill 0 cho 10 giá trị (7→15 + enemyHealth)
-            sensor.AddObservation(1f); // dist = xa
-            for (int i = 0; i < 9; i++) sensor.AddObservation(0f);
+            sensor.AddObservation(1f); // 4
+            for (int i = 0; i < 11; i++) sensor.AddObservation(0f); // 5-15
         }
 
-        // 16. Cooldown bắn
-        sensor.AddObservation(Mathf.Clamp01(_timerBan / cooldownBan));
-
-        // 17. Tốc độ xoay thân
-        sensor.AddObservation(rb.angularVelocity / 360f);
-
-        // 18. Đủ tiền bắn?
+        sensor.AddObservation(Mathf.Clamp01(_timerBan / cooldownBan)); // 19
+        sensor.AddObservation(_currentSteer);              // 20
         int chiPhi = boPhongDan != null ? boPhongDan.GetChiPhiBan() : 1;
-        sensor.AddObservation(wallet != null && wallet.TotalCoins.Value >= chiPhi ? 1f : 0f);
+        sensor.AddObservation(wallet != null && wallet.TotalCoins.Value >= chiPhi ? 1f : 0f); // 21
 
-        // ─── [F] MEMORY + GOAL SYSTEM — 23 giá trị ───────────────
-        // Cập nhật memory và mục tiêu
-        float healthRatioNow = healthComp != null
-            ? (float)healthComp.MauHienTai.Value / Mathf.Max(1, healthComp.MauToiDa) : 1f;
+        // Pad 3 giá trị cho đủ 99
+        sensor.AddObservation(0f);
+        sensor.AddObservation(0f);
+        sensor.AddObservation(0f);
+    }
 
-        if (memory != null)
+    private void QuetMoiTruong(VectorSensor sensor, Vector2 botPos)
+    {
+        Vector2 currentUp = bodyTransform != null ? (Vector2)bodyTransform.up : (Vector2)transform.up;
+        for (int i = 0; i < 16; i++)
         {
-            memory.UpdateMemory(botPos);
+            float   goc = i * (360f / 16f);
+            Vector2 dir = Quaternion.Euler(0, 0, goc) * currentUp;
 
-            // Ghi nhận địch vào memory khi nhìn thấy
-            if (_dich != null && CoLOS(botPos, (Vector2)_dich.transform.position))
-                memory.GhiNhanDich(_dich.transform.position);
+            RaycastHit2D hit = Physics2D.Raycast(botPos, dir, 30f,
+                layerVatCan | layerDich | layerTaiNguyen | layerDan);
 
-            bool losToEnemy = _dich != null && CoLOS(botPos, (Vector2)_dich.transform.position);
-            memory.CapNhatMucTieu(botPos, healthRatioNow, _dich, losToEnemy);
-
-            // Đưa observations memory vào model
-            float[] memObs = memory.GetObservations(botPos, transform);
-            foreach (float v in memObs) sensor.AddObservation(v);
-        }
-        else
-        {
-            // Fallback: fill 23 zeros nếu chưa có memory
-            for (int i = 0; i < 23; i++) sensor.AddObservation(0f);
+            sensor.AddObservation(hit.collider != null ? hit.distance / 30f : 1f);
+            sensor.AddObservation(hit.collider != null ? PhanLoai(hit.collider) : 0f);
         }
     }
 
@@ -448,18 +434,83 @@ public class TankAgentUltra : Agent
     {
         if (_dangChoHoiSinh) return;
 
-        // ✅ Dùng MovePosition thay vì set velocity trực tiếp
-        Vector2 newPos = rb.position + (Vector2)transform.up * _currentGas * tocDoXe * Time.fixedDeltaTime;
-        rb.MovePosition(newPos);
+        _timerBan -= Time.fixedDeltaTime; // Giảm cooldown bắn liên tục
 
-        // ✅ Xoay thân xe qua rb, không qua transform
+        Vector2 currentUp = bodyTransform != null ? (Vector2)bodyTransform.up : (Vector2)transform.up;
+
+        // Tiến lùi dùng velocity để tương tác vật lý và đo tốc độ mượt mà
+        rb.velocity = currentUp * _currentGas * tocDoXe;
+
+        // Xoay hướng: Đối với cấu trúc xe tăng có body riêng
         float xoayGoc = -_currentSteer * tocDoXoay * Time.fixedDeltaTime;
-        rb.MoveRotation(rb.rotation + xoayGoc);
+        if (bodyTransform != null)
+        {
+            bodyTransform.Rotate(0f, 0f, xoayGoc);
+        }
+        else
+        {
+            rb.MoveRotation(rb.rotation + xoayGoc);
+        }
 
         if (turretTransform != null)
-            turretTransform.Rotate(0f, 0f, -_currentTurretRot * tocDoXoayNong * Time.fixedDeltaTime);
+        {
+            if (_dich != null && boPhongDan != null && CoLOS(transform.position, _dich.transform.position))
+            {
+                Vector2 ePosNow = _dich.transform.position;
+                Vector2 velDich = _dich.GetComponent<Rigidbody2D>().velocity;
+                float dist = Vector2.Distance(transform.position, ePosNow);
+                float tBay = dist / Mathf.Max(0.1f, tocDoDan);
+                Vector2 leadPos = ePosNow + velDich * tBay;
+                Vector2 toLead = leadPos - (Vector2)turretTransform.position;
 
-        // 🔥 Giác quan thứ 6: Phá vỡ độ trễ não bộ (Decision Period) nếu đạn bay sát rạt
+                if (toLead.sqrMagnitude > 0.01f)
+                {
+                    // Ngắm mượt mà vào kẻ địch (Lerp 50f cũ quá nhanh khiến súng bị giật lắc)
+                    turretTransform.up = Vector3.Slerp(turretTransform.up, toLead.normalized, Time.fixedDeltaTime * 15f);
+
+                    // Ép tự động bắn ngay trong FixedUpdate (Đảm bảo bắn mượt mà không phụ thuộc OnActionReceived)
+                    float angleToLead = Vector2.Angle(turretTransform.up, toLead);
+                    if (angleToLead < 15f && _timerBan <= 0f) // Góc nhỏ hơn 15 độ là khai hỏa
+                    {
+                        // ── 3. NGẮM BẮN THÔNG MINH (Smart Raycast Aiming) ──
+                        // Bắn tia Raycast ảo xem đạn có bị kẹt tường không
+                        RaycastHit2D[] hits = Physics2D.RaycastAll(turretTransform.position, toLead.normalized, toLead.magnitude, layerVatCan);
+                        bool isBlocked = false;
+                        foreach (var h in hits)
+                        {
+                            if (h.collider != null)
+                            {
+                                if (h.collider.isTrigger) continue; // Bỏ qua vật phẩm (Coins, Máu...)
+                                
+                                // Kẻ địch hoặc bản thân có thể có collider nằm ở object con (Child)
+                                TankPlayer hitPlayer = h.collider.GetComponentInParent<TankPlayer>();
+                                if (hitPlayer == null || (hitPlayer.gameObject != gameObject && hitPlayer.gameObject != _dich.gameObject))
+                                {
+                                    isBlocked = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!isBlocked)
+                        {
+                            boPhongDan.BotRequestFire();
+                            _timerBan = cooldownBan;
+                        }
+                    }
+                }
+                else if (_timerBan <= 0f)
+                {
+                    // Đứng quá sát nhau (chồng lên nhau), nhắm mắt bắn bừa luôn
+                    boPhongDan.BotRequestFire();
+                    _timerBan = cooldownBan;
+                }
+            }
+            else
+            {
+                turretTransform.Rotate(0f, 0f, -_currentTurretRot * tocDoXoayNong * Time.fixedDeltaTime);
+            }
+        }
+
         if (KiemTraDanGanTrung())
         {
             RequestDecision();
@@ -473,74 +524,365 @@ public class TankAgentUltra : Agent
         float gas       = actions.ContinuousActions[0];
         float steer     = actions.ContinuousActions[1];
         
-        // Dùng Mathf.Lerp để bộ màng lọc Low-Pass: Khử sạch hiện tượng tiến lùi giật cục (Jittering)
-        _currentGas       = Mathf.Lerp(_currentGas, gas, Time.fixedDeltaTime * 15f);
-        _currentSteer     = Mathf.Lerp(_currentSteer, steer, Time.fixedDeltaTime * 15f);
+        // [AUTO-PILOT HACK] Bỏ qua AI chưa train, ép Bot tự lái cứng bám theo đường màu Tím (A*)
+        Vector2 toGoal = Vector2.zero;
+
+        // 1. ĐỊNH HƯỚNG CHIẾN LƯỢC TỪ BỘ NHỚ (Đường A*, Giao Tranh, Rút Lui)
+        if (memory != null)
+        {
+            toGoal = memory.GoalPosition - (Vector2)transform.position;
+
+            // CHIẾN THUẬT RÚT LUI: BỎ CHẠY THEO ĐƯỜNG A* ĐÃ VẼ
+            if (memory.CurrentGoal == BotMemorySystem.GoalType.Retreat)
+            {
+                _debugCombatPhase = "Rút lui khẩn cấp (Retreat)";
+            }
+
+            // CHIẾN THUẬT GIAO TRANH: NÚP VÀ BẮN (Peek and Shoot)
+            if (memory.CurrentGoal == BotMemorySystem.GoalType.Combat && _dich != null)
+            {
+                if (_timerBan > 0f)
+                {
+                    // Đang nạp đạn -> TÌM CHỖ NẤP (giữ nguyên vị trí nấp trong 0.5s để không bị giật lùi)
+                    _coverSearchTimer -= Time.fixedDeltaTime;
+                    if (_coverSearchTimer <= 0f)
+                    {
+                        _currentCoverPos = FindCoverPosition(transform.position, _dich.transform.position);
+                        _coverSearchTimer = 0.5f; // Cập nhật chỗ nấp mỗi 0.5s
+                        
+                        if (_currentCoverPos != (Vector2)transform.position)
+                        {
+                            memory.SetCombatTarget(_currentCoverPos);
+                        }
+                        else
+                        {
+                            Vector2 backPos = (Vector2)transform.position + ((Vector2)transform.position - (Vector2)_dich.transform.position).normalized * 4f;
+                            memory.SetCombatTarget(backPos);
+                        }
+                    }
+
+                    if (_currentCoverPos != (Vector2)transform.position)
+                    {
+                        _debugCombatPhase = "Núp & Nạp đạn";
+                    }
+                    else 
+                    {
+                        _debugCombatPhase = "Lùi khẩn cấp";
+                    }
+                }
+                else
+                {
+                    // [UPDATED] TÌM ĐIỂM CHIẾN LƯỢC VÀ CỐ ĐỊNH NÓ TRONG VÀI GIÂY ĐỂ DỨT KHOÁT
+                    _fixedCombatTimer -= Time.fixedDeltaTime;
+                    float distToTarget = _fixedCombatTarget != null ? Vector2.Distance(transform.position, _fixedCombatTarget.Value) : 0f;
+
+                    // Giải phóng mục tiêu nếu đã đến gần hoặc hết giờ
+                    if (_fixedCombatTimer <= 0f || distToTarget < 1.0f)
+                    {
+                        Vector2 toEnemyDirect = (Vector2)_dich.transform.position - (Vector2)transform.position;
+                        float distToEnemy = toEnemyDirect.magnitude;
+
+                        Vector2 chosenDir = Vector2.zero;
+                        float moveDist = 4.0f; // Quãng đường dứt khoát cho mỗi lần chọn (4 mét)
+
+                        if (distToEnemy < 6f)
+                        {
+                            Vector2 backpedalDir = -toEnemyDirect.normalized;
+                            Vector2 strafeDir1 = new Vector2(-backpedalDir.y, backpedalDir.x);
+                            Vector2 strafeDir2 = -strafeDir1;
+
+                            if (distToEnemy < 3.5f)
+                            {
+                                // Giai đoạn 1: Bị ép quá sát -> Ưu tiên Lùi (Backpedal)
+                                if (!Physics2D.CircleCast(transform.position, 0.45f, backpedalDir, moveDist, layerVatCan))
+                                {
+                                    chosenDir = backpedalDir;
+                                    _debugCombatPhase = "Giai đoạn 1: Backpedal (Lùi)";
+                                }
+                                else
+                                {
+                                    // Kẹt tường -> Strafe
+                                    bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir1, moveDist, layerVatCan);
+                                    bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir2, moveDist, layerVatCan);
+                                    
+                                    if (canStrafe1) chosenDir = strafeDir1;
+                                    else if (canStrafe2) chosenDir = strafeDir2;
+                                    else chosenDir = strafeDir1;
+                                    _debugCombatPhase = "Giai đoạn 1: Lách tường";
+                                }
+                            }
+                            else
+                            {
+                                // Giai đoạn 2: Cự ly đẹp -> Chạy vòng tròn (Strafe)
+                                bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir1, moveDist, layerVatCan);
+                                bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir2, moveDist, layerVatCan);
+                                
+                                Vector2 currentVel = rb.velocity.normalized;
+                                float dot1 = Vector2.Dot(currentVel, strafeDir1);
+                                float dot2 = Vector2.Dot(currentVel, strafeDir2);
+
+                                if (canStrafe1 && (!canStrafe2 || dot1 >= dot2)) chosenDir = strafeDir1;
+                                else if (canStrafe2) chosenDir = strafeDir2;
+                                else chosenDir = -backpedalDir; // Bí quá thì lùi
+                                _debugCombatPhase = "Giai đoạn 2: Strafing";
+                            }
+                        }
+                        else
+                        {
+                            Mau enemyHealth = _dich.GetComponent<Mau>();
+                            bool enemyIsRetreating = enemyHealth != null && ((float)enemyHealth.MauHienTai.Value / enemyHealth.MauToiDa) < 0.4f;
+
+                            if (enemyIsRetreating)
+                            {
+                                // TRUY ĐUỔI: Địch yếu máu -> Phóng thẳng tới làm thịt, không ziczac câu giờ!
+                                Vector2 moveDir = toEnemyDirect.normalized;
+                                if (!Physics2D.CircleCast(transform.position, 0.45f, moveDir, moveDist, layerVatCan))
+                                {
+                                    chosenDir = moveDir; 
+                                    _debugCombatPhase = "Truy đuổi dứt điểm (Pursuit)";
+                                }
+                                else
+                                {
+                                    // Tính lại hướng lách vì kẹt
+                                    Vector2 orthoDir = new Vector2(-moveDir.y, moveDir.x);
+                                    Vector2 lachDir1 = (moveDir + orthoDir).normalized;
+                                    Vector2 lachDir2 = (moveDir - orthoDir).normalized;
+
+                                    // Kẹt thì lách nhẹ sang bên
+                                    bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, lachDir1, moveDist, layerVatCan);
+                                    bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, lachDir2, moveDist, layerVatCan);
+                                    
+                                    if (canStrafe1) chosenDir = lachDir1;
+                                    else if (canStrafe2) chosenDir = lachDir2;
+                                    else chosenDir = moveDir;
+                                    
+                                    _debugCombatPhase = "Truy đuổi (Lách vật cản)";
+                                }
+                            }
+                            else
+                            {
+                                // Giai đoạn 3: Ziczac tiếp cận (để né đạn khi địch còn khỏe)
+                                Vector2 moveDir = toEnemyDirect.normalized; // Đừng dùng toGoal vì toGoal có thể bằng 0 nếu đang tạm dừng!
+                                Vector2 orthoDir = new Vector2(-moveDir.y, moveDir.x);
+                                
+                                // Lạng sang một bên ngẫu nhiên
+                                float randomSide = UnityEngine.Random.value > 0.5f ? 1f : -1f;
+                                Vector2 ziczacDir = (moveDir * 2f + orthoDir * randomSide * 3f).normalized;
+
+                                if (!Physics2D.CircleCast(transform.position, 0.45f, ziczacDir, moveDist, layerVatCan))
+                                {
+                                    chosenDir = ziczacDir; 
+                                    _debugCombatPhase = "Giai đoạn 3: Ziczac " + (randomSide > 0 ? "Phải" : "Trái");
+                                }
+                                else
+                                {
+                                    // Kẹt thì lạng bên kia
+                                    ziczacDir = (moveDir * 2f - orthoDir * randomSide * 3f).normalized;
+                                    
+                                    if (!Physics2D.CircleCast(transform.position, 0.45f, ziczacDir, moveDist, layerVatCan))
+                                    {
+                                        chosenDir = ziczacDir;
+                                        _debugCombatPhase = "Giai đoạn 3: Ziczac đổi hướng";
+                                    }
+                                    else
+                                    {
+                                        chosenDir = moveDir; // Hai bên đều kẹt tường -> Đi thẳng!
+                                        _debugCombatPhase = "Giai đoạn 3: Ziczac kẹt tường";
+                                    }
+                                }
+                            }
+                        }
+
+                        // Cố định điểm đến chiến lược!
+                        if (chosenDir != Vector2.zero)
+                        {
+                            _fixedCombatTarget = (Vector2)transform.position + chosenDir * moveDist;
+                            // Đã xóa dòng set timer 3.5f sai lầm gây bug!
+                            // Yêu cầu Bộ nhớ dùng A* vẽ đường tránh tường tới điểm chiến lược!
+                            memory.SetCombatTarget(_fixedCombatTarget.Value);
+                        }
+                    }
+
+                    // Đã loại bỏ việc bắt buộc hướng mũi xe tới điểm thẳng (toGoal = _fixed...);
+                    // Bot bây giờ sẽ đi theo toGoal của A* path để né tường an toàn
+                }
+            }
+        }
+
+        // Lưu lại để vẽ Gizmos
+        _debugCombatDir = toGoal;
+
+        // 2. PHẢN XẠ NÉ ĐẠN THẦN THÁNH (Vừa né đạn vừa chạy theo mục tiêu chiến lược)
+        if (_danhSachDan != null)
+        {
+            foreach (var danRb in _danhSachDan)
+            {
+                if (danRb == null) continue;
+                Vector2 vel = danRb.velocity.magnitude > 0.1f ? danRb.velocity : (Vector2)danRb.transform.up * tocDoDan;
+                Vector2 futur = danRb.position + vel * 0.4f; // Dự đoán 0.4 giây tới
+                if (Vector2.Distance(futur, transform.position) < 1.5f)
+                {
+                    // Lách sang ngang (Vuông góc với đường đạn)// Lách sang ngang (Vuông góc với đường đạn)
+                    Vector2 danDir = vel.normalized;
+                    Vector2 dodgeDir = new Vector2(-danDir.y, danDir.x);
+
+                    // Chọn hướng lách thuận chiều mũi xe nhất
+                    if (Vector2.Dot((bodyTransform != null ? bodyTransform.up : transform.up), dodgeDir) < 0)
+                        dodgeDir = -dodgeDir;
+
+                    // CỘNG GỘP VECTOR: Vừa di chuyển theo chiến lược (rút lui/tấn công), vừa né đạn!
+                    toGoal = toGoal.normalized + dodgeDir * 2f;
+                    break;
+                }
+            }
+        }
+
+            // THUẬT TOÁN TÁCH BẦY (Tách riêng Địch và Tường để không phá hỏng đường A*)
+            Collider2D[] nearbyObstacles = Physics2D.OverlapCircleAll(transform.position, 2.0f, layerVatCan | layerDich);
+            foreach (var col in nearbyObstacles)
+            {
+                if (col.isTrigger || col.transform.root == transform.root) continue;
+                
+                bool isWall = ((1 << col.gameObject.layer) & layerVatCan) != 0;
+                float repelRadius = isWall ? 0.6f : 2.0f; // Tường chỉ đẩy nhẹ ở 0.6m (vì A* đã lo vụ né tường), Địch thì đẩy 2m để tách bầy
+                float forceMult = isWall ? 1.5f : 3.0f;
+
+                Vector2 closestPoint = col.ClosestPoint(transform.position);
+                Vector2 away = (Vector2)transform.position - closestPoint;
+                float dist = away.magnitude;
+
+                if (dist > 0.01f && dist < repelRadius)
+                {
+                    // Lực đẩy ra xa bề mặt
+                    toGoal += away.normalized * (repelRadius - dist) * forceMult;
+                }
+            }
+
+        if (memory != null && memory.IsLooping)
+        {
+            _unstuckTimer = 1.5f; // Bắt đầu chuỗi gỡ kẹt: 1s xoay + 0.5s vọt
+        }
+
+        if (_unstuckTimer > 0f)
+        {
+            _unstuckTimer -= Time.fixedDeltaTime;
+            if (_unstuckTimer > 0.5f)
+            {
+                // Giai đoạn 1: Ép xoay tại chỗ để thoát khỏi hướng kẹt
+                gas = 0f;
+                steer = 1f;
+            }
+            else
+            {
+                // Giai đoạn 2: Nhắm mắt vọt thẳng lên phía trước để dứt điểm góc chữ V
+                gas = 1f;
+                steer = 0f;
+            }
+        }
+        else
+        {
+            Vector2 currentUp = bodyTransform != null ? (Vector2)bodyTransform.up : (Vector2)transform.up;
+            float angle = Vector2.SignedAngle(currentUp, toGoal);
+
+            if (toGoal.sqrMagnitude < 0.1f)
+            {
+                // Nếu bị kẹt góc chữ U (Waypoint và Tường triệt tiêu nhau), ép bẻ lái 90 độ để trượt ngang!
+                toGoal = new Vector2(-currentUp.y, currentUp.x);
+                angle = Vector2.SignedAngle(currentUp, toGoal);
+            }
+
+            if (memory != null && memory.CurrentGoal == BotMemorySystem.GoalType.Heal && toGoal.magnitude < 1.0f)
+            {
+                // Đã đến gần trạm hồi máu -> Phanh xe đứng yên để hồi máu
+                gas = 0f;
+                steer = 0f;
+            }
+            else
+            {
+                // ── LÁI NHẠY VÀ LINH HOẠT HƠN (Arcade Tank Steering & Hysteresis Reverse) ──
+                float dot = Vector2.Dot(currentUp, toGoal.normalized);
+                
+                // Hysteresis: Sử dụng biến trạng thái thay vì vận tốc để chống giật hoàn toàn
+                float reverseThreshold = _isReversingGear ? -0.2f : -0.7f; 
+
+                if (dot < reverseThreshold)
+                {
+                    _isReversingGear = true;
+                    // Mục tiêu ở đằng sau -> Chạy lùi linh hoạt thay vì xoay compa
+                    gas = -1f;
+                    
+                    // Tính góc sai lệch so với phía sau đuôi xe (180 độ)
+                    float backAngle = angle > 0 ? 180f - angle : -180f - angle; 
+                    steer = backAngle / 25f; // Lái mượt mà để đuôi xe chĩa vào mục tiêu
+                    steer = Mathf.Clamp(steer, -1f, 1f);
+                }
+                else
+                {
+                    _isReversingGear = false;
+                    // Mục tiêu ở phía trước hoặc ngang hông -> Chạy tới
+                    gas = Mathf.Lerp(0.4f, 1.0f, (dot + 1f) / 2f); // Ga nhạy theo góc cua
+                    steer = -angle / 25f; // Xoay cực nhạy
+                    steer = Mathf.Clamp(steer, -1f, 1f);
+                }
+            }
+        }
+
+        // Truyền trực tiếp giá trị Analog vào bộ điều khiển xe, KHÔNG ép cứng về -1, 0, 1 nữa để tránh giật xe
+        _currentGas = gas;
+        _currentSteer = steer;
+
         _currentTurretRot = actions.ContinuousActions[2];
         int   fire        = actions.DiscreteActions[0];
 
-        // ── Bắn súng ────────────────────────────────────────────
-        _timerBan -= Time.fixedDeltaTime;
-        if (fire == 1 && _timerBan <= 0f && boPhongDan != null)
+        // ── Ghi nhận quyết định bắn của mạng nơ ron để tính Reward ─────────
+        bool wantToShoot = fire == 1;
+
+        if (wantToShoot && boPhongDan != null)
         {
-            boPhongDan.BotRequestFire();
-            _timerBan = cooldownBan;
+            AddReward(0.01f); // Khuyến khích bắn nếu AI tự quyết định
         }
 
         // ═══ REWARD SHAPING ═════════════════════════════════════
-        float dt  = Time.fixedDeltaTime;
-        float open = DoOpenness();
-
-        // 1. Phạt đứng yên
-        if (rb.velocity.magnitude < 0.3f)
-            AddReward(-0.002f);
-        
-        // Thêm reward TIẾN THẲNG
+        float dt    = Time.fixedDeltaTime;
         float speed = rb.velocity.magnitude;
-        if (speed > 2f)
-            AddReward(0.002f);
 
-        // ✅ THƯỞNG XOAY HỢP LÝ: khuyến khích bot học cách đổi hướng
-        // Thưởng khi xoay + đang di chuyển (tránh reward bot xoay tại chỗ)
+        // ── 1. REWARD DI CHUYỂN (dense, mỗi frame) ──────────────────
+        // Thưởng tốc độ — bot LUÔN muốn chạy
+        AddReward(speed / tocDoXe * 0.005f);
+
+        // Phạt đứng yên ngay lập tức
+        if (speed < 0.3f) AddReward(-0.004f);
+
+        // ── 2. REWARD XOAY HỢP LÝ ───────────────────────────────────
+        // Thưởng xoay khi đang chạy (học rằng xoay + chạy = hữu ích)
         if (Mathf.Abs(_currentSteer) > 0.3f && speed > 1f)
             AddReward(0.003f);
-        // Phạt nhẹ xoay liên tục tại chỗ (spinning)
+
+        // Phạt xoay tại chỗ (spinning vô ích)
         if (Mathf.Abs(_currentSteer) > 0.5f && speed < 0.5f)
-            AddReward(-0.002f);
+            AddReward(-0.005f);
 
-        // 2. Thưởng tuần tra (di chuyển khi không có địch)
-        if (_dich == null && rb.velocity.magnitude > 1f)
-            AddReward(r_TuanTra * dt);
-
-        // 2b. THƯỞNG tiến đến mục tiêu / PHẠT quay vòng
+        // ── 3. WAYPOINT REWARD (Dẫn đường bằng A*) ────────────
         if (memory != null)
         {
-            float goalDist = Vector2.Distance(transform.position, memory.GoalPosition);
+            float waypointDist = Vector2.Distance(transform.position, memory.GoalPosition);
 
-            // Tiến về phía mục tiêu → thưởng
-            if (goalDist < _goalDistTruoc - 0.1f)
-                AddReward(r_GoalProgress * memory.GoalUrgency * dt);
-
-            _goalDistTruoc = goalDist;
-
-            // Đang quay vòng → phạt
-            if (memory.IsLooping)
-                AddReward(p_Looping * dt);
-
-            // Scan vật thể xung quanh để ghi vào memory
-            ScanVaGhiNhanPOI();
+            if (_waypointDistTruoc < float.MaxValue)
+            {
+                float progress = _waypointDistTruoc - waypointDist;
+                // Thưởng khi bám theo node A*
+                AddReward(progress * 0.15f);
+            }
+            _waypointDistTruoc = waypointDist;
         }
 
-        // 3. Thưởng thoát không gian hẹp
-        if (open > _opennessTruoc + 8f)
-            AddReward(r_MoRongKhongGian * dt);
-        _opennessTruoc = open;
+        // ── 4. CHIẾN THUẬT (chỉ khi có địch) ────────────────────────
+        // Phân tích môi trường hẹp (Corridor detection)
+        RaycastHit2D leftWall = Physics2D.Raycast(transform.position, -transform.right, 4f, layerVatCan);
+        RaycastHit2D rightWall = Physics2D.Raycast(transform.position, transform.right, 4f, layerVatCan);
+        bool isNarrowCorridor = (leftWall.collider != null && leftWall.distance < 2.5f) && 
+                                (rightWall.collider != null && rightWall.distance < 2.5f);
 
-        // 4. Thưởng lách hành lang hẹp
-        if (open < 120f && rb.velocity.magnitude > 1.5f)
-            AddReward(r_LachHanhLang * dt);
-
-        // 5. Chiến thuật giao tranh
         if (_dich != null)
         {
             Vector2 toEnemy = (Vector2)_dich.transform.position - (Vector2)transform.position;
@@ -550,159 +892,80 @@ public class TankAgentUltra : Agent
             if (dist >= khoangCachLyTuong - 1.5f && dist <= khoangCachLyTuong + 2.5f)
                 AddReward(r_Kiting * dt);
 
-            // Circle Strafing — đi ngang
-            if (rb.velocity.magnitude > 2f)
+            // Circle Strafing — đi ngang (Chỉ kích hoạt khi ở không gian mở)
+            if (!isNarrowCorridor && rb.velocity.magnitude > 2f)
             {
                 float dot = Mathf.Abs(Vector2.Dot(rb.velocity.normalized, toEnemy.normalized));
                 if (dot < 0.35f) AddReward(r_Strafe * dt);
             }
-
-            // Cover
-            if (KiemTraCover((Vector2)transform.position, (Vector2)_dich.transform.position, dist))
-                AddReward(r_Cover * dt);
-
-            // Rút lui khi bản thân máu thấp — thưởng khi dist TĂNG
-            float healthRatio = healthComp != null
-                ? (float)healthComp.MauHienTai.Value / Mathf.Max(1, healthComp.MauToiDa)
-                : 1f;
-            if (healthRatio < 0.3f)
+            // Trong hành lang hẹp, thưởng khi lùi lại an toàn thay vì strafe
+            else if (isNarrowCorridor)
             {
-                float velAwayDot = Vector2.Dot(rb.velocity.normalized, toEnemy.normalized);
-                if (velAwayDot < -0.5f) AddReward(0.02f * dt); // Đang chạy đúng hướng ra xa địch
+                float dot = Vector2.Dot(rb.velocity.normalized, toEnemy.normalized);
+                if (dot < -0.5f) AddReward(r_Cover * dt); // lùi lại
             }
 
-            // Truy Sát (Execution) khi ĐỊCH máu thấp — thưởng khi dist GIẢM
-            float enemyHealthRatio = 1f;
+            // Truy sát khi địch máu thấp
+            float myHp = healthComp != null ? (float)healthComp.MauHienTai.Value / Mathf.Max(1, healthComp.MauToiDa) : 1f;
+            float enemyHpRatio = 1f;
             if (_dich.TryGetComponent<Mau>(out var eHp))
-                enemyHealthRatio = (float)eHp.MauHienTai.Value / Mathf.Max(1, eHp.MauToiDa);
-                
-            if (enemyHealthRatio < 0.3f && healthRatio >= 0.3f)
-            {
-                float velTowardsDot = Vector2.Dot(rb.velocity.normalized, toEnemy.normalized);
-                if (velTowardsDot > 0.5f) AddReward(0.04f * dt); // Khô máu, lao thẳng vào dứt điểm
-            }
+                enemyHpRatio = (float)eHp.MauHienTai.Value / Mathf.Max(1, eHp.MauToiDa);
+            if (enemyHpRatio < 0.3f && myHp > 0.3f
+                && Vector2.Dot(rb.velocity.normalized, toEnemy.normalized) > 0.5f)
+                AddReward(0.04f * dt);
         }
 
-        // 6. Né đạn
+        // ── 5. NÉ ĐẠN ────────────────────────────────────────────────
         bool danNow = KiemTraDanGanTrung();
         if (_danSapTrung && !danNow) AddReward(r_NeDan);
         _danSapTrung = danNow;
 
-        // 6. Kiểm tra HP
+        // ── 5.5 THU THẬP TÀI NGUYÊN (DENSE REWARD) ───────────────────
+        Collider2D closestItem = null;
+        float minItemDist = 15f;
+        Collider2D[] items = Physics2D.OverlapCircleAll(transform.position, 15f, layerTaiNguyen);
+        foreach (var item in items)
+        {
+            if (!KiemTraGhiNhanTaiNguyen(item)) continue;
+
+            float dist = Vector2.Distance(transform.position, item.transform.position);
+            if (dist < minItemDist && CoLOS(transform.position, item.transform.position))
+            {
+                minItemDist = dist;
+                closestItem = item;
+            }
+        }
+        
+        if (closestItem != null)
+        {
+            Vector2 toItem = (Vector2)closestItem.transform.position - (Vector2)transform.position;
+            float dot = Vector2.Dot(rb.velocity.normalized, toItem.normalized);
+            if (dot > 0.6f && speed > 1f) AddReward(0.01f * dt); // Thưởng khi chủ động lao tới item
+        }
+
+        // ── 6. HP + COIN (giữ nguyên) ────────────────────────────────
         if (healthComp != null)
         {
-            int mauHT = healthComp.Ma    private void LuoiLOSFiltered(VectorSensor sensor, int gridSize, float cellSize, int soKenh, Vector2 botPos)
-    {
-        int banKinh = gridSize / 2;
-        for (int row = -banKinh; row <= banKinh; row++)
-        {
-            for (int col = -banKinh; col <= banKinh; col++)
+            int mauHT = healthComp.MauHienTai.Value;
+            int delta  = mauHT - _mauTruoc;
+            if (delta < 0) AddReward(p_BiDanh * Mathf.Abs(delta) * 0.1f);
+            _mauTruoc = mauHT;
+            if (mauHT <= 0 && !_dangChoHoiSinh)
             {
-                Vector2 offset = ((Vector2)transform.right * col
-                                + (Vector2)transform.up   * row) * cellSize;
-                Vector2 oPos   = botPos + offset;
-                float   r      = cellSize * 0.42f;
-
-                // ⚠️ KIỂM TRA LOS TRƯỜC — Nếu có tường giữa bot và ô này → MÙ
-                bool coLOS = CoLOS(botPos, oPos);
-
-                if (!coLOS)
-                {
-                    // Không nhìn thấy — fill 0 cho tất cả kênh
-                    for (int k = 0; k < soKenh; k++) sensor.AddObservation(0f);
-                    continue;
-                }
-
-                // Có LOS — đọc dữ liệu thật
-                // Kênh 0: Vật cản
-                sensor.AddObservation(Physics2D.OverlapCircle(oPos, r, layerVatCan) ? 1f : 0f);
-                // Kênh 1: Địch
-                sensor.AddObservation(Physics2D.OverlapCircle(oPos, r, layerDich)   ? 1f : 0f);
-                // Kênh 2: Coin/Item
-                sensor.AddObservation(Physics2D.OverlapCircle(oPos, r, layerTaiNguyen) ? 1f : 0f);
-
-                if (soKenh >= 4)
-                {
-                    // ✨ Kênh 3: Tactical Score — thay thế Openness cũ
-                    // Giá trị trong [-1, 1]: dương = vị trí tốt, âm = nguy hiểm
-                    sensor.AddObservation(TinhTacticalScore(oPos, cellSize, botPos));
-                }
-                if (soKenh >= 5)
-                {
-                    // Kênh 4: Đạn đang bay (chỉ vòng gần + giữa)
-                    sensor.AddObservation(Physics2D.OverlapCircle(oPos, r, layerDan) ? 1f : 0f);
-                }
+                AddReward(p_Chet);
+                StartCoroutine(XuLyChetVaHoiSinh());
+                return;
             }
+        }
+        if (wallet != null)
+        {
+            int coinHT = wallet.TotalCoins.Value;
+            if (coinHT - _coinTruoc > 0) AddReward(r_NhatCoin * (coinHT - _coinTruoc) * 0.1f);
+            _coinTruoc = coinHT;
         }
     }
 
-    /// ✨ Tính điểm chiến thuật cho một ô radar trong [-1, +1]
-    /// + Cover quality: ô này có che khuất tầm nhìn từ địch không?
-    /// + Flanking bonus: ô này nằm ở hông/lưng địch không?
-    /// - Danger level:   đạn sắp bay qua ô này không?
-    private float TinhTacticalScore(Vector2 oPos, float cellSize, Vector2 botPos)
-    {
-        float score = 0f;
-
-        // ── A. COVER QUALITY ───────────────────────────────
-        // Nếu địch tồn tại và ô này nằm giữa bot và địch
-        if (_dich != null)
-        {
-            Vector2 enemyPos = _dich.transform.position;
-            Vector2 toEnemy  = (enemyPos - oPos);
-            float   distToEnemy = toEnemy.magnitude;
-
-            // Cover: Có tường giữa ô này và địch? → ô này là điểm cover tốt
-            bool wallBetween = Physics2D.Raycast(oPos, toEnemy.normalized,
-                                   Mathf.Min(distToEnemy, 8f), layerVatCan);
-            // Và ô này phải nhìn thấy địch (không phải chúm sâu sau tường)
-            bool canSeeFront  = distToEnemy < 12f;
-            if (wallBetween && canSeeFront)
-                score += 0.4f;
-
-            // ── B. FLANKING BONUS ───────────────────────────
-            // Góc giữa hướng địch đang nhìn và vị trí ô (so với địch)
-            Vector2 toCell   = (oPos - enemyPos).normalized;
-            float   sideAngle = Mathf.Abs(Vector2.SignedAngle(_dich.transform.up, toCell));
-            // Hông địch: góc 60°–120° | Lưng địch: > 150°
-            if (distToEnemy < 15f)
-            {
-                if (sideAngle > 60f && sideAngle < 120f)
-                    score += 0.35f;  // Hông địch
-                else if (sideAngle > 150f)
-                    score += 0.5f;   // Lưng địch (nguy hiểm nhất cho địch)
-            }
-
-            // ── C. KITING ZONE ───────────────────────────────
-            // Ô này có ở trong vung kỹ thuật kiting không (khoảng cách lý tưởng)?
-            float distCellToEnemy = Vector2.Distance(oPos, enemyPos);
-            if (distCellToEnemy >= khoangCachLyTuong - 1.5f &&
-                distCellToEnemy <= khoangCachLyTuong + 2.5f)
-                score += 0.25f;
-        }
-
-        // ── D. BULLET DANGER ──────────────────────────────
-        // Kể cả đạn đang bay có quỹ đạo sắp đi qua ô này không
-        foreach (var danRb in _danhSachDan)
-        {
-            if (danRb == null) continue;
-            Vector2 vel    = danRb.velocity.magnitude > 0.1f
-                             ? danRb.velocity : (Vector2)danRb.transform.up * tocDoDan;
-            // Nhìn 3 điểm phía trước: 0.2s, 0.4s, 0.6s
-            for (int step = 1; step <= 3; step++)
-            {
-                Vector2 future = danRb.position + vel * (step * 0.2f);
-                if (Vector2.Distance(future, oPos) < cellSize * 1.2f)
-                {
-                    score -= 0.35f; // Đạn sắp bay qua ô này!
-                    break;
-                }
-            }
-        }
-
-        // Clamp và trả về trong [-1, 1]
-        return Mathf.Clamp(score, -1f, 1f);
-    }�════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
     //  6. HEURISTIC — Test bằng người thật
     // ═══════════════════════════════════════════════════════════════
     public override void Heuristic(in ActionBuffers actionsOut)
@@ -716,12 +979,42 @@ public class TankAgentUltra : Agent
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  7. COLLISION
+    //  7. COLLISION & TRIGGER (XỬ LÝ NHẶT ĐỒ / ĐỤNG TƯỜNG)
     // ═══════════════════════════════════════════════════════════════
     private void OnCollisionEnter2D(Collision2D col)
     {
         if (((1 << col.gameObject.layer) & layerVatCan) != 0)
             AddReward(p_TongTuong);
+    }
+
+    private void OnTriggerEnter2D(Collider2D col)
+    {
+        // Nhặt được đồ / coin → Thưởng nóng ngay lập tức
+        if (((1 << col.gameObject.layer) & layerTaiNguyen.value) != 0)
+        {
+            if (KiemTraGhiNhanTaiNguyen(col))
+            {
+                ItemPickup item = col.GetComponent<ItemPickup>();
+                if (item != null && item.Type == ItemType.Trap)
+                {
+                    // Vô tình giẫm phải bẫy -> Phạt nặng để Bot học cách né (dù đã lơ bẫy trong tầm nhìn)
+                    AddReward(-2.0f); 
+                }
+                else
+                {
+                    AddReward(r_NhatItem);
+                }
+            }
+            else
+            {
+                // Nếu đã quyết định bỏ qua (vd Bẫy) nhưng vẫn đụng trúng -> Phạt
+                ItemPickup item = col.GetComponent<ItemPickup>();
+                if (item != null && item.Type == ItemType.Trap)
+                {
+                    AddReward(-2.0f);
+                }
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -760,67 +1053,22 @@ public class TankAgentUltra : Agent
             // Chỉ ghi nhận nếu nhìn thấy (không bị tường chặn)
             if (!CoLOS(botPos, poiPos)) continue;
 
-            // Phân loại: Item hay Coin?
+            // Phân loại: Item hay HealStation hay Coin?
             if (col.TryGetComponent<ItemPickup>(out _))
-                memory.GhiNhanItem(poiPos);
-            else
-                memory.GhiNhanCoin(poiPos);
-        }
-
-        // Quét HealStation (nếu game có) — thêm tag/layer nếu cần
-        // Collider2D[] healHits = Physics2D.OverlapCircleAll(botPos, 20f, layerHealStation);
-        // foreach (var col in healHits)
-        //     if (CoLOS(botPos, col.transform.position))
-        //         memory.GhiNhanHealStation(col.transform.position);
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  PRIVATE — LOS-FILTERED GRID
-    // ═══════════════════════════════════════════════════════════════
-
-    /// Thu thập lưới radar với kiểm tra LOS từng ô
-    /// Ô nào bị tường chặn → KHÔNG NHÌN THẤY → tất cả kênh = 0
-
-    private void LuoiLOSFiltered(VectorSensor sensor, int gridSize, float cellSize, int soKenh, Vector2 botPos)
-    {
-        int banKinh = gridSize / 2;
-        for (int row = -banKinh; row <= banKinh; row++)
-        {
-            for (int col = -banKinh; col <= banKinh; col++)
             {
-                Vector2 offset = ((Vector2)transform.right * col
-                                + (Vector2)transform.up   * row) * cellSize;
-                Vector2 oPos   = botPos + offset;
-                float   r      = cellSize * 0.42f;
-
-                // ⚠️ KIỂM TRA LOS TRƯỚC — Nếu có tường giữa bot và ô này → MÙ
-                bool coLOS = CoLOS(botPos, oPos);
-
-                if (!coLOS)
+                memory.GhiNhanItem(poiPos);
+            }
+            else if (col.TryGetComponent<HealingZone>(out var healZone))
+            {
+                // Chỉ ghi nhận trạm hồi máu nếu nó chưa cạn kiệt (chưa vô cooldown)
+                if (healZone.CurrentHealPower > 0)
                 {
-                    // Không nhìn thấy — fill 0 cho tất cả kênh
-                    for (int k = 0; k < soKenh; k++) sensor.AddObservation(0f);
-                    continue;
+                    memory.GhiNhanHealStation(poiPos);
                 }
-
-                // Có LOS — đọc dữ liệu thật
-                // Kênh 0: Vật cản
-                sensor.AddObservation(Physics2D.OverlapCircle(oPos, r, layerVatCan) ? 1f : 0f);
-                // Kênh 1: Địch
-                sensor.AddObservation(Physics2D.OverlapCircle(oPos, r, layerDich)   ? 1f : 0f);
-                // Kênh 2: Coin/Item
-                sensor.AddObservation(Physics2D.OverlapCircle(oPos, r, layerTaiNguyen) ? 1f : 0f);
-
-                if (soKenh >= 4)
-                {
-                    // Kênh 3: Độ thông thoáng (openness) của ô đó
-                    sensor.AddObservation(TinhOpennessCua(oPos, cellSize));
-                }
-                if (soKenh >= 5)
-                {
-                    // Kênh 4: Đạn đang bay (chỉ vòng gần + giữa)
-                    sensor.AddObservation(Physics2D.OverlapCircle(oPos, r, layerDan) ? 1f : 0f);
-                }
+            }
+            else
+            {
+                memory.GhiNhanCoin(poiPos);
             }
         }
     }
@@ -829,13 +1077,82 @@ public class TankAgentUltra : Agent
     //  PRIVATE — UTILITIES
     // ═══════════════════════════════════════════════════════════════
 
+    /// Tìm một vị trí gần đây (bán kính 6m) có thể nấp khỏi tầm nhìn của địch
+    private Vector2 FindCoverPosition(Vector2 currentPos, Vector2 enemyPos)
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            Vector2 dir = UnityEngine.Random.insideUnitCircle.normalized;
+            Vector2 samplePos = currentPos + dir * 3f; // Bán kính nấp 3m xung quanh vị trí hiện tại
+            
+            // 1. Chỗ núp phải đi tới được (không bị tường chặn ngay trước mặt)
+            if (!Physics2D.Linecast(currentPos, samplePos, layerVatCan))
+            {
+                // 2. Chỗ núp PHẢI BỊ CHE KHUẤT khỏi địch (Linecast chạm tường)
+                if (Physics2D.Linecast(samplePos, enemyPos, layerVatCan))
+                {
+                    return samplePos; 
+                }
+            }
+        }
+        return currentPos; // Không tìm được chỗ nấp
+    }
+
+    /// Xử lý tỉ lệ quyết định nhặt item/coin
+    private bool KiemTraGhiNhanTaiNguyen(Collider2D col)
+    {
+        int id = col.gameObject.GetInstanceID();
+        if (_boQuaTaiNguyen.Contains(id)) return false;
+        
+        if (!_daXetTaiNguyen.Contains(id))
+        {
+            _daXetTaiNguyen.Add(id);
+
+            ItemPickup item = col.GetComponent<ItemPickup>();
+            if (item != null)
+            {
+                // Dùng chung logic thông minh (né bẫy, xét tỉ lệ) với BotBrain thường
+                if (!item.CanBePickedUpByBot(null, tyLeNhatTaiNguyen))
+                {
+                    _boQuaTaiNguyen.Add(id);
+                    return false;
+                }
+            }
+            else
+            {
+                // Coin bình thường
+                if (UnityEngine.Random.value > tyLeNhatTaiNguyen)
+                {
+                    _boQuaTaiNguyen.Add(id);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     /// Kiểm tra có đường thẳng không bị tường chắn giữa 2 điểm không
     private bool CoLOS(Vector2 from, Vector2 to)
     {
         Vector2 dir  = to - from;
         float   dist = dir.magnitude;
         if (dist < 0.05f) return true;
-        return !Physics2D.Raycast(from, dir.normalized, dist, layerVatCan);
+        
+        RaycastHit2D[] hits = Physics2D.RaycastAll(from, dir.normalized, dist, layerVatCan);
+        foreach (var hit in hits)
+        {
+            // Bỏ qua các trigger (như coin, item) không cản đường đạn
+            if (hit.collider.isTrigger) continue;
+
+            // Bỏ qua chính bản thân mình
+            if (hit.collider.transform.root == transform.root) continue;
+            
+            // Bỏ qua các xe tăng khác (Mục tiêu) để không bị tự chặn tầm nhìn
+            if (hit.collider.GetComponentInParent<TankPlayer>() != null) continue;
+
+            return false; // Bị che bởi tường/đá
+        }
+        return true;
     }
 
     /// Tính độ thông thoáng (0=bị vây, 1=hoàn toàn trống) bằng 8 tia ngắn
@@ -868,10 +1185,10 @@ public class TankAgentUltra : Agent
     /// Kiểm tra đang ẩn sau cover (có tường nửa đường + LOS đến địch)
     private bool KiemTraCover(Vector2 from, Vector2 enemyPos, float dist)
     {
-        Vector2 dir    = (enemyPos - from).normalized;
-        bool halfBlock = Physics2D.Raycast(from, dir, dist * 0.45f, layerVatCan);
-        bool hasLOS    = !Physics2D.Raycast(from, dir, dist, layerVatCan);
-        return halfBlock && hasLOS;
+        Vector2 dir = (enemyPos - from).normalized;
+        bool wallNear = Physics2D.Raycast(from, dir, dist * 0.5f, layerVatCan);
+        bool enemyBlocked = Physics2D.Raycast(enemyPos, -dir, dist * 0.9f, layerVatCan);
+        return wallNear || enemyBlocked;
     }
 
     /// Phát hiện đạn đang nhắm vào bot trong ~0.5s
@@ -906,24 +1223,54 @@ public class TankAgentUltra : Agent
         int layer = col.gameObject.layer;
         if (((1 << layer) & layerVatCan.value)    != 0) return 0.25f;
         if (((1 << layer) & layerDich.value)       != 0) return 0.5f;
-        if (((1 << layer) & layerTaiNguyen.value)  != 0) return 0.75f;
+        if (((1 << layer) & layerTaiNguyen.value)  != 0)
+        {
+            if (KiemTraGhiNhanTaiNguyen(col)) return 0.75f;
+            return 0f; // Nếu từ chối nhặt, coi như vô hình
+        }
         if (((1 << layer) & layerDan.value)        != 0) return 1.0f;
         return 0f;
     }
 
+    // ── 1. HỆ THỐNG SĂN MỒI & KS MẠNG (Target Selection Matrix) ──
     private TankPlayer TimDich()
     {
         TankPlayer best = null;
-        float minDist   = float.MaxValue;
+        float minScore  = float.MaxValue; // Điểm càng thấp càng ưu tiên
         if (_allPlayers == null) return null;
+
         foreach (var p in _allPlayers)
         {
             if (p == null || p == tankPlayer) continue;
-            float d = Vector2.Distance(transform.position, p.transform.position);
-            if (d < minDist) { minDist = d; best = p; }
+            if (!p.gameObject.activeInHierarchy) continue;
+            if (!p.TryGetComponent<Mau>(out var mau) || mau.MauHienTai.Value <= 0) continue;
+
+            float dist = Vector2.Distance(transform.position, p.transform.position);
+            
+            // Khởi điểm: Điểm = Khoảng cách
+            float score = dist;
+
+            // Yếu tố 1: KS Mạng (Kill Steal). Kẻ địch máu càng thấp, điểm càng bị giảm (trở nên ưu tiên hơn).
+            float healthRatio = (float)mau.MauHienTai.Value / Mathf.Max(1, mau.MauToiDa);
+            float missingHPRatio = 1f - healthRatio;
+            score -= missingHPRatio * 25f; // Giảm tối đa 25 điểm nếu địch chỉ còn 1 giọt máu
+
+            // Yếu tố 2: Tầm nhìn (Line of Sight). Nếu bị che khuất bởi tường, cộng thêm điểm rủi ro.
+            bool hasLOS = CoLOS(transform.position, p.transform.position);
+            if (!hasLOS)
+            {
+                score += 15f; // Cộng 15 điểm phạt nếu địch nấp sau tường
+            }
+
+            if (score < minScore) 
+            { 
+                minScore = score; 
+                best = p; 
+            }
         }
         return best;
     }
+    // [SYNC] God-tier AI update synced to IDE
 
     private Vector2 LayViTriSpawn()
     {
@@ -974,4 +1321,42 @@ public class TankAgentUltra : Agent
             Gizmos.DrawLine(danRb.position, danRb.position + v * 0.6f);
         }
     }
+
+    private void OnDrawGizmos()
+    {
+        // Vẽ chiến thuật Giao tranh nếu đang ở chế độ Combat
+        if (Application.isPlaying && memory != null && memory.CurrentGoal == BotMemorySystem.GoalType.Combat && _dich != null)
+        {
+            if (_debugCombatPhase.Contains("Núp")) Gizmos.color = Color.gray;
+            else if (_debugCombatPhase.Contains("1")) Gizmos.color = Color.red;
+            else if (_debugCombatPhase.Contains("2")) Gizmos.color = Color.yellow;
+            else if (_debugCombatPhase.Contains("3")) Gizmos.color = Color.cyan;
+            else Gizmos.color = Color.magenta;
+
+            Vector2 targetPos;
+            if (_fixedCombatTarget != null)
+            {
+                targetPos = _fixedCombatTarget.Value;
+                Gizmos.DrawLine(transform.position, targetPos);
+                Gizmos.DrawWireSphere(targetPos, 0.4f);
+            }
+            else
+            {
+                targetPos = (Vector2)transform.position + _debugCombatDir.normalized * 3f;
+                Gizmos.DrawLine(transform.position, targetPos);
+                Gizmos.DrawSphere(targetPos, 0.3f);
+            }
+            
+            // Vẽ đường nối thẳng tới kẻ địch (xác định mục tiêu)
+            Gizmos.color = new Color(1f, 0f, 0f, 0.4f);
+            Gizmos.DrawLine(transform.position, _dich.transform.position);
+
+#if UNITY_EDITOR
+            // Hiển thị tên giai đoạn
+            UnityEditor.Handles.Label(targetPos + (Vector2)Vector3.up * 0.5f, _debugCombatPhase);
+#endif
+        }
+    }
 }
+
+// [SYNC] Fixed trigger raycast bug IDE

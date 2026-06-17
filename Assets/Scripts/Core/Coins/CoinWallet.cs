@@ -51,6 +51,12 @@ public class CoinWallet : NetworkBehaviour
 
         if (!IsServer) { return; }
 
+        // [FIXED] Báo cho BotMemorySystem xóa Coin này khỏi bộ nhớ ngay lập tức để AI không chạy loanh quanh chỗ trống
+        if (TryGetComponent<BotMemorySystem>(out var mem))
+        {
+            mem.XoaPOI(coin.transform.position);
+        }
+
         // Kiểm tra xem có đang kích hoạt BuffCoin không (x3 điểm)
         if (TryGetComponent<ItemInventory>(out ItemInventory inventory) && inventory.IsCoinBuffActive.Value)
         {

@@ -46,6 +46,9 @@ public class BotSpawner : MonoBehaviour
                 cachedNetworkManager.OnServerStarted += HandleServerStarted;
             }
         }
+        
+        // Gọi UpdateBots mỗi frame (chỉ thực thi khi đang chạy bình thường, an toàn hơn gọi trong OnDestroy)
+        UpdateBots();
     }
 
     private void Start()
@@ -83,7 +86,6 @@ public class BotSpawner : MonoBehaviour
         else
         {
             realPlayerCount++;
-            UpdateBots();
         }
     }
 
@@ -96,7 +98,6 @@ public class BotSpawner : MonoBehaviour
         else
         {
             realPlayerCount--;
-            UpdateBots();
         }
     }
 

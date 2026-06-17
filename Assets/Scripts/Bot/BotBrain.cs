@@ -152,8 +152,9 @@ public class BotBrain : NetworkBehaviour
 
     private void ChonTrangThai()
     {
-        float scoreRutLui = TichDiemRutLui();
-        float scoreGiaoTranh = TichDiemGiaoTranh();
+        // --- ĐÓNG BĂNG GIAO TRANH VÀ RÚT LUI THEO YÊU CẦU ---
+        // float scoreRutLui = TichDiemRutLui();
+        // float scoreGiaoTranh = TichDiemGiaoTranh();
         float scoreNhatItem = TichDiemNhatItem();
         float scoreNhatCoin = TichDiemNhatCoin();
 
@@ -161,16 +162,16 @@ public class BotBrain : NetworkBehaviour
         IBotState muon = stateTuanTra;
         float maxScore = 0.1f;
 
-        if (scoreRutLui > maxScore)
-        {
-            maxScore = scoreRutLui;
-            muon = stateRutLui;
-        }
-        if (scoreGiaoTranh > maxScore)
-        {
-            maxScore = scoreGiaoTranh;
-            muon = stateGiaoTranh;
-        }
+        // if (scoreRutLui > maxScore)
+        // {
+        //     maxScore = scoreRutLui;
+        //     muon = stateRutLui;
+        // }
+        // if (scoreGiaoTranh > maxScore)
+        // {
+        //     maxScore = scoreGiaoTranh;
+        //     muon = stateGiaoTranh;
+        // }
         if (scoreNhatItem > maxScore)
         {
             maxScore = scoreNhatItem;
@@ -256,22 +257,25 @@ public class BotBrain : NetworkBehaviour
             }
         }
 
-        float score = 65f; // Điểm nhặt Item cơ bản
+        float score = 65f; // Điểm nhặt Item cơ bản (cao hơn Vàng 60f)
 
         bool hasEnemy = ctx.NearestEnemy != null && ctx.DistanceToEnemy < 15f;
 
         if (hasEnemy)
         {
             // Tình huống 4, 6: Có địch và Item
-            if (ctx.DistanceToItem < 4f)
+            float enemyDistToItem = Vector2.Distance(ctx.NearestEnemy.transform.position, ctx.NearestItem.transform.position);
+            
+            // Nếu kẻ địch ở gần Item hơn Bot -> Địch đã chiếm đóng Item
+            if (enemyDistToItem < ctx.DistanceToItem && enemyDistToItem < 5f)
             {
-                // Item sát bên -> Buff mạnh để lướt qua nhặt rồi mới đánh (85 > 75 Giao tranh)
-                score = 85f; 
+                // Cực kỳ nguy hiểm -> Trừ sạch điểm để chê Item này
+                score = -500f; 
             }
             else
             {
-                // Item ở xa -> Tập trung đánh địch (50 < 75 Giao tranh)
-                score = 50f;
+                // Item an toàn -> Thích nhặt (vì không có Giao tranh, ta thoải mái đi nhặt)
+                score = 85f; 
             }
         }
         else
@@ -287,19 +291,34 @@ public class BotBrain : NetworkBehaviour
     {
         if (ctx.NearestCoin == null) return 0f;
 
-        // Ưu tiên Tuyệt Đối: Hết đạn thì thèm vàng (vượt qua cả Item và Đánh nhau)
-        if (!ctx.DuCoinDeBan(20))
-        {
-            return 80f + ctx.CoinCountNearby;
-        }
-
         float score = 60f; // Điểm nhặt vàng cơ bản
         bool hasEnemy = ctx.NearestEnemy != null && ctx.DistanceToEnemy < 15f;
 
-        // Tình huống 5, 6: Có địch -> Lơ đẹp đống vàng để lo cái mạng
+        // Tình huống 5, 6: Có địch
         if (hasEnemy)
         {
-            return 20f; // Bị ép xuống rất thấp (20 < 75 Giao tranh)
+            float enemyDistToCoin = Vector2.Distance(ctx.NearestEnemy.transform.position, ctx.NearestCoin.transform.position);
+            
+            // Nếu kẻ địch đe doạ trực tiếp bãi vàng
+            if (enemyDistToCoin < ctx.DistanceToCoin && enemyDistToCoin < 5f)
+            {
+                if (!ctx.DuCoinDeBan(20))
+                {
+                    // Ngoại lệ Tình huống 5: ĐANG HẾT ĐẠN -> LIỀU MẠNG XÔNG VÀO!
+                    return 1000f; 
+                }
+                else
+                {
+                    // Đang dư tiền -> Địch giữ thì chê
+                    return -500f;
+                }
+            }
+        }
+
+        // Tình huống Ưu tiên Tuyệt Đối: Hết đạn thì thèm vàng
+        if (!ctx.DuCoinDeBan(20))
+        {
+            score += 20f; // Buff điểm Vàng (80f) vượt qua cả Item (65f)
         }
 
         // Tình huống 7: Rất nhiều vàng (>=5) nhưng ít item (<=1)
@@ -315,7 +334,6 @@ public class BotBrain : NetworkBehaviour
 
         // Tình huống 3: Có vàng và item (Bình thường Item=65 > Vàng=60)
         // Nhưng nếu Vàng nằm ngay sát chân (<3m), tạo 20% khả năng Bot sẽ tham lam chộp luôn cục Vàng đó trước.
-        // Dùng GetInstanceID để giả lập random không bị lặp lại (State flapping) mỗi frame.
         if (ctx.ItemCountNearby > 0 && ctx.DistanceToCoin < 3f)
         {
             if (ctx.NearestCoin.gameObject.GetInstanceID() % 5 == 0)

@@ -12,6 +12,7 @@ public class GridManager : NetworkBehaviour
     public Vector2 gridCenter = Vector2.zero;
 
     public Node[,] grid;
+    public List<Node> walkablePlayableNodes = new List<Node>();
     private float nodeDiameter;
     public int gridSizeX, gridSizeY;
 
@@ -43,6 +44,46 @@ public class GridManager : NetworkBehaviour
                 Vector2 worldPoint = worldBottomLeft + Vector2.right * (x * nodeDiameter + nodeRadius) + Vector2.up * (y * nodeDiameter + nodeRadius);
                 bool walkable = !Physics2D.OverlapCircle(worldPoint, 0.85f, unwalkableMask);
                 grid[x, y] = new Node(walkable, worldPoint, x, y);
+            }
+        }
+        
+        CalculatePlayableArea();
+    }
+    
+    public void CalculatePlayableArea()
+    {
+        walkablePlayableNodes.Clear();
+        Node startNode = NodeFromWorldPoint(gridCenter);
+        
+        // Tìm 1 điểm ở giữa bản đồ làm tâm quét (đề phòng tâm chính xác lại nằm đè lên cục đá)
+        int searchRadius = 1;
+        while (!startNode.walkable && searchRadius < 20)
+        {
+            Vector2 offset = UnityEngine.Random.insideUnitCircle * searchRadius;
+            startNode = NodeFromWorldPoint(gridCenter + offset);
+            searchRadius++;
+        }
+        
+        if (!startNode.walkable) return;
+
+        Queue<Node> queue = new Queue<Node>();
+        HashSet<Node> visited = new HashSet<Node>();
+
+        queue.Enqueue(startNode);
+        visited.Add(startNode);
+
+        while (queue.Count > 0)
+        {
+            Node current = queue.Dequeue();
+            walkablePlayableNodes.Add(current);
+
+            foreach (Node neighbor in GetNeighbors(current))
+            {
+                if (neighbor.walkable && !visited.Contains(neighbor))
+                {
+                    visited.Add(neighbor);
+                    queue.Enqueue(neighbor);
+                }
             }
         }
     }

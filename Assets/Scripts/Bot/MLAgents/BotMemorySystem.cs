@@ -64,10 +64,14 @@ public class BotMemorySystem : MonoBehaviour
     [Range(0f, 1f)] public float tiLeNhatItem = 0.5f;
     private HashSet<Vector2Int>   _ignoredItems = new HashSet<Vector2Int>();
 
-    private List<MemoryPOI>       _healPOIs    = new List<MemoryPOI>();
-    private List<MemoryPOI>       _itemPOIs    = new List<MemoryPOI>();
-    private List<MemoryPOI>       _coinPOIs    = new List<MemoryPOI>();
-    private List<MemoryPOI>       _enemyPOIs   = new List<MemoryPOI>();
+    [SerializeField] private List<MemoryPOI>       _healPOIs    = new List<MemoryPOI>();
+    [SerializeField] private List<MemoryPOI>       _itemPOIs    = new List<MemoryPOI>();
+    [SerializeField] private List<MemoryPOI>       _coinPOIs    = new List<MemoryPOI>();
+    [SerializeField] private List<MemoryPOI>       _enemyPOIs   = new List<MemoryPOI>();
+
+    // Biến lưu vết kiểm tra kẹt
+    private float _stuckTime = 0f;
+    private Vector2 _lastStuckPos;
 
     // Lịch sử đường đi
     private Queue<Vector2>        _pathHistory = new Queue<Vector2>();
@@ -106,7 +110,15 @@ public class BotMemorySystem : MonoBehaviour
         GoalUrgency       = 0.5f;
         IsLooping         = false;
         CoverageRatio     = 0f;
+        _hasQueuedGoal    = false;
     }
+    
+    private bool _hasQueuedGoal = false;
+    private GoalType _nextGoalType;
+    private Vector2 _nextGoalPosition;
+    private List<Vector2> _nextPathWaypoints;
+    public List<MemoryPOI> GetItemPOIs() => _itemPOIs;
+    public List<MemoryPOI> GetCoinPOIs() => _coinPOIs;
 
     // ═══════════════════════════════════════════════════════════
     //  PUBLIC — CẬP NHẬT mỗi Decision Step
@@ -172,12 +184,7 @@ public class BotMemorySystem : MonoBehaviour
 
         if (!daCo)
         {
-            // Lần đầu nhìn thấy -> Đổ xúc xắc xem có nhặt không
-            if (UnityEngine.Random.value > tiLeNhatItem)
-            {
-                _ignoredItems.Add(cell);
-                return; // Chê, bỏ qua!
-            }
+            // [ĐÃ SỬA] Luôn nhặt đồ 100%, bỏ qua random
         }
 
         ThemPOI(_itemPOIs, pos, POIType.Item, 0.8f);
@@ -195,6 +202,35 @@ public class BotMemorySystem : MonoBehaviour
     public void CapNhatMucTieu(Vector2 botPos, float healthRatio,
                                TankPlayer enemy, bool hasLOSToEnemy)
     {
+        // ── KIỂM TRA XE BỊ KẸT CHẾT CỨNG (Stuck Time) ──
+        // (Được gọi mỗi frame từ Agent)
+        if (Vector2.Distance(botPos, _lastStuckPos) < 0.1f)
+        {
+            _stuckTime += Time.fixedDeltaTime;
+            if (_stuckTime > 1.0f)
+            {
+                // Bị kẹt cứng 1s -> Xóa bỏ mục tiêu hiện tại để phân chia lại giai đoạn
+                if (CurrentGoal == GoalType.Loot)
+                {
+                    if (_unreachableCells != null) _unreachableCells.Add(WorldToCell(FinalGoalPosition));
+                    XoaPOI(FinalGoalPosition);
+                }
+                else if (CurrentGoal == GoalType.Explore)
+                {
+                    _visited.Add(WorldToCell(FinalGoalPosition));
+                }
+                
+                ChonMucTieuMoi(botPos, healthRatio, enemy, hasLOSToEnemy);
+                _stuckTime = 0f;
+                return; // Ngừng tính toán thêm frame này
+            }
+        }
+        else
+        {
+            _stuckTime = 0f;
+            _lastStuckPos = botPos;
+        }
+
         int currentCoins = 0;
         var wallet = GetComponent<CoinWallet>();
         if (wallet != null) currentCoins = wallet.TotalCoins.Value;
@@ -268,33 +304,50 @@ public class BotMemorySystem : MonoBehaviour
             // ── Ưu tiên TỐI THƯỢNG: Sắp tông vào địch -> Bắt buộc Giao tranh để lách vòng tròn ──
             if (enemy != null && hasLOSToEnemy && Vector2.Distance(botPos, enemy.transform.position) < 2.5f)
             {
-                if (CurrentGoal != GoalType.Combat) DatMucTieu(GoalType.Combat, enemy.transform.position, 1.0f, botPos);
-                return;
+                // Cập nhật vị trí địch liên tục, không return để code chạy tiếp xuống phần chuyển trạm
+                DatMucTieu(GoalType.Combat, enemy.transform.position, 1.0f, botPos);
             }
-
             // Kiểm tra lại điều kiện ưu tiên cao: Máu cực thấp (và phải đủ tiền viện phí)
-            if (healthRatio < healThreshold && currentCoins >= 10 && TimPOITotNhat(_healPOIs, botPos, enemy != null ? (Vector2)enemy.transform.position : null) != null && CurrentGoal != GoalType.Heal)
+            else if (healthRatio < healThreshold && currentCoins >= 10 && TimPOITotNhat(_healPOIs, botPos, enemy != null ? (Vector2)enemy.transform.position : null) != null)
             {
-                DatMucTieu(GoalType.Heal, TimPOITotNhat(_healPOIs, botPos, enemy != null ? (Vector2)enemy.transform.position : null).Value.worldPos, 1.0f, botPos);
-                return;
+                if (CurrentGoal != GoalType.Heal) 
+                    DatMucTieu(GoalType.Heal, TimPOITotNhat(_healPOIs, botPos, enemy != null ? (Vector2)enemy.transform.position : null).Value.worldPos, 1.0f, botPos);
             }
-
             // Kiểm tra ưu tiên cao: Địch ngay trước mặt (Chỉ khi CÓ TIỀN BẮN ĐẠN)
-            if (enemy != null && hasLOSToEnemy && healthRatio >= healThreshold && currentCoins >= chiPhiBan)
+            else if (enemy != null && hasLOSToEnemy && healthRatio >= healThreshold && currentCoins >= chiPhiBan)
             {
-                if (CurrentGoal != GoalType.Combat) DatMucTieu(GoalType.Combat, enemy.transform.position, 0.8f, botPos);
-                return;
+                // Liên tục track theo địch
+                DatMucTieu(GoalType.Combat, enemy.transform.position, 0.8f, botPos);
             }
         }
 
         // Chuyển trạm (Waypoint) hoặc Đích đến (Goal)
         bool passedWaypoint = false;
         Vector2 toWaypoint = GoalPosition - botPos;
-        float currentReachedDist = (_pathWaypoints != null && _pathWaypoints.Count > 1) ? 1.5f : goalReachedDist;
         
+        // [FIXED] Tăng khoảng cách "chạm đích" lên 0.6f cho Loot để bot dễ dàng ăn coin/item mà không cần đâm đầu sát rạt tường
+        float currentReachedDist = (CurrentGoal == GoalType.Loot || CurrentGoal == GoalType.Heal) && _pathWaypoints.Count <= 1 ? 0.6f : goalReachedDist;
+
+        // ── THUẬT TOÁN PHÂN CHIA GIAI ĐOẠN DI CHUYỂN THÔNG MINH (Smart Corner Cutting) ──
         if (toWaypoint.magnitude < currentReachedDist)
         {
+            // Mặc định cho phép cắt cua (chuyển trạm)
             passedWaypoint = true;
+            
+            // Tối ưu hóa: Nếu còn trạm tiếp theo, kiểm tra xem có an toàn để cắt cua sớm không
+            if (_pathWaypoints != null && _pathWaypoints.Count > 1)
+            {
+                // Dùng tia CircleCast bán kính TO (0.45m ~ bằng thân xe) để đảm bảo an toàn tuyệt đối khi rẽ
+                if (AStarPathfinding.Instance != null && !AStarPathfinding.Instance.CheckLineOfSight(botPos, _pathWaypoints[1], 0.45f))
+                {
+                    // Nếu Tầm Nhìn bị che (nghĩa là cắt cua bây giờ sẽ tông tường!)
+                    // BẮT BUỘC xe phải đi sát vào trạm hiện tại (< 0.4m) để ôm sát cua một cách an toàn
+                    if (toWaypoint.magnitude > 0.4f)
+                    {
+                        passedWaypoint = false; 
+                    }
+                }
+            }
         }
         else
         {
@@ -307,6 +360,18 @@ public class BotMemorySystem : MonoBehaviour
                 {
                     passedWaypoint = true;
                 }
+            }
+        }
+        
+        // ── TÍNH NĂNG TIÊN TRI ĐƯỜNG ĐI (Look-ahead Queue) ──
+        if (_pathWaypoints != null && _pathWaypoints.Count <= 1 && !_hasQueuedGoal)
+        {
+            float distToFinal = Vector2.Distance(botPos, FinalGoalPosition);
+            // Thiết kế riêng theo yêu cầu: Khi đang di chuyển đến mục tiêu và bán kính còn 20m thì tìm luôn mục tiêu tiếp theo
+            if (distToFinal <= 20f && distToFinal > 1.5f)
+            {
+                // Chọn mục tiêu tiếp theo BẮT ĐẦU từ đích đến hiện tại (FinalGoalPosition)
+                ChuanBiMucTieuTiepTheo(FinalGoalPosition, healthRatio, enemy, hasLOSToEnemy);
             }
         }
 
@@ -344,7 +409,27 @@ public class BotMemorySystem : MonoBehaviour
                 return;
             }
 
-            // Hết trạm trung chuyển -> Chọn lại đích đến hoàn toàn mới
+            // Hết trạm trung chuyển -> Kiểm tra hàng đợi mục tiêu (Queued Target)
+            if (_hasQueuedGoal)
+            {
+                // Lập tức áp dụng mục tiêu tiếp theo đã tính sẵn từ trước (Không mất frame suy nghĩ)
+                CurrentGoal = _nextGoalType;
+                FinalGoalPosition = _nextGoalPosition;
+                _pathWaypoints = _nextPathWaypoints;
+                _hasQueuedGoal = false;
+
+                if (_pathWaypoints != null && _pathWaypoints.Count > 0)
+                {
+                    GoalPosition = _pathWaypoints[0];
+                }
+                else
+                {
+                    GoalPosition = FinalGoalPosition;
+                }
+                return;
+            }
+
+            // Nếu không có hàng đợi (do kẹt hoặc lỗi) -> Chọn lại đích đến hoàn toàn mới
             ChonMucTieuMoi(botPos, healthRatio, enemy, hasLOSToEnemy);
             return;
         }
@@ -476,26 +561,70 @@ public class BotMemorySystem : MonoBehaviour
             }
         }
 
-        // ── Ưu tiên 4: NHẶT ITEM ──────────────────────────────
-        var item = TimPOIGanNhat(_itemPOIs, botPos);
-        if (item != null)
+        // ── Ưu tiên 5: NHẶT ĐỒ GẦN NHẤT KHI RẢNH RỖI ──
+        var closestItemMem = TimPOIGanNhat(_itemPOIs, botPos);
+        var closestCoinMem = TimPOIGanNhat(_coinPOIs, botPos);
+        MemoryPOI? bestLoot = null;
+        if (closestItemMem != null && closestCoinMem != null)
         {
-            DatMucTieu(GoalType.Loot, item.Value.worldPos, 0.7f, botPos);
-            return;
+            if (Vector2.Distance(botPos, closestItemMem.Value.worldPos) < Vector2.Distance(botPos, closestCoinMem.Value.worldPos))
+                bestLoot = closestItemMem;
+            else
+                bestLoot = closestCoinMem;
         }
+        else if (closestItemMem != null) bestLoot = closestItemMem;
+        else if (closestCoinMem != null) bestLoot = closestCoinMem;
 
-        // ── Ưu tiên 5: NHẶT COIN ──────────────────────────────
-        var coin = TimPOITotNhat(_coinPOIs, botPos, enemy != null ? (Vector2)enemy.transform.position : null);
-        if (coin != null)
+        if (bestLoot != null)
         {
-            DatMucTieu(GoalType.Loot, coin.Value.worldPos, 0.4f, botPos);
+            DatMucTieu(GoalType.Loot, bestLoot.Value.worldPos, 0.5f, botPos);
             return;
         }
 
         // ── Ưu tiên 6: KHÁM PHÁ CÓ CHỈ HƯỚNG ────────────────
-        // Tìm ô lưới gần nhất chưa được thăm
+        // Nếu đang khám phá và mục tiêu hiện tại vẫn còn xa, tiếp tục giữ nguyên để đi hết đường! (Tránh cà giật do đổi mục tiêu mỗi 0.5s)
+        if (CurrentGoal == GoalType.Explore && Vector2.Distance(botPos, FinalGoalPosition) > 5f)
+        {
+            return; // Giữ nguyên mục tiêu khám phá hiện tại
+        }
+
+        // Tìm điểm khám phá mới (từ 50-200m)
         Vector2 exploTarget = TimOChuaTham(botPos);
         DatMucTieu(GoalType.Explore, exploTarget, 0.3f, botPos);
+    }
+
+    private void ChuanBiMucTieuTiepTheo(Vector2 startPos, float healthRatio, TankPlayer enemy, bool hasLOSToEnemy)
+    {
+        // Chạy logic chọn mục tiêu y như thật, nhưng thay vì ghi đè vào mục tiêu hiện tại (DatMucTieu),
+        // nó sẽ lưu vào biến hàng đợi (_next...)
+        
+        Vector2 nextGoalPos = TimOChuaTham(startPos);
+        GoalType nextGoalType = GoalType.Explore;
+
+        // Ưu tiên nhặt đồ gần nhất
+        var nearestItem = TimPOIGanNhat(_itemPOIs, startPos);
+        var nearestCoin = TimPOIGanNhat(_coinPOIs, startPos);
+        MemoryPOI? bestLoot = null;
+        if (nearestItem != null && nearestCoin != null)
+        {
+            if (Vector2.Distance(startPos, nearestItem.Value.worldPos) < Vector2.Distance(startPos, nearestCoin.Value.worldPos))
+                bestLoot = nearestItem;
+            else
+                bestLoot = nearestCoin;
+        }
+        else if (nearestItem != null) bestLoot = nearestItem;
+        else if (nearestCoin != null) bestLoot = nearestCoin;
+
+        if (bestLoot != null)
+        {
+            nextGoalPos = bestLoot.Value.worldPos;
+            nextGoalType = GoalType.Loot;
+        }
+        
+        _nextGoalType = nextGoalType;
+        _nextGoalPosition = nextGoalPos;
+        _nextPathWaypoints = AStarPathfinding.Instance.FindPath(startPos, nextGoalPos);
+        _hasQueuedGoal = true;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -598,7 +727,7 @@ public class BotMemorySystem : MonoBehaviour
             list.RemoveAt(0);
     }
 
-    private void XoaPOI(Vector2 pos)
+    public void XoaPOI(Vector2 pos)
     {
         _healPOIs.RemoveAll(p => Vector2.Distance(p.worldPos, pos) < 0.5f);
         _itemPOIs.RemoveAll(p => Vector2.Distance(p.worldPos, pos) < 0.5f);
@@ -639,7 +768,7 @@ public class BotMemorySystem : MonoBehaviour
         return best;
     }
 
-    private MemoryPOI? TimPOIGanNhat(List<MemoryPOI> list, Vector2 botPos)
+    public MemoryPOI? TimPOIGanNhat(List<MemoryPOI> list, Vector2 botPos)
     {
         MemoryPOI? best = null;
         float minDist = float.MaxValue;
@@ -674,30 +803,15 @@ public class BotMemorySystem : MonoBehaviour
     /// Tìm ô chưa thăm gần nhất (khám phá có chỉ hướng)
     private Vector2 TimOChuaTham(Vector2 botPos)
     {
-        // Quét lưới xung quanh từ gần ra xa
-        List<Vector2Int> unvisitedCells = new List<Vector2Int>();
-        for (int radius = 1; radius <= Mathf.RoundToInt(explorationRange / cellSize); radius++)
-        {
-            for (int dx = -radius; dx <= radius; dx++)
-            {
-                for (int dy = -radius; dy <= radius; dy++)
-                {
-                    if (Mathf.Abs(dx) != radius && Mathf.Abs(dy) != radius) continue;
-                    Vector2Int cell = WorldToCell(botPos) + new Vector2Int(dx, dy);
-                    if (!_visited.Contains(cell))
-                    {
-                        unvisitedCells.Add(cell);
-                    }
-                }
-            }
-            if (unvisitedCells.Count > 0)
-            {
-                Vector2Int chosenCell = unvisitedCells[Random.Range(0, unvisitedCells.Count)];
-                return new Vector2(chosenCell.x * cellSize, chosenCell.y * cellSize);
-            }
-        }
-        // Nếu đã đi hết vùng gần → đặt điểm ngẫu nhiên xa hơn
-        return botPos + Random.insideUnitCircle.normalized * explorationRange;
+        // MỤC TIÊU DI CHUYỂN PHẢI TỪ 10-50m (Theo đúng yêu cầu để bot không chạy quá xa)
+        float randomDist = Random.Range(10f, 50f);
+        Vector2 randomDirection = Random.insideUnitCircle.normalized;
+        Vector2 finalPos = botPos + randomDirection * randomDist;
+        
+        // [FIXED] Đã XÓA Raycast! Raycast khiến bot bị giới hạn bởi lớp vật cản đầu tiên nên không bao giờ đi xa được.
+        // Chức năng chống đặt mục tiêu ra ngoài map đã được GridManager (FindNearestWalkableNode) tự động ép mục tiêu về điểm an toàn.
+        
+        return finalPos;
     }
 
     public void SetCombatTarget(Vector2 targetPos)
@@ -711,9 +825,21 @@ public class BotMemorySystem : MonoBehaviour
         {
             Vector2 center = GridManager.Instance.transform.position;
             Vector2 size = GridManager.Instance.gridWorldSize;
-            float clampedX = Mathf.Clamp(finalPos.x, center.x - size.x / 2f + 1f, center.x + size.x / 2f - 1f);
-            float clampedY = Mathf.Clamp(finalPos.y, center.y - size.y / 2f + 1f, center.y + size.y / 2f - 1f);
+            float clampedX = Mathf.Clamp(finalPos.x, center.x - size.x / 2f + 2.5f, center.x + size.x / 2f - 2.5f);
+            float clampedY = Mathf.Clamp(finalPos.y, center.y - size.y / 2f + 2.5f, center.y + size.y / 2f - 2.5f);
             finalPos = new Vector2(clampedX, clampedY);
+            
+            // [FIXED] Ép mục tiêu phải NẰM NGOÀI ĐÁ/TƯỜNG. Nếu rớt trúng đá, tự dời ra ô đất trống gần nhất.
+            // Điều này sửa triệt để lỗi "vạch trắng chĩa vào trong đá" hoặc "chĩa ra ngoài biên giới".
+            Node targetNode = GridManager.Instance.NodeFromWorldPoint(finalPos);
+            if (!targetNode.walkable && AStarPathfinding.Instance != null)
+            {
+                Node safeNode = AStarPathfinding.Instance.FindNearestWalkableNode(targetNode);
+                if (safeNode != null)
+                {
+                    finalPos = safeNode.worldPosition;
+                }
+            }
         }
 
         CurrentGoal       = type;
@@ -737,6 +863,13 @@ public class BotMemorySystem : MonoBehaviour
                 _pathWaypoints = AStarPathfinding.Instance.FindPath(botPos, finalPos);
                 if (_pathWaypoints != null && _pathWaypoints.Count > 0)
                 {
+                    // [FIXED] Tự động dời đích đến về điểm dừng cuối cùng nếu đích thật bị nằm ngoài biên giới
+                    Vector2 lastWaypoint = _pathWaypoints[_pathWaypoints.Count - 1];
+                    if (Vector2.Distance(lastWaypoint, finalPos) > 1.5f)
+                    {
+                        finalPos = lastWaypoint;
+                        FinalGoalPosition = finalPos;
+                    }
                     GoalPosition = _pathWaypoints[0];
                 }
                 else
@@ -769,26 +902,22 @@ public class BotMemorySystem : MonoBehaviour
             {
                 _pathWaypoints = AStarPathfinding.Instance.FindPath(botPos, finalPos);
                 
-                bool isPathBlocked = false;
-                if (_pathWaypoints != null && _pathWaypoints.Count > 0 && type != GoalType.Combat)
+                if (_pathWaypoints != null && _pathWaypoints.Count > 0)
                 {
-                    Vector2 lastWp = _pathWaypoints[_pathWaypoints.Count - 1];
-                    if (Vector2.Distance(lastWp, finalPos) > 1.5f)
+                    // [FIXED] Ép mục tiêu (Explore/Loot) rớt ngoài map/trong đá tự động thu về ô an toàn cuối cùng
+                    Vector2 lastWaypoint = _pathWaypoints[_pathWaypoints.Count - 1];
+                    if (Vector2.Distance(lastWaypoint, finalPos) > 1.5f)
                     {
-                        isPathBlocked = true;
+                        finalPos = lastWaypoint;
+                        FinalGoalPosition = finalPos;
                     }
-                }
-
-                if (_pathWaypoints != null && _pathWaypoints.Count > 0 && !isPathBlocked)
-                {
                     GoalPosition = _pathWaypoints[0]; // Điểm trung chuyển đầu tiên
                 }
-                else
+                else if (_pathWaypoints == null)
                 {
-                    if (_pathWaypoints != null) _pathWaypoints.Clear(); // Xóa đường đi cụt
-
-                    // LỖI TÌM ĐƯỜNG: Vị trí đích không thể đi tới (nằm trong đá/kẹt)
+                    // LỖI TÌM ĐƯỜNG (A* trả về null): Vị trí đích hoàn toàn bị tường bít kín không thể đi tới
                     GoalPosition = botPos; // Dừng lại để lập tức chọn mục tiêu mới
+                    FinalGoalPosition = botPos; // [FIXED] Kéo vạch trắng (đích) thu hồi về sát xe để tránh lỗi hiển thị kẹt vào trong tường
                     if (_unreachableCells != null) _unreachableCells.Add(WorldToCell(finalPos)); // Danh sách đen vĩnh viễn!
                     
                     if (type == GoalType.Explore)
@@ -801,6 +930,14 @@ public class BotMemorySystem : MonoBehaviour
                         // Rác (Coin/Item rớt trong kẹt đá) -> Xóa khỏi bộ nhớ để tránh lặp vô hạn
                         XoaPOI(finalPos);
                     }
+                    
+                    // [FIXED] Chủ động kích hoạt cơ chế gỡ kẹt để buộc xe phải lấy mục tiêu mới ở frame sau!
+                    _stuckTime = 2.0f;
+                }
+                else
+                {
+                    // Trường hợp Count == 0 (đã ở chung 1 ô Grid với mục tiêu) -> Cứ chạy thẳng tới đích
+                    GoalPosition = finalPos; 
                 }
             }
             else

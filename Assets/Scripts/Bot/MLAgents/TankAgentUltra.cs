@@ -58,9 +58,6 @@ public class TankAgentUltra : Agent
     //  LAYERS
     // ═══════════════════════════════════════════════════════════════
   
-    [Header("Tỉ lệ Quyết định")]
-    [Tooltip("Xác suất quyết định nhặt 1 Item/Coin khi nhìn thấy (1.0 = luôn nhặt, 0.5 = 50% nhặt)")]
-    [SerializeField, Range(0f, 1f)] private float tyLeNhatTaiNguyen = 0.5f;
 
     [Header("Layer Masks")]
     [SerializeField] private LayerMask layerVatCan;    // Default
@@ -142,20 +139,9 @@ public class TankAgentUltra : Agent
     private float             _currentSteer;
     private float             _currentTurretRot;
 
-    // Biến phụ trợ cho Núp và Bắn
-    private Vector2           _currentCoverPos;
-    private float             _coverSearchTimer;
     private float             _unstuckTimer;
     private float             _waypointDistTruoc;
     private bool              _isReversingGear = false;
-
-    // Biến Debug Giao Tranh
-    private string            _debugCombatPhase = "";
-    private Vector2           _debugCombatDir = Vector2.zero;
-    
-    public Vector2?           DebugFixedCombatTarget => _fixedCombatTarget;
-    private Vector2?          _fixedCombatTarget = null;
-    private float             _fixedCombatTimer = 0f;
 
     // ═══════════════════════════════════════════════════════════════
     //  0. HỒI SINH (3s Delay)
@@ -262,17 +248,22 @@ public class TankAgentUltra : Agent
 
         Vector2 botPos = transform.position;
 
-        // ✅ PHẢI CẬP NHẬT TRƯỚC KHI DÙNG
+        // ✅ Cập nhật Memory (Xóa các POI cũ/gần) TRƯỚC KHI Quét môi trường
+        if (memory != null)
+        {
+            memory.UpdateMemory(botPos);
+        }
+
+        // Sau đó Quét môi trường để ghi nhận lại các POI còn tồn tại
         _dich = TimDich();
         CapNhatDan();
         ScanVaGhiNhanPOI();
-        // [SYNC] Force IDE update
+
         if (memory != null)
         {
             float healthRatioNow = healthComp != null ? (float)healthComp.MauHienTai.Value / Mathf.Max(1, healthComp.MauToiDa) : 1f;
             bool losToEnemy = _dich != null && CoLOS(botPos, (Vector2)_dich.transform.position);
             
-            memory.UpdateMemory(botPos);
             if (_dich != null && losToEnemy) memory.GhiNhanDich(_dich.transform.position);
             
             memory.CapNhatMucTieu(botPos, healthRatioNow, _dich, losToEnemy);
@@ -526,191 +517,42 @@ public class TankAgentUltra : Agent
         
         // [AUTO-PILOT HACK] Bỏ qua AI chưa train, ép Bot tự lái cứng bám theo đường màu Tím (A*)
         Vector2 toGoal = Vector2.zero;
+        float originalDist = 0f;
 
         // 1. ĐỊNH HƯỚNG CHIẾN LƯỢC TỪ BỘ NHỚ (Đường A*, Giao Tranh, Rút Lui)
         if (memory != null)
         {
             toGoal = memory.GoalPosition - (Vector2)transform.position;
+            originalDist = toGoal.magnitude;
 
-            // CHIẾN THUẬT RÚT LUI: BỎ CHẠY THEO ĐƯỜNG A* ĐÃ VẼ
-            if (memory.CurrentGoal == BotMemorySystem.GoalType.Retreat)
+            // [FIXED] Dừng lao thẳng vào mặt kẻ địch, giữ cự ly 3m để bắn, đồng thời đi ngang (strafe) để né đạn và tránh vón cục
+            if (memory.CurrentGoal == BotMemorySystem.GoalType.Combat && originalDist < 3.0f)
             {
-                _debugCombatPhase = "Rút lui khẩn cấp (Retreat)";
+                toGoal = new Vector2(-toGoal.y, toGoal.x) * 0.5f; // Đảo vector để lách ngang
             }
 
-            // CHIẾN THUẬT GIAO TRANH: NÚP VÀ BẮN (Peek and Shoot)
-            if (memory.CurrentGoal == BotMemorySystem.GoalType.Combat && _dich != null)
+            // Chuẩn hóa toGoal thành vector đơn vị để lực Tách bầy (Flocking) không bị vô hiệu hóa khi mục tiêu quá xa
+            if (toGoal.magnitude > 0.01f)
             {
-                if (_timerBan > 0f)
+                toGoal = toGoal.normalized;
+            }
+            
+            // ── VÔ THỨC NHẶT ĐỒ (Unconscious Looting) ──
+            // Chỉ bị lực hút vô thức khi đang đi Khám phá (Explore), tránh cộng dồn vector khi đang trực tiếp nhặt đồ (Loot)
+            if (memory.CurrentGoal == BotMemorySystem.GoalType.Explore)
+            {
+                var nearbyItem = memory.TimPOIGanNhat(memory.GetItemPOIs(), transform.position);
+                if (nearbyItem == null) nearbyItem = memory.TimPOIGanNhat(memory.GetCoinPOIs(), transform.position); // Ưu tiên Súng > Tiền
+                
+                if (nearbyItem != null && Vector2.Distance(transform.position, nearbyItem.Value.worldPos) < 5f)
                 {
-                    // Đang nạp đạn -> TÌM CHỖ NẤP (giữ nguyên vị trí nấp trong 0.5s để không bị giật lùi)
-                    _coverSearchTimer -= Time.fixedDeltaTime;
-                    if (_coverSearchTimer <= 0f)
-                    {
-                        _currentCoverPos = FindCoverPosition(transform.position, _dich.transform.position);
-                        _coverSearchTimer = 0.5f; // Cập nhật chỗ nấp mỗi 0.5s
-                        
-                        if (_currentCoverPos != (Vector2)transform.position)
-                        {
-                            memory.SetCombatTarget(_currentCoverPos);
-                        }
-                        else
-                        {
-                            Vector2 backPos = (Vector2)transform.position + ((Vector2)transform.position - (Vector2)_dich.transform.position).normalized * 4f;
-                            memory.SetCombatTarget(backPos);
-                        }
-                    }
-
-                    if (_currentCoverPos != (Vector2)transform.position)
-                    {
-                        _debugCombatPhase = "Núp & Nạp đạn";
-                    }
-                    else 
-                    {
-                        _debugCombatPhase = "Lùi khẩn cấp";
-                    }
-                }
-                else
-                {
-                    // [UPDATED] TÌM ĐIỂM CHIẾN LƯỢC VÀ CỐ ĐỊNH NÓ TRONG VÀI GIÂY ĐỂ DỨT KHOÁT
-                    _fixedCombatTimer -= Time.fixedDeltaTime;
-                    float distToTarget = _fixedCombatTarget != null ? Vector2.Distance(transform.position, _fixedCombatTarget.Value) : 0f;
-
-                    // Giải phóng mục tiêu nếu đã đến gần hoặc hết giờ
-                    if (_fixedCombatTimer <= 0f || distToTarget < 1.0f)
-                    {
-                        Vector2 toEnemyDirect = (Vector2)_dich.transform.position - (Vector2)transform.position;
-                        float distToEnemy = toEnemyDirect.magnitude;
-
-                        Vector2 chosenDir = Vector2.zero;
-                        float moveDist = 4.0f; // Quãng đường dứt khoát cho mỗi lần chọn (4 mét)
-
-                        if (distToEnemy < 6f)
-                        {
-                            Vector2 backpedalDir = -toEnemyDirect.normalized;
-                            Vector2 strafeDir1 = new Vector2(-backpedalDir.y, backpedalDir.x);
-                            Vector2 strafeDir2 = -strafeDir1;
-
-                            if (distToEnemy < 3.5f)
-                            {
-                                // Giai đoạn 1: Bị ép quá sát -> Ưu tiên Lùi (Backpedal)
-                                if (!Physics2D.CircleCast(transform.position, 0.45f, backpedalDir, moveDist, layerVatCan))
-                                {
-                                    chosenDir = backpedalDir;
-                                    _debugCombatPhase = "Giai đoạn 1: Backpedal (Lùi)";
-                                }
-                                else
-                                {
-                                    // Kẹt tường -> Strafe
-                                    bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir1, moveDist, layerVatCan);
-                                    bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir2, moveDist, layerVatCan);
-                                    
-                                    if (canStrafe1) chosenDir = strafeDir1;
-                                    else if (canStrafe2) chosenDir = strafeDir2;
-                                    else chosenDir = strafeDir1;
-                                    _debugCombatPhase = "Giai đoạn 1: Lách tường";
-                                }
-                            }
-                            else
-                            {
-                                // Giai đoạn 2: Cự ly đẹp -> Chạy vòng tròn (Strafe)
-                                bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir1, moveDist, layerVatCan);
-                                bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, strafeDir2, moveDist, layerVatCan);
-                                
-                                Vector2 currentVel = rb.velocity.normalized;
-                                float dot1 = Vector2.Dot(currentVel, strafeDir1);
-                                float dot2 = Vector2.Dot(currentVel, strafeDir2);
-
-                                if (canStrafe1 && (!canStrafe2 || dot1 >= dot2)) chosenDir = strafeDir1;
-                                else if (canStrafe2) chosenDir = strafeDir2;
-                                else chosenDir = -backpedalDir; // Bí quá thì lùi
-                                _debugCombatPhase = "Giai đoạn 2: Strafing";
-                            }
-                        }
-                        else
-                        {
-                            Mau enemyHealth = _dich.GetComponent<Mau>();
-                            bool enemyIsRetreating = enemyHealth != null && ((float)enemyHealth.MauHienTai.Value / enemyHealth.MauToiDa) < 0.4f;
-
-                            if (enemyIsRetreating)
-                            {
-                                // TRUY ĐUỔI: Địch yếu máu -> Phóng thẳng tới làm thịt, không ziczac câu giờ!
-                                Vector2 moveDir = toEnemyDirect.normalized;
-                                if (!Physics2D.CircleCast(transform.position, 0.45f, moveDir, moveDist, layerVatCan))
-                                {
-                                    chosenDir = moveDir; 
-                                    _debugCombatPhase = "Truy đuổi dứt điểm (Pursuit)";
-                                }
-                                else
-                                {
-                                    // Tính lại hướng lách vì kẹt
-                                    Vector2 orthoDir = new Vector2(-moveDir.y, moveDir.x);
-                                    Vector2 lachDir1 = (moveDir + orthoDir).normalized;
-                                    Vector2 lachDir2 = (moveDir - orthoDir).normalized;
-
-                                    // Kẹt thì lách nhẹ sang bên
-                                    bool canStrafe1 = !Physics2D.CircleCast(transform.position, 0.45f, lachDir1, moveDist, layerVatCan);
-                                    bool canStrafe2 = !Physics2D.CircleCast(transform.position, 0.45f, lachDir2, moveDist, layerVatCan);
-                                    
-                                    if (canStrafe1) chosenDir = lachDir1;
-                                    else if (canStrafe2) chosenDir = lachDir2;
-                                    else chosenDir = moveDir;
-                                    
-                                    _debugCombatPhase = "Truy đuổi (Lách vật cản)";
-                                }
-                            }
-                            else
-                            {
-                                // Giai đoạn 3: Ziczac tiếp cận (để né đạn khi địch còn khỏe)
-                                Vector2 moveDir = toEnemyDirect.normalized; // Đừng dùng toGoal vì toGoal có thể bằng 0 nếu đang tạm dừng!
-                                Vector2 orthoDir = new Vector2(-moveDir.y, moveDir.x);
-                                
-                                // Lạng sang một bên ngẫu nhiên
-                                float randomSide = UnityEngine.Random.value > 0.5f ? 1f : -1f;
-                                Vector2 ziczacDir = (moveDir * 2f + orthoDir * randomSide * 3f).normalized;
-
-                                if (!Physics2D.CircleCast(transform.position, 0.45f, ziczacDir, moveDist, layerVatCan))
-                                {
-                                    chosenDir = ziczacDir; 
-                                    _debugCombatPhase = "Giai đoạn 3: Ziczac " + (randomSide > 0 ? "Phải" : "Trái");
-                                }
-                                else
-                                {
-                                    // Kẹt thì lạng bên kia
-                                    ziczacDir = (moveDir * 2f - orthoDir * randomSide * 3f).normalized;
-                                    
-                                    if (!Physics2D.CircleCast(transform.position, 0.45f, ziczacDir, moveDist, layerVatCan))
-                                    {
-                                        chosenDir = ziczacDir;
-                                        _debugCombatPhase = "Giai đoạn 3: Ziczac đổi hướng";
-                                    }
-                                    else
-                                    {
-                                        chosenDir = moveDir; // Hai bên đều kẹt tường -> Đi thẳng!
-                                        _debugCombatPhase = "Giai đoạn 3: Ziczac kẹt tường";
-                                    }
-                                }
-                            }
-                        }
-
-                        // Cố định điểm đến chiến lược!
-                        if (chosenDir != Vector2.zero)
-                        {
-                            _fixedCombatTarget = (Vector2)transform.position + chosenDir * moveDist;
-                            // Đã xóa dòng set timer 3.5f sai lầm gây bug!
-                            // Yêu cầu Bộ nhớ dùng A* vẽ đường tránh tường tới điểm chiến lược!
-                            memory.SetCombatTarget(_fixedCombatTarget.Value);
-                        }
-                    }
-
-                    // Đã loại bỏ việc bắt buộc hướng mũi xe tới điểm thẳng (toGoal = _fixed...);
-                    // Bot bây giờ sẽ đi theo toGoal của A* path để né tường an toàn
+                    // Trộn vector đích đến chính và vector "lực hút" của item
+                    Vector2 pullDir = (nearbyItem.Value.worldPos - (Vector2)transform.position).normalized;
+                    toGoal = toGoal.normalized * 0.8f + pullDir * 1.5f; // Trộn lực hút mạnh
                 }
             }
+
         }
-
-        // Lưu lại để vẽ Gizmos
-        _debugCombatDir = toGoal;
 
         // 2. PHẢN XẠ NÉ ĐẠN THẦN THÁNH (Vừa né đạn vừa chạy theo mục tiêu chiến lược)
         if (_danhSachDan != null)
@@ -737,24 +579,71 @@ public class TankAgentUltra : Agent
             }
         }
 
-            // THUẬT TOÁN TÁCH BẦY (Tách riêng Địch và Tường để không phá hỏng đường A*)
-            Collider2D[] nearbyObstacles = Physics2D.OverlapCircleAll(transform.position, 2.0f, layerVatCan | layerDich);
+
+        // 4. THUẬT TOÁN TÁCH BẦY VÀ TRƯỢT TƯỜNG (Tránh vật cản linh hoạt khi đã ở quá gần)
+        Collider2D[] nearbyObstacles = Physics2D.OverlapCircleAll(transform.position, 2.0f, layerVatCan | layerDich);
             foreach (var col in nearbyObstacles)
             {
                 if (col.isTrigger || col.transform.root == transform.root) continue;
                 
                 bool isWall = ((1 << col.gameObject.layer) & layerVatCan) != 0;
-                float repelRadius = isWall ? 0.6f : 2.0f; // Tường chỉ đẩy nhẹ ở 0.6m (vì A* đã lo vụ né tường), Địch thì đẩy 2m để tách bầy
-                float forceMult = isWall ? 1.5f : 3.0f;
+                float repelRadius = isWall ? 1.2f : 2.5f; // [FIXED] Tăng bán kính vách tường lên 1.2m để luôn đi giữa hẻm
+                float forceMult = isWall ? 8.0f : 4.0f; // [FIXED] Lực của Tường là 8.0f (Kháng lại lực 4.0f của xe tăng khác, ép xe không bao giờ bị dồn vào tường)
 
-                Vector2 closestPoint = col.ClosestPoint(transform.position);
-                Vector2 away = (Vector2)transform.position - closestPoint;
-                float dist = away.magnitude;
+                Vector2 away;
+                float dist;
 
-                if (dist > 0.01f && dist < repelRadius)
+                if (!isWall)
                 {
-                    // Lực đẩy ra xa bề mặt
-                    toGoal += away.normalized * (repelRadius - dist) * forceMult;
+                    // LỖI DÍNH LẸO: Nếu dùng ClosestPoint khi 2 xe đè lên nhau, nó trả về 0 -> Mất lực tách bầy!
+                    // Fix: Đối với xe khác, luôn dùng khoảng cách giữa 2 TÂM XE để ép đẩy nhau ra
+                    away = (Vector2)transform.position - (Vector2)col.transform.position;
+                    dist = away.magnitude;
+                    
+                    // Nếu xui xẻo trùng tâm 100%, random lực đẩy ra
+                    if (dist < 0.01f)
+                    {
+                        away = UnityEngine.Random.insideUnitCircle;
+                        dist = 0.01f;
+                    }
+                }
+                else
+                {
+                    // Đối với tường thì vẫn lấy điểm gần nhất trên bề mặt
+                    Vector2 closestPoint = col.ClosestPoint(transform.position);
+                    away = (Vector2)transform.position - closestPoint;
+                    dist = away.magnitude;
+                }
+
+                if (dist < repelRadius)
+                {
+                    if (isWall && dist > 0.01f)
+                    {
+                        // TRƯỢT TƯỜNG LINH HOẠT (Wall Sliding / Tangent Avoidance)
+                        // Lấy 2 vector tiếp tuyến (song song với mặt tường)
+                        Vector2 tangent1 = new Vector2(-away.y, away.x).normalized;
+                        Vector2 tangent2 = new Vector2(away.y, -away.x).normalized;
+                        
+                        // Chọn hướng trượt thuận với đường đi tới mục tiêu nhất
+                        Vector2 bestTangent = Vector2.Dot(tangent1, toGoal.normalized) > Vector2.Dot(tangent2, toGoal.normalized) ? tangent1 : tangent2;
+                        
+                        // Vector tổng hợp = Vừa đẩy nhẹ ra xa để không cạ (30%) + Vừa trượt mượt mà dọc theo tường (70%)
+                        Vector2 slideDir = (away.normalized * 0.3f + bestTangent * 0.7f).normalized;
+                        toGoal += slideDir * (repelRadius - dist) * forceMult;
+                    }
+                    else if (!isWall)
+                    {
+                        // [FIXED] TRƯỢT NGANG (Tangent Avoidance) thay vì đẩy lùi 180 độ
+                        Vector2 tangent1 = new Vector2(-away.y, away.x).normalized;
+                        Vector2 tangent2 = new Vector2(away.y, -away.x).normalized;
+                        
+                        // Chọn hướng lách sang ngang thuận với đường đi tới mục tiêu nhất
+                        Vector2 bestTangent = Vector2.Dot(tangent1, toGoal.normalized) > Vector2.Dot(tangent2, toGoal.normalized) ? tangent1 : tangent2;
+                        
+                        // Kết hợp 40% lực đẩy nhẹ ra xa và 60% lực lách sang ngang để hai xe "trượt" qua nhau êm ái
+                        Vector2 dodgeDir = (away.normalized * 0.4f + bestTangent * 0.6f).normalized;
+                        toGoal += dodgeDir * (repelRadius - dist) * forceMult;
+                    }
                 }
             }
 
@@ -768,15 +657,15 @@ public class TankAgentUltra : Agent
             _unstuckTimer -= Time.fixedDeltaTime;
             if (_unstuckTimer > 0.5f)
             {
-                // Giai đoạn 1: Ép xoay tại chỗ để thoát khỏi hướng kẹt
-                gas = 0f;
+                // Giai đoạn 1: Vừa lùi vừa bẻ lái (J-turn) để thoát khỏi góc kẹt hiệu quả hơn thay vì lùi thẳng
+                gas = -1f;
                 steer = 1f;
             }
             else
             {
-                // Giai đoạn 2: Nhắm mắt vọt thẳng lên phía trước để dứt điểm góc chữ V
+                // Giai đoạn 2: Phóng lên kèm bẻ lái ngược lại để vọt ra khỏi vùng kẹt
                 gas = 1f;
-                steer = 0f;
+                steer = -1f;
             }
         }
         else
@@ -784,14 +673,14 @@ public class TankAgentUltra : Agent
             Vector2 currentUp = bodyTransform != null ? (Vector2)bodyTransform.up : (Vector2)transform.up;
             float angle = Vector2.SignedAngle(currentUp, toGoal);
 
-            if (toGoal.sqrMagnitude < 0.1f)
+            if (originalDist < 0.1f)
             {
-                // Nếu bị kẹt góc chữ U (Waypoint và Tường triệt tiêu nhau), ép bẻ lái 90 độ để trượt ngang!
-                toGoal = new Vector2(-currentUp.y, currentUp.x);
-                angle = Vector2.SignedAngle(currentUp, toGoal);
+                // Nếu đích đến trùng với vị trí hiện tại (vector 0), giữ nguyên hướng hiện tại, không được ép xoay 90 độ gây giật xe!
+                toGoal = currentUp;
+                angle = 0f;
             }
 
-            if (memory != null && memory.CurrentGoal == BotMemorySystem.GoalType.Heal && toGoal.magnitude < 1.0f)
+            if (memory != null && memory.CurrentGoal == BotMemorySystem.GoalType.Heal && originalDist < 1.0f)
             {
                 // Đã đến gần trạm hồi máu -> Phanh xe đứng yên để hồi máu
                 gas = 0f;
@@ -802,8 +691,8 @@ public class TankAgentUltra : Agent
                 // ── LÁI NHẠY VÀ LINH HOẠT HƠN (Arcade Tank Steering & Hysteresis Reverse) ──
                 float dot = Vector2.Dot(currentUp, toGoal.normalized);
                 
-                // Hysteresis: Sử dụng biến trạng thái thay vì vận tốc để chống giật hoàn toàn
-                float reverseThreshold = _isReversingGear ? -0.2f : -0.7f; 
+                // Hysteresis: Hạ ngưỡng lùi xuống -0.9f để xe ưu tiên ĐÁNH LÁI thay vì GIẬT SỐ LÙI mỗi khi gặp cua rẽ gắt
+                float reverseThreshold = _isReversingGear ? -0.4f : -0.9f; 
 
                 if (dot < reverseThreshold)
                 {
@@ -821,6 +710,25 @@ public class TankAgentUltra : Agent
                     _isReversingGear = false;
                     // Mục tiêu ở phía trước hoặc ngang hông -> Chạy tới
                     gas = Mathf.Lerp(0.4f, 1.0f, (dot + 1f) / 2f); // Ga nhạy theo góc cua
+                    
+                    // [CẬP NHẬT] Chống quay compa (Orbiting) và vượt lố (Overshoot) khi mục tiêu ở quá gần
+                    if (originalDist < 1.5f)
+                    {
+                        // 1. Phanh theo góc (Tránh quay compa)
+                        if (Mathf.Abs(angle) > 30f)
+                        {
+                            float anglePenalty = Mathf.Clamp01(1f - ((Mathf.Abs(angle) - 30f) / 60f)); 
+                            gas *= anglePenalty;
+                        }
+                        
+                        // 2. Phanh theo khoảng cách (Tránh vượt lố đà)
+                        // Nếu mục tiêu đang ở ngay dưới chân (< 0.8m), giảm tốc độ rà phanh từ từ
+                        if (originalDist < 0.8f)
+                        {
+                            gas *= Mathf.Max(0.2f, originalDist / 0.8f); // Tối thiểu chạy 20% ga để lết tới cắn item
+                        }
+                    }
+
                     steer = -angle / 25f; // Xoay cực nhạy
                     steer = Mathf.Clamp(steer, -1f, 1f);
                 }
@@ -1028,48 +936,57 @@ public class TankAgentUltra : Agent
         if (memory == null) return;
         Vector2 botPos = transform.position;
 
-        // Quét tài nguyên (coin/item) trong vòng 15m
+        // Quét tài nguyên (coin) trong vòng 15m dựa trên layerTaiNguyen
         Collider2D[] hits = Physics2D.OverlapCircleAll(botPos, 15f, layerTaiNguyen);
         foreach (var col in hits)
         {
             int id = col.gameObject.GetInstanceID();
-
-            // Nếu bot đã quyết định bỏ qua item này từ trước, thì làm lơ luôn
             if (_boQuaTaiNguyen.Contains(id)) continue;
+            if (!_daXetTaiNguyen.Contains(id)) _daXetTaiNguyen.Add(id);
 
-            // Nếu đây là lần đầu nhìn thấy item này, tung xúc xắc quyết định
+            Vector2 poiPos = col.transform.position;
+            if (!CoLOS(botPos, poiPos)) continue;
+
+            if (col.TryGetComponent<ItemPickup>(out _))
+            {
+                // Xử lý riêng biệt ở dưới
+            }
+            else if (col.TryGetComponent<HealingZone>(out var healZone))
+            {
+                if (healZone.CurrentHealPower > 0) memory.GhiNhanHealStation(poiPos);
+            }
+            else
+            {
+                memory.GhiNhanCoin(poiPos);
+            }
+        }
+
+        // [FIX] Quét TOÀN BỘ ItemPickup bất kể Layer nào (Để chống lỗi cấu hình sai Layer trong Unity)
+        // Đồng thời áp dụng hàm CanBePickedUpByBot để khôn ngoan né Bẫy (Traps)
+        ItemPickup[] allItems = FindObjectsOfType<ItemPickup>();
+        foreach (var item in allItems)
+        {
+            if (item == null || !item.gameObject.activeInHierarchy) continue;
+            int id = item.gameObject.GetInstanceID();
+
+            if (_boQuaTaiNguyen.Contains(id)) continue;
+            
             if (!_daXetTaiNguyen.Contains(id))
             {
                 _daXetTaiNguyen.Add(id);
-                // Random.value trả về 0.0 -> 1.0. Nếu > tỉ lệ nhặt -> Bỏ qua
-                if (UnityEngine.Random.value > tyLeNhatTaiNguyen)
+                // Gọi hàm logic gốc của Item để né bẫy và ép tỉ lệ nhặt 100%
+                if (!item.CanBePickedUpByBot(null, 1.0f))
                 {
                     _boQuaTaiNguyen.Add(id);
                     continue;
                 }
             }
 
-            Vector2 poiPos = col.transform.position;
-            // Chỉ ghi nhận nếu nhìn thấy (không bị tường chặn)
-            if (!CoLOS(botPos, poiPos)) continue;
+            Vector2 poiPos = item.transform.position;
+            if (Vector2.Distance(botPos, poiPos) > 15f) continue; // Chỉ quan tâm item trong tầm nhìn 15m
+            if (!CoLOS(botPos, poiPos)) continue; // Bị tường che thì thôi
 
-            // Phân loại: Item hay HealStation hay Coin?
-            if (col.TryGetComponent<ItemPickup>(out _))
-            {
-                memory.GhiNhanItem(poiPos);
-            }
-            else if (col.TryGetComponent<HealingZone>(out var healZone))
-            {
-                // Chỉ ghi nhận trạm hồi máu nếu nó chưa cạn kiệt (chưa vô cooldown)
-                if (healZone.CurrentHealPower > 0)
-                {
-                    memory.GhiNhanHealStation(poiPos);
-                }
-            }
-            else
-            {
-                memory.GhiNhanCoin(poiPos);
-            }
+            memory.GhiNhanItem(poiPos);
         }
     }
 
@@ -1111,47 +1028,42 @@ public class TankAgentUltra : Agent
             ItemPickup item = col.GetComponent<ItemPickup>();
             if (item != null)
             {
-                // Dùng chung logic thông minh (né bẫy, xét tỉ lệ) với BotBrain thường
-                if (!item.CanBePickedUpByBot(null, tyLeNhatTaiNguyen))
+                // Dùng chung logic thông minh (né bẫy) với BotBrain thường
+                // CHÚ Ý: Đã ép tỉ lệ nhặt (tham số thứ 2) thành 1.0f
+                if (!item.CanBePickedUpByBot(null, 1.0f))
                 {
                     _boQuaTaiNguyen.Add(id);
                     return false;
                 }
             }
-            else
-            {
-                // Coin bình thường
-                if (UnityEngine.Random.value > tyLeNhatTaiNguyen)
-                {
-                    _boQuaTaiNguyen.Add(id);
-                    return false;
-                }
-            }
+            // Nếu là Coin bình thường thì auto 100% nhặt
         }
         return true;
     }
 
-    /// Kiểm tra có đường thẳng không bị tường chắn giữa 2 điểm không
     private bool CoLOS(Vector2 from, Vector2 to)
     {
         Vector2 dir  = to - from;
         float   dist = dir.magnitude;
         if (dist < 0.05f) return true;
         
-        RaycastHit2D[] hits = Physics2D.RaycastAll(from, dir.normalized, dist, layerVatCan);
+        LayerMask mask = GridManager.Instance != null ? GridManager.Instance.unwalkableMask : layerVatCan;
+        RaycastHit2D[] hits = Physics2D.LinecastAll(from, to, mask);
+        
         foreach (var hit in hits)
         {
-            // Bỏ qua các trigger (như coin, item) không cản đường đạn
-            if (hit.collider.isTrigger) continue;
+            if (hit.collider == null) continue;
+            // Bỏ qua nếu tia đụng trúng chính Bot hoặc xe tăng khác (xe tăng không nên che khuất tầm nhìn nhặt đồ)
+            if (hit.collider.transform.root == transform.root || hit.collider.GetComponentInParent<TankPlayer>() != null)
+                continue;
+            // Bỏ qua nếu tia đụng trúng chính Item/Coin (phòng trường hợp user set sai Layer)
+            if (hit.collider.GetComponentInParent<ItemPickup>() != null || hit.collider.GetComponentInParent<Coin>() != null)
+                continue;
 
-            // Bỏ qua chính bản thân mình
-            if (hit.collider.transform.root == transform.root) continue;
-            
-            // Bỏ qua các xe tăng khác (Mục tiêu) để không bị tự chặn tầm nhìn
-            if (hit.collider.GetComponentInParent<TankPlayer>() != null) continue;
-
-            return false; // Bị che bởi tường/đá
+            // Nếu đụng bất cứ thứ gì khác (Tường, đá), thì tức là bị che
+            return false;
         }
+        
         return true;
     }
 
@@ -1322,41 +1234,7 @@ public class TankAgentUltra : Agent
         }
     }
 
-    private void OnDrawGizmos()
-    {
-        // Vẽ chiến thuật Giao tranh nếu đang ở chế độ Combat
-        if (Application.isPlaying && memory != null && memory.CurrentGoal == BotMemorySystem.GoalType.Combat && _dich != null)
-        {
-            if (_debugCombatPhase.Contains("Núp")) Gizmos.color = Color.gray;
-            else if (_debugCombatPhase.Contains("1")) Gizmos.color = Color.red;
-            else if (_debugCombatPhase.Contains("2")) Gizmos.color = Color.yellow;
-            else if (_debugCombatPhase.Contains("3")) Gizmos.color = Color.cyan;
-            else Gizmos.color = Color.magenta;
 
-            Vector2 targetPos;
-            if (_fixedCombatTarget != null)
-            {
-                targetPos = _fixedCombatTarget.Value;
-                Gizmos.DrawLine(transform.position, targetPos);
-                Gizmos.DrawWireSphere(targetPos, 0.4f);
-            }
-            else
-            {
-                targetPos = (Vector2)transform.position + _debugCombatDir.normalized * 3f;
-                Gizmos.DrawLine(transform.position, targetPos);
-                Gizmos.DrawSphere(targetPos, 0.3f);
-            }
-            
-            // Vẽ đường nối thẳng tới kẻ địch (xác định mục tiêu)
-            Gizmos.color = new Color(1f, 0f, 0f, 0.4f);
-            Gizmos.DrawLine(transform.position, _dich.transform.position);
-
-#if UNITY_EDITOR
-            // Hiển thị tên giai đoạn
-            UnityEditor.Handles.Label(targetPos + (Vector2)Vector3.up * 0.5f, _debugCombatPhase);
-#endif
-        }
-    }
 }
 
 // [SYNC] Fixed trigger raycast bug IDE

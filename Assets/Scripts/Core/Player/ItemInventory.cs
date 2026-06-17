@@ -138,13 +138,13 @@ public class ItemInventory : NetworkBehaviour
         switch (type)
         {
             case ItemType.BuffCoin:
-                colorDisplay.PlayEffect(Color.yellow, 1f, true);
+                colorDisplay.PlayEffect(Color.yellow, 2f, true); // Hiệu ứng sáng vàng 2s
                 break;
             case ItemType.Trap:
-                colorDisplay.PlayEffect(Color.red, 1f, true);
+                colorDisplay.PlayEffect(Color.red, 2f, true); // Hiệu ứng sáng đỏ 2s
                 break;
             case ItemType.DoubleBarrel:
-                colorDisplay.PlayEffect(Color.cyan, doubleBarrelDuration, false);
+                colorDisplay.PlayEffect(Color.cyan, 2f, false); // Hiệu ứng sáng xanh 2s
                 break;
         }
     }

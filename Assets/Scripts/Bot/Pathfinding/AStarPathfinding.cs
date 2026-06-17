@@ -25,10 +25,17 @@ public class AStarPathfinding : MonoBehaviour
         Node startNode = GridManager.Instance.NodeFromWorldPoint(startPos);
         Node targetNode = GridManager.Instance.NodeFromWorldPoint(targetPos);
 
-        if (!startNode.walkable || !targetNode.walkable)
+        bool targetWasWalkable = targetNode.walkable;
+
+        if (!startNode.walkable || !targetWasWalkable)
         {
-            // Nếu đích đến là tường, tìm node đi được gần đích nhất
-            if (!targetNode.walkable)
+            if (!startNode.walkable)
+            {
+                startNode = FindNearestWalkableNode(startNode);
+                if (startNode == null) return null;
+            }
+            
+            if (!targetWasWalkable)
             {
                 targetNode = FindNearestWalkableNode(targetNode);
                 if (targetNode == null) return null;
@@ -39,7 +46,7 @@ public class AStarPathfinding : MonoBehaviour
         HashSet<Node> closedSet = new HashSet<Node>();
         openSet.Add(startNode);
 
-        int maxIterations = 500; // Giới hạn số bước tìm kiếm để tránh đứng máy (lag)
+        int maxIterations = 5000; // [FIXED] Tăng giới hạn lên 5000 để đủ sức tìm đường vòng qua các chướng ngại vật lớn
         int iterations = 0;
         Node closestNode = startNode;
         int minHCost = int.MaxValue;
@@ -50,7 +57,7 @@ public class AStarPathfinding : MonoBehaviour
             if (iterations > maxIterations)
             {
                 // Vượt quá thời gian xử lý cho phép -> Trả về đường đi tạm thời đến node gần đích nhất đã tìm được
-                return RetracePath(startNode, closestNode);
+                return RetracePath(startNode, closestNode, null);
             }
 
             Node currentNode = openSet[0];
@@ -73,13 +80,12 @@ public class AStarPathfinding : MonoBehaviour
 
             if (currentNode == targetNode)
             {
-                return RetracePath(startNode, targetNode);
+                return RetracePath(startNode, targetNode, targetPos);
             }
 
             foreach (Node neighbor in GridManager.Instance.GetNeighbors(currentNode))
             {
                 if (!neighbor.walkable || closedSet.Contains(neighbor)) continue;
-
 
                 int penalty = 0;
                 if (threatPos.HasValue)
@@ -90,7 +96,7 @@ public class AStarPathfinding : MonoBehaviour
                         // Phạt rất nặng nếu nằm gần địch
                         penalty += Mathf.RoundToInt((8f - distToThreat) * 50);
                         // Phạt thêm nếu nằm trong tầm nhìn thẳng của địch
-                        if (CheckLineOfSight(neighbor.worldPosition, threatPos.Value))
+                        if (Vector2.Distance(neighbor.worldPosition, threatPos.Value) < 15f)
                             penalty += 500;
                     }
                 }
@@ -110,13 +116,13 @@ public class AStarPathfinding : MonoBehaviour
         // Nếu không tìm được đường tới đích (hoặc đường cụt), đi tới điểm gần đích nhất
         if (closestNode != startNode)
         {
-            return RetracePath(startNode, closestNode);
+            return RetracePath(startNode, closestNode, targetPos);
         }
 
         return null;
     }
 
-    private Node FindNearestWalkableNode(Node targetNode)
+    public Node FindNearestWalkableNode(Node targetNode)
     {
         Queue<Node> queue = new Queue<Node>();
         HashSet<Node> visited = new HashSet<Node>();
@@ -141,7 +147,7 @@ public class AStarPathfinding : MonoBehaviour
         return null;
     }
 
-    private List<Vector2> RetracePath(Node startNode, Node endNode)
+    private List<Vector2> RetracePath(Node startNode, Node endNode, Vector2? exactEndPos)
     {
         List<Node> path = new List<Node>();
         Node currentNode = endNode;
@@ -155,6 +161,14 @@ public class AStarPathfinding : MonoBehaviour
         
         List<Vector2> waypoints = SimplifyPath(path);
         waypoints.Reverse();
+        
+        // [FIXED] Ghi đè trạm cuối cùng bằng tọa độ chính xác của mục tiêu (thay vì tâm của ô Grid).
+        // Nếu không, AI sẽ đi đến giữa ô rồi dừng lại, không chạm được vào Item nằm ở mép ô!
+        if (waypoints.Count > 0 && exactEndPos.HasValue)
+        {
+            waypoints[waypoints.Count - 1] = exactEndPos.Value;
+        }
+        
         return waypoints;
     }
 
@@ -163,33 +177,9 @@ public class AStarPathfinding : MonoBehaviour
         List<Vector2> rawWaypoints = new List<Vector2>();
         foreach (var node in path) rawWaypoints.Add(node.worldPosition);
         
-        List<Vector2> waypoints = StringPulling(rawWaypoints);
-        return ExtractStages(waypoints, 20);
-    }
-
-    private List<Vector2> ExtractStages(List<Vector2> waypoints, int maxStages)
-    {
-        if (waypoints == null || waypoints.Count <= 2) return waypoints;
-        if (waypoints.Count <= maxStages) return waypoints;
-
-        List<Vector2> result = new List<Vector2>();
-        result.Add(waypoints[0]);
-
-        // Tính toán bước nhảy index để rút gọn mảng xuống còn maxStages
-        float step = (float)(waypoints.Count - 2) / (maxStages - 2);
-        
-        for (int i = 1; i < maxStages - 1; i++)
-        {
-            int idx = Mathf.RoundToInt(i * step);
-            // Đảm bảo không trùng lặp và không vượt quá
-            if (idx > 0 && idx < waypoints.Count - 1 && !result.Contains(waypoints[idx]))
-            {
-                result.Add(waypoints[idx]);
-            }
-        }
-
-        result.Add(waypoints[waypoints.Count - 1]);
-        return result;
+        // Bật lại StringPulling để làm mượt đường đi. Điều này giúp các xe từ các vị trí khác nhau
+        // sẽ có góc độ đường đi khác nhau (đường chéo) thay vì tất cả cùng đi chung 1 đường kẻ caro vuông vức!
+        return StringPulling(rawWaypoints);
     }
 
     private List<Vector2> StringPulling(List<Vector2> rawWaypoints)
@@ -203,14 +193,21 @@ public class AStarPathfinding : MonoBehaviour
         while (currentIdx < rawWaypoints.Count - 1)
         {
             int furthestIdx = currentIdx + 1;
-            for (int i = rawWaypoints.Count - 1; i > currentIdx + 1; i--)
+            
+            // Tối ưu hóa cực mạnh: Duyệt XUÔI (O(N)) thay vì duyệt NGƯỢC (O(N^2)). 
+            for (int i = currentIdx + 2; i < rawWaypoints.Count; i++)
             {
-                if (CheckLineOfSight(rawWaypoints[currentIdx], rawWaypoints[i]))
+                // Bán kính 0.65f lớn hơn thân xe một chút. Nó buộc A* không được xóa các waypoint ở góc cua hẹp, giúp xe rẽ theo từng giai đoạn an toàn.
+                if (CheckLineOfSight(rawWaypoints[currentIdx], rawWaypoints[i], 0.65f))
                 {
-                    furthestIdx = i;
-                    break;
+                    furthestIdx = i; // Còn nhìn thấy thì cứ đẩy điểm xa nhất lên
+                }
+                else
+                {
+                    break; // Ngay khi bị tường che, dừng lại và chốt trạm ở điểm nhìn thấy cuối cùng
                 }
             }
+            
             waypoints.Add(rawWaypoints[furthestIdx]);
             currentIdx = furthestIdx;
         }
@@ -218,16 +215,58 @@ public class AStarPathfinding : MonoBehaviour
         return waypoints;
     }
 
-    private bool CheckLineOfSight(Vector2 start, Vector2 end)
+    public bool CheckLineOfSight(Vector2 start, Vector2 end, float radius = 0.45f)
     {
-        Vector2 dir = (end - start);
-        float dist = dir.magnitude;
-        if (dist <= 0.01f) return true;
+        if (GridManager.Instance == null) return false;
+
+        // [BẢN VÁ TUYỆT ĐỐI] Không dùng Physics2D nữa vì dễ bị lọt qua các khe hở collider hoặc sai layer!
+        // Dùng thuật toán dò tia trực tiếp trên Ma Trận Grid (Bresenham's Line Algorithm)
+        Node startNode = GridManager.Instance.NodeFromWorldPoint(start);
+        Node endNode = GridManager.Instance.NodeFromWorldPoint(end);
+
+        int x0 = startNode.gridX;
+        int y0 = startNode.gridY;
+        int x1 = endNode.gridX;
+        int y1 = endNode.gridY;
+
+        int dx = Mathf.Abs(x1 - x0);
+        int dy = Mathf.Abs(y1 - y0);
+        int sx = x0 < x1 ? 1 : -1;
+        int sy = y0 < y1 ? 1 : -1;
+        int err = dx - dy;
+
+        while (true)
+        {
+            if (x0 >= 0 && x0 < GridManager.Instance.gridSizeX && y0 >= 0 && y0 < GridManager.Instance.gridSizeY)
+            {
+                Node n = GridManager.Instance.grid[x0, y0];
+                if (!n.walkable) return false; // Tia chạm trúng 1 ô bị kẹt (Tường, Đá)
+                
+                // Nếu có yêu cầu bán kính (radius > 0), kiểm tra thêm các ô xung quanh để tránh quẹt góc tường
+                if (radius > 0)
+                {
+                    if (x0 + 1 < GridManager.Instance.gridSizeX && !GridManager.Instance.grid[x0 + 1, y0].walkable) return false;
+                    if (x0 - 1 >= 0 && !GridManager.Instance.grid[x0 - 1, y0].walkable) return false;
+                    if (y0 + 1 < GridManager.Instance.gridSizeY && !GridManager.Instance.grid[x0, y0 + 1].walkable) return false;
+                    if (y0 - 1 >= 0 && !GridManager.Instance.grid[x0, y0 - 1].walkable) return false;
+                }
+            }
+
+            if (x0 == x1 && y0 == y1) break;
+            int e2 = 2 * err;
+            if (e2 > -dy)
+            {
+                err -= dy;
+                x0 += sx;
+            }
+            if (e2 < dx)
+            {
+                err += dx;
+                y0 += sy;
+            }
+        }
         
-        // Quét bán kính 0.45f để đảm bảo xe tăng (rộng ~0.9m) có thể lọt qua khe
-        LayerMask mask = GridManager.Instance != null ? GridManager.Instance.unwalkableMask : layerVatCan;
-        RaycastHit2D hit = Physics2D.CircleCast(start, 0.45f, dir.normalized, dist, mask);
-        return hit.collider == null;
+        return true;
     }
 
     private int GetDistance(Node nodeA, Node nodeB)

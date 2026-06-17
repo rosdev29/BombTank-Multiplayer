@@ -5715,7 +5715,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 964848143
+  GlobalObjectIdHash: 344280559
   InScenePlacedSourceGlobalObjectIdHash: 0
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
@@ -6024,6 +6024,7 @@ MonoBehaviour:
   goalReachedDist: 1.5
   loopDetectRadius: 3
   loopDetectWindow: 20
+  tiLeNhatItem: 1
   _pathWaypoints: []
 --- !u!114 &7087614646950807976
 MonoBehaviour:
@@ -6076,7 +6077,6 @@ MonoBehaviour:
   boPhongDan: {fileID: 6393240751483895355}
   turretTransform: {fileID: 4058023226012938276}
   diemSpawnDan: {fileID: 5523347170077017719}
-  tyLeNhatTaiNguyen: 0.5
   layerVatCan:
     serializedVersion: 2
     m_Bits: 1
@@ -11287,7 +11287,7 @@ MonoBehaviour:
   unwalkableMask:
     serializedVersion: 2
     m_Bits: 1
-  gridWorldSize: {x: 200, y: 200}
+  gridWorldSize: {x: 100, y: 100}
   nodeRadius: 1
   gridCenter: {x: 0, y: 0}
   gridSizeX: 0
