@@ -134,8 +134,43 @@ public class ItemUIDisplay : MonoBehaviour
         }
     }
 
+    private void ClearAllItems()
+    {
+        foreach (var item in activeItems)
+        {
+            if (item.BgTexture != null)
+            {
+                Destroy(item.BgTexture);
+            }
+        }
+        activeItems.Clear();
+    }
+
     private void Update()
     {
+        bool isConnectedAndAlive = true;
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsClient || !NetworkManager.Singleton.IsConnectedClient)
+        {
+            isConnectedAndAlive = false;
+        }
+        else
+        {
+            var localClient = NetworkManager.Singleton.LocalClient;
+            if (localClient == null || localClient.PlayerObject == null)
+            {
+                isConnectedAndAlive = false;
+            }
+        }
+
+        if (!isConnectedAndAlive)
+        {
+            if (activeItems.Count > 0)
+            {
+                ClearAllItems();
+            }
+            return;
+        }
+
         for (int i = activeItems.Count - 1; i >= 0; i--)
         {
             activeItems[i].Timer -= Time.deltaTime;
@@ -188,17 +223,23 @@ public class ItemUIDisplay : MonoBehaviour
     private void OnGUI()
     {
         if (activeItems.Count == 0) return;
+        
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsClient || !NetworkManager.Singleton.IsConnectedClient) return;
+
+        var localClient = NetworkManager.Singleton.LocalClient;
+        if (localClient == null || localClient.PlayerObject == null) return;
 
         GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(Screen.width / 1920f, Screen.height / 1080f, 1f));
 
         GUIStyle style = new GUIStyle(GUI.skin.label)
         {
-            fontSize = 40,
+            fontSize = 26,
             fontStyle = FontStyle.Bold,
             alignment = TextAnchor.MiddleLeft
         };
 
-        float currentY = 970f - 20f; // Bắt đầu từ vị trí ngay trên CoinUI
+        float currentX = 30f; 
+        float currentY = 1080f - 110f - 10f; // Bắt đầu ngay phía trên CoinUI
 
         for (int i = 0; i < activeItems.Count; i++)
         {
@@ -209,19 +250,19 @@ public class ItemUIDisplay : MonoBehaviour
             else if (item.Type == ItemType.DoubleBarrel) itemName = "🔥 ĐẠN ĐÔI 🔥";
             else if (item.Type == ItemType.Trap) itemName = "💀 DÍNH BẪY 💀";
 
-            string text = $"{itemName}\n⏳ {Mathf.CeilToInt(item.Timer)}s";
+            string text = $"{itemName} ({Mathf.CeilToInt(item.Timer)}s)";
             
-            Vector2 textSize = style.CalcSize(new GUIContent($"{itemName}\n⏳ 00s"));
+            Vector2 textSize = style.CalcSize(new GUIContent($"{itemName} (00s)"));
             
-            float iconSize = 70f;
-            float padding = 20f;
+            float iconSize = 45f;
+            float padding = 10f;
             
-            float boxWidth = 20f + iconSize + padding + textSize.x + 40f; 
-            float boxHeight = Mathf.Max(textSize.y + 40f, iconSize + 40f);
+            float boxWidth = 10f + iconSize + padding + textSize.x + 20f; 
+            float boxHeight = Mathf.Max(textSize.y + 20f, iconSize + 20f);
             
             currentY -= boxHeight; // Đẩy khung lên trên để xếp dọc
             
-            Rect boxRect = new Rect(30f, currentY, boxWidth, boxHeight);
+            Rect boxRect = new Rect(currentX, currentY, boxWidth, boxHeight);
             
             GUIStyle boxStyle = new GUIStyle(GUI.skin.box);
             boxStyle.normal.background = item.BgTexture;
@@ -231,9 +272,9 @@ public class ItemUIDisplay : MonoBehaviour
             GUI.Box(boxRect, GUIContent.none, boxStyle);
             
             // Tính toán vị trí vẽ icon và text
-            Rect iconRect = new Rect(boxRect.x + 20f, boxRect.y + (boxHeight - iconSize) / 2f, iconSize, iconSize);
+            Rect iconRect = new Rect(boxRect.x + 10f, boxRect.y + (boxHeight - iconSize) / 2f, iconSize, iconSize);
             Rect textRect = new Rect(iconRect.xMax + padding, boxRect.y, textSize.x, boxHeight);
-            Rect shadowTextRect = new Rect(textRect.x + 3f, textRect.y + 3f, textRect.width, textRect.height);
+            Rect shadowTextRect = new Rect(textRect.x + 2f, textRect.y + 2f, textRect.width, textRect.height);
 
             // Vẽ Icon Sprite
             if (item.IconSprite != null && item.IconSprite.texture != null)
@@ -261,7 +302,7 @@ public class ItemUIDisplay : MonoBehaviour
             // Vẽ chữ sáng
             GUI.Label(textRect, text, style);
             
-            currentY -= (boxHeight + 10f); // Khoảng cách giữa các hộp
+            currentY -= 5f; // Khoảng cách dọc giữa các hộp nhỏ lại
         }
     }
 }
