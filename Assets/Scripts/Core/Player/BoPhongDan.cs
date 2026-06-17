@@ -144,6 +144,16 @@ public class BoPhongDan : NetworkBehaviour
 
     private void Update()
     {
+        if (IsServer && doubleBarrelTimer > 0f)
+        {
+            doubleBarrelTimer -= Time.deltaTime;
+            if (doubleBarrelTimer <= 0f)
+            {
+                doubleBarrelTimer = 0f;
+                IsDoubleBarrelActive.Value = false;
+            }
+        }
+
         if(henGioLoeNong > 0f)
         {
             henGioLoeNong -= Time.deltaTime;
@@ -190,21 +200,20 @@ public class BoPhongDan : NetworkBehaviour
         this.duocTanCong = duocTanCong;
     }
 
+    private float doubleBarrelTimer = 0f;
+
     public void ActivateDoubleBarrel(float duration)
     {
         if (!IsServer) { return; }
-        if (doubleBarrelCoroutine != null)
+        if (doubleBarrelTimer > 0)
         {
-            StopCoroutine(doubleBarrelCoroutine);
+            doubleBarrelTimer += duration; // Cộng dồn thời gian
         }
-        doubleBarrelCoroutine = StartCoroutine(DoubleBarrelRoutine(duration));
-    }
-
-    private IEnumerator DoubleBarrelRoutine(float duration)
-    {
-        IsDoubleBarrelActive.Value = true;
-        yield return new WaitForSeconds(duration);
-        IsDoubleBarrelActive.Value = false;
+        else
+        {
+            doubleBarrelTimer = duration;
+            IsDoubleBarrelActive.Value = true;
+        }
     }
 
     [ServerRpc]

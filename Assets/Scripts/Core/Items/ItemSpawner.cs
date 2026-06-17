@@ -11,7 +11,7 @@ public class ItemSpawner : NetworkBehaviour
     public ItemPickup doubleBarrelPrefab;
 
     [Header("Settings")]
-    [SerializeField] private int maxItemsOnMap = 5;
+    [SerializeField] private int maxItemsOnMap = 10;
     [SerializeField] private float respawnTime = 10f;
     [SerializeField] private Vector2 xSpawnRange = new Vector2(-20, 20);
     [SerializeField] private Vector2 ySpawnRange = new Vector2(-20, 20);
@@ -86,8 +86,21 @@ public class ItemSpawner : NetworkBehaviour
             x = Random.Range(xSpawnRange.x, xSpawnRange.y);
             y = Random.Range(ySpawnRange.x, ySpawnRange.y);
             Vector2 spawnPoint = new Vector2(x, y);
-            int numColliders = Physics2D.OverlapCircleNonAlloc(spawnPoint, itemRadius, itemBuffer, layerMask);
-            if (numColliders == 0)
+            
+            // Lấy tất cả colliders tại vị trí này để tránh lỗi cấu hình layerMask thiếu layer tường/đá
+            Collider2D[] colliders = Physics2D.OverlapCircleAll(spawnPoint, itemRadius);
+            bool hitObstacle = false;
+            foreach (Collider2D col in colliders)
+            {
+                // Nếu chạm phải collider cứng (không phải trigger) như tường, đá
+                if (!col.isTrigger)
+                {
+                    hitObstacle = true;
+                    break;
+                }
+            }
+
+            if (!hitObstacle)
             {
                 return spawnPoint;
             }

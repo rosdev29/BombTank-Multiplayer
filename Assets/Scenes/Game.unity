@@ -1825,7 +1825,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 27495a635f5d3094ea9a5d5293b60e27, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  itemText: {fileID: 737900479}
 --- !u!114 &737900479
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1846,13 +1845,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: '
-
-
-
-
-
-    ItemUI'
+  m_text: 
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -4692,7 +4685,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 841388619
+  GlobalObjectIdHash: 591441961
   InScenePlacedSourceGlobalObjectIdHash: 2998686963
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
