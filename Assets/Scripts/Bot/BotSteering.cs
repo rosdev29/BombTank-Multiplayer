@@ -17,7 +17,8 @@ public static class BotSteering
         if (huong.sqrMagnitude < 0.001f) { return cmd; }
 
         float gocLech = Vector2.SignedAngle((Vector2)ctx.BodyTransform.up, huong.normalized);
-        cmd.MoveInput = new Vector2(gocLech > 0f ? -1f : 1f, throttle);
+        float steer   = -Mathf.Clamp(gocLech / 30f, -1f, 1f); // proportional: mượt trong ±30°
+        cmd.MoveInput = new Vector2(steer, throttle);
 
         return cmd;
     }
