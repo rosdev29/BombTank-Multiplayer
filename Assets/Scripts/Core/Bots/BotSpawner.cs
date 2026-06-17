@@ -182,16 +182,22 @@ public class BotSpawner : MonoBehaviour
         // Chọn độ khó bot
         // =======================
 
-        BotConfig pickedConfig = easyConfig;
+        BotConfig pickedConfig = mediumConfig;
 
-        // Ví dụ random độ khó:
-        // int roll = Random.Range(0, 3);
-        // pickedConfig = roll switch
-        // {
-        //     0 => easyConfig,
-        //     1 => mediumConfig,
-        //     _ => hardConfig
-        // };
+        // Random độ khó theo tỉ lệ: 2 Dễ, 3 Trung, 2 Khó (trên 7 bot)
+        int roll = Random.Range(0, 7);
+        if (roll < 2)
+        {
+            pickedConfig = easyConfig;
+        }
+        else if (roll < 5)
+        {
+            pickedConfig = mediumConfig;
+        }
+        else
+        {
+            pickedConfig = hardConfig;
+        }
 
         if (pickedConfig != null)
         {
