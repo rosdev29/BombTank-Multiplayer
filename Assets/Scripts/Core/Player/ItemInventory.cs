@@ -19,6 +19,10 @@ public class ItemInventory : NetworkBehaviour
     [SerializeField] private float buffCoinDuration = 10f; // Tăng lên 10s
     [SerializeField] private float trapDuration = 5f;
 
+    public float DoubleBarrelDuration => doubleBarrelDuration;
+    public float BuffCoinDuration => buffCoinDuration;
+    public float TrapDuration => trapDuration;
+
     public NetworkVariable<ItemType> CurrentItem = new NetworkVariable<ItemType>(ItemType.None);
     public NetworkVariable<bool> IsCoinBuffActive = new NetworkVariable<bool>(false);
     public NetworkVariable<bool> IsTrapActive = new NetworkVariable<bool>(false);
@@ -50,6 +54,9 @@ public class ItemInventory : NetworkBehaviour
         }
     }
 
+    private float buffCoinTimer = 0f;
+    private int trapTicksRemaining = 0;
+
     private void OnTriggerEnter2D(Collider2D col)
     {
         if (!IsServer) { return; }
@@ -59,8 +66,14 @@ public class ItemInventory : NetworkBehaviour
         // Bẫy - Trừ máu, trừ coin từ từ trong 5s
         if (item.Type == ItemType.Trap)
         {
-            if (trapCoroutine != null) StopCoroutine(trapCoroutine);
-            trapCoroutine = StartCoroutine(TrapRoutine(item.TrapDamageAmount, item.TrapCoinPenalty));
+            int ticksToAdd = Mathf.RoundToInt(trapDuration);
+            if (ticksToAdd <= 0) ticksToAdd = 1;
+            trapTicksRemaining += ticksToAdd;
+            
+            if (trapCoroutine == null)
+            {
+                trapCoroutine = StartCoroutine(TrapRoutine(item.TrapDamageAmount, item.TrapCoinPenalty));
+            }
             item.Collect();
             PlaySquishEffectClientRpc();
             TriggerPickedUpEventClientRpc(ItemType.Trap);
@@ -68,8 +81,15 @@ public class ItemInventory : NetworkBehaviour
         // Đồng Vàng (Buff Coin)
         else if (item.Type == ItemType.BuffCoin)
         {
-            if (buffCoinCoroutine != null) StopCoroutine(buffCoinCoroutine);
-            buffCoinCoroutine = StartCoroutine(BuffCoinRoutine());
+            if (buffCoinTimer > 0)
+            {
+                buffCoinTimer += buffCoinDuration;
+            }
+            else
+            {
+                buffCoinTimer = buffCoinDuration;
+                IsCoinBuffActive.Value = true;
+            }
             item.Collect();
             PlayEffectClientRpc(ItemType.BuffCoin);
             PlaySquishEffectClientRpc();
@@ -85,6 +105,19 @@ public class ItemInventory : NetworkBehaviour
             PlaySquishEffectClientRpc();
             TriggerPickedUpEventClientRpc(ItemType.DoubleBarrel);
             TriggerUsedEventClientRpc(ItemType.DoubleBarrel);
+        }
+    }
+
+    private void Update()
+    {
+        if (IsServer && buffCoinTimer > 0)
+        {
+            buffCoinTimer -= Time.deltaTime;
+            if (buffCoinTimer <= 0)
+            {
+                buffCoinTimer = 0;
+                IsCoinBuffActive.Value = false;
+            }
         }
     }
 
@@ -108,14 +141,6 @@ public class ItemInventory : NetworkBehaviour
     [ServerRpc]
     private void UseItemServerRpc()
     {
-    }
-
-    private IEnumerator BuffCoinRoutine()
-    {
-        IsCoinBuffActive.Value = true;
-        yield return new WaitForSeconds(buffCoinDuration);
-        IsCoinBuffActive.Value = false;
-        buffCoinCoroutine = null;
     }
 
     [ClientRpc]
@@ -148,18 +173,17 @@ public class ItemInventory : NetworkBehaviour
     private IEnumerator TrapRoutine(int totalDamage, int totalCoinPenalty)
     {
         IsTrapActive.Value = true;
-        int ticks = Mathf.RoundToInt(trapDuration);
-        if (ticks <= 0) ticks = 1;
         
-        int dmgPerTick = totalDamage / ticks;
-        int coinPerTick = totalCoinPenalty / ticks;
+        int dmgPerTick = totalDamage / Mathf.RoundToInt(trapDuration);
+        int coinPerTick = totalCoinPenalty / Mathf.RoundToInt(trapDuration);
 
-        for (int i = 0; i < ticks; i++)
+        while (trapTicksRemaining > 0)
         {
             health.NhanSatThuong(dmgPerTick);
             wallet.SpendCoins(coinPerTick);
             PlayEffectClientRpc(ItemType.Trap); // Chớp đỏ mỗi giây
             yield return new WaitForSeconds(1f);
+            trapTicksRemaining--;
         }
         
         IsTrapActive.Value = false;
