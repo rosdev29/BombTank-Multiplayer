@@ -145,18 +145,19 @@ public class BotSpawner : MonoBehaviour
         if (botInstance.GetComponent<BotSense>() == null)
             botInstance.gameObject.AddComponent<BotSense>();
 
+        if (botInstance.GetComponent<BotMover>() == null)
+            botInstance.gameObject.AddComponent<BotMover>();
+
         if (botInstance.GetComponent<BotTurretController>() == null)
             botInstance.gameObject.AddComponent<BotTurretController>();
 
         if (botInstance.GetComponent<BotShooter>() == null)
             botInstance.gameObject.AddComponent<BotShooter>();
 
-        BotBrain botBrain = botInstance.GetComponent<BotBrain>();
-        if (botBrain == null)
-        {
-            botBrain = botInstance.gameObject.AddComponent<BotBrain>();
-        }
-        botBrain.SetLayerMaskTuong(LayerMask.GetMask("Terrain"));
+        if (botInstance.GetComponent<BotBrain>() == null)
+            botInstance.gameObject.AddComponent<BotBrain>();
+
+        // LayerMask được BotBrain tự set trong OnNetworkSpawn qua KhoiTao() — không cần override ở đây.
 
         TankPlayer tankPlayer = botInstance.GetComponent<TankPlayer>();
 

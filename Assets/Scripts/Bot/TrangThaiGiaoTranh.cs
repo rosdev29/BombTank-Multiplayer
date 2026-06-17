@@ -2,15 +2,19 @@ using UnityEngine;
 
 public class TrangThaiGiaoTranh : IBotState
 {
-    private const float KHOANG_CACH_LY_TUONG        = 6f;
+    private const float KHOANG_CACH_LY_TUONG        = 12f;
     private const float KHOANG_CACH_DUNG_LAI        = 1.0f;
-    private const float KHOANG_CACH_QUA_GAN         = 3.5f;
+    private const float KHOANG_CACH_QUA_GAN         = 7f;
     private const float NGUONG_GOC_DE_BAN           = 10f;
     private const float HE_SO_LEAD                  = 0.15f;
     private const int   CHI_PHI_BAN                 = 1;
     private const float TOC_DO_TIEN_LUI             = 1f;
     private const float THOI_GIAN_DOI_CHIEU         = 1.5f;
     private const float KHOANG_KIEM_TRA_TUONG_VONG  = 3f;
+    private const float BUFFER_THOAT_QUA_GAN        = 2f;  // vùng đệm hysteresis
+    private const float BUOC_TIM_LOS                = 5f;  // bước tìm vị trí LOS
+    private const int   SO_HUONG_TIM_LOS            = 12;  // số hướng quét
+    private const float THOI_GIAN_REFRESH_LOS       = 0.8f; // làm mới LOS mỗi 0.8s
 
     private enum KieuDiChuyen { VongTrai, VongPhai, TienGan, LuiXa, DungBan }
     private KieuDiChuyen  _kieuHienTai;
@@ -18,11 +22,17 @@ public class TrangThaiGiaoTranh : IBotState
     private float          _timerDoiKieu;
     private float          _gocVong;
     private Vector2        _viTriDichCu;
+    private bool           _dangRutLui;  // hysteresis: đang trong chế độ lùi
+    private Vector2?       _viTriDatLOS;    // vị trí tìm được có LOS thông tới địch
+    private float          _timerRefreshLOS;
 
     public void OnEnter(BotContext ctx)
     {
-        _viTriDichCu = ctx.EnemyPosition;
-        _kieuVuaLam  = null;
+        _viTriDichCu     = ctx.EnemyPosition;
+        _kieuVuaLam      = null;
+        _dangRutLui      = false;
+        _viTriDatLOS     = null;
+        _timerRefreshLOS = 0f;
         ChonKieuMoi(null);
     }
 
@@ -48,7 +58,13 @@ public class TrangThaiGiaoTranh : IBotState
         float throttle = 0f;
         float steer    = 0f;
 
+        // Hysteresis: bắt đầu lùi khi < QUA_GAN, dừng lùi khi > QUA_GAN + BUFFER
         if (khoangCach < KHOANG_CACH_QUA_GAN)
+            _dangRutLui = true;
+        else if (khoangCach > KHOANG_CACH_QUA_GAN + BUFFER_THOAT_QUA_GAN)
+            _dangRutLui = false;
+
+        if (_dangRutLui)
         {
             throttle = -TOC_DO_TIEN_LUI;
             steer    = gocLechThanXe > 0f ? -1f : 1f;
@@ -120,25 +136,67 @@ public class TrangThaiGiaoTranh : IBotState
 
         cmd.MoveInput = new Vector2(steer, throttle);
 
+        // Kiểm tra LOS một lần, dùng chung cho cả di chuyển lẫn bắn
+        bool losThong          = BotSteering.CoDuongThong(ctx.BotPosition, ctx.EnemyPosition);
+        bool trongVungTrungLap = !_dangRutLui && !(khoangLech > KHOANG_CACH_DUNG_LAI * 3f);
+
+        if (!losThong && trongVungTrungLap)
+        {
+            // Đường bắn bị chặn → tìm vị trí có LOS thông và di chuyển đến đó
+            _timerRefreshLOS -= ctx.DeltaTime;
+            if (_timerRefreshLOS <= 0f || _viTriDatLOS == null)
+            {
+                _viTriDatLOS     = TimViTriBanThong(ctx);
+                _timerRefreshLOS = THOI_GIAN_REFRESH_LOS;
+            }
+
+            if (_viTriDatLOS.HasValue && !BotSteering.DaToiNoi(ctx.BotPosition, _viTriDatLOS.Value, 1.5f))
+            {
+                // Ghi đè lệnh di chuyển: tiến đến vị trí quan sát được địch
+                BotCommand cmdLOS = BotSteering.MoveTowards(ctx, _viTriDatLOS.Value);
+                cmd.MoveInput = cmdLOS.MoveInput;
+            }
+        }
+        else
+        {
+            _viTriDatLOS     = null;
+            _timerRefreshLOS = 0f;
+        }
+
+        // Bắn khi nòng súng đã ngắm và đường bắn thông
         Vector2   huongNgam   = (diemNgam - ctx.BotPosition).normalized;
         Transform nongNgam    = ctx.TurretTransform != null ? ctx.TurretTransform : ctx.BodyTransform;
         float     gocLechNgam = Vector2.Angle((Vector2)nongNgam.up, huongNgam);
 
-        if (gocLechNgam < NGUONG_GOC_DE_BAN && ctx.DuCoinDeBan(CHI_PHI_BAN))
-        {
-            Vector2      huongToiDichLOS = ctx.EnemyPosition - ctx.BotPosition;
-            RaycastHit2D losHit          = Physics2D.Raycast(
-                ctx.BotPosition, huongToiDichLOS.normalized,
-                huongToiDichLOS.magnitude, ctx.LayerMaskTuong);
-
-            if (losHit.collider == null)
-                cmd.Fire = true;
-        }
+        if (gocLechNgam < NGUONG_GOC_DE_BAN && ctx.DuCoinDeBan(CHI_PHI_BAN) && losThong)
+            cmd.Fire = true;
 
         return cmd;
     }
 
-    public void OnExit(BotContext ctx) { }
+    public void OnExit(BotContext ctx)
+    {
+        _viTriDatLOS     = null;
+        _timerRefreshLOS = 0f;
+    }
+
+    /// Quét 12 hướng xung quanh bot, tìm vị trí đi được và có LOS thông tới địch.
+    private Vector2? TimViTriBanThong(BotContext ctx)
+    {
+        for (int i = 0; i < SO_HUONG_TIM_LOS; i++)
+        {
+            float   goc       = i * (360f / SO_HUONG_TIM_LOS) * Mathf.Deg2Rad;
+            Vector2 huong     = new Vector2(Mathf.Cos(goc), Mathf.Sin(goc));
+            Vector2 candidate = ctx.BotPosition + huong * BUOC_TIM_LOS;
+
+            if (BotSteering.CoDuongThong(ctx.BotPosition, candidate) &&
+                BotSteering.CoDuongThong(candidate, ctx.EnemyPosition))
+            {
+                return candidate;
+            }
+        }
+        return null; // không tìm được vị trí phù hợp
+    }
 
     private bool CoTuongTheoHuongVong(BotContext ctx)
     {

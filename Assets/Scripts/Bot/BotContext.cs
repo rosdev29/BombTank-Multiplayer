@@ -7,7 +7,11 @@ public class BotContext
     public Transform  BodyTransform   { get; set; }
     public Transform  TurretTransform { get; set; }
     public Mau        Health          { get; set; }
-    public CoinWallet Wallet        { get; set; }
+    public CoinWallet Wallet          { get; set; }
+
+    // --- Perception config (được BotBrain set lúc OnNetworkSpawn) ---
+    public float BanKinhPhatHienDich { get; set; } = 20f;
+    public float BanKinhPhatHienCoin { get; set; } = 20f;
 
     public TankPlayer         NearestEnemy    { get; set; }
     public Vector2            EnemyPosition   { get; set; }
