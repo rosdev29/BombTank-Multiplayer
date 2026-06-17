@@ -5990,9 +5990,13 @@ MonoBehaviour:
   inputReader: {fileID: 11400000, guid: 932516b399235f6469e2cb824bd5aad3, type: 2}
   colorDisplay: {fileID: 8077341493478667693}
   doubleBarrelDuration: 10
-  buffCoinDuration: 5
-  coinsPerSecond: 10
+  buffCoinDuration: 10
+  trapDuration: 5
   CurrentItem:
+    m_InternalValue: 0
+  IsCoinBuffActive:
+    m_InternalValue: 0
+  IsTrapActive:
     m_InternalValue: 0
 --- !u!1 &5936809473909094933
 GameObject:
