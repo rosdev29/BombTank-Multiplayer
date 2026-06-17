@@ -18,6 +18,21 @@ public class BotSpawner : MonoBehaviour
         "TrumCuoi", "KiepDoDen", "ThanhDoMin", "BaoThu", "VuaLiDon"
     };
 
+    private static bool isQuitting;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void InitSceneLifecycleGuards()
+    {
+        isQuitting = false;
+        Application.quitting -= OnApplicationQuitting;
+        Application.quitting += OnApplicationQuitting;
+    }
+
+    private static void OnApplicationQuitting()
+    {
+        isQuitting = true;
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Init()
     {
@@ -85,6 +100,8 @@ public class BotSpawner : MonoBehaviour
         }
     }
 
+    private Coroutine updateBotsCoroutine;
+
     private void HandlePlayerDespawned(TankPlayer player)
     {
         if (player.IsBot.Value || player.GetComponent<BotTag>() != null)
@@ -94,13 +111,24 @@ public class BotSpawner : MonoBehaviour
         else
         {
             realPlayerCount--;
-            UpdateBots();
+            if (gameObject.activeInHierarchy)
+            {
+                if (updateBotsCoroutine != null) StopCoroutine(updateBotsCoroutine);
+                updateBotsCoroutine = StartCoroutine(DelayedUpdateBots());
+            }
         }
+    }
+
+    private System.Collections.IEnumerator DelayedUpdateBots()
+    {
+        yield return null;
+        UpdateBots();
     }
 
     private void UpdateBots()
     {
         if (!Application.isPlaying) return;
+        if (isQuitting) return;
         if (NetworkManager.Singleton == null) return;
         if (!NetworkManager.Singleton.IsServer) return;
         if (!NetworkManager.Singleton.IsListening) return;
