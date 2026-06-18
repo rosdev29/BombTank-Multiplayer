@@ -21,6 +21,7 @@ public class CoinWallet : NetworkBehaviour
     private float coinRadius;
 
     public NetworkVariable<int> TotalCoins = new NetworkVariable<int>();
+    public NetworkVariable<int> LifetimeCoins = new NetworkVariable<int>();
 
     public override void OnNetworkSpawn()
     {
@@ -58,6 +59,7 @@ public class CoinWallet : NetworkBehaviour
         }
 
         TotalCoins.Value += coinValue;
+        LifetimeCoins.Value += coinValue;
     }
 
     private void HandleDie(Mau health)
