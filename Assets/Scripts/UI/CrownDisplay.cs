@@ -1,24 +1,21 @@
 using Unity.Netcode;
 using UnityEngine;
 
-/// <summary>
-/// Attach vào TankPlayer prefab.
-/// Lắng nghe BountySystem.CrownedNetworkIds để hiện/ẩn icon vương miện 👑.
-///
-/// Setup trong Inspector:
-///   • crownObject  → child GameObject chứa Sprite vương miện (ẩn mặc định)
-/// </summary>
 public class CrownDisplay : NetworkBehaviour
 {
     [Header("References")]
-    [Tooltip("Child GameObject chứa Sprite vương miện. Đặt ẩn (SetActive false) mặc định.")]
+    [Tooltip("CrownIcon — hiện phía trên tên player (ẩn mặc định).")]
     [SerializeField] private GameObject crownObject;
 
+    [Tooltip("Crown minimap — thay thế MinimapIcon khi có bounty (ẩn mặc định).")]
+    [SerializeField] private GameObject crownMinimapObject;
+
+    [Tooltip("MinimapIcon gốc của tank — ẩn khi có bounty.")]
+    [SerializeField] private GameObject minimapIcon;
+
     [Header("Animation (optional)")]
-    [Tooltip("Bob amplitude (pixel).")]
     [SerializeField] private float bobAmplitude = 0.08f;
-    [Tooltip("Bob speed.")]
-    [SerializeField] private float bobSpeed = 2f;
+    [SerializeField] private float bobSpeed     = 2f;
 
     private Vector3 _crownLocalOrigin;
     private bool    _hasCrown;
@@ -32,10 +29,10 @@ public class CrownDisplay : NetworkBehaviour
             crownObject.SetActive(false);
         }
 
-        // Cả Server lẫn Client đều lắng nghe — đơn giản và chính xác
-        BountySystem.OnCrownListChanged += RefreshCrown;
+        if (crownMinimapObject != null)
+            crownMinimapObject.SetActive(false);
 
-        // Kiểm tra ngay lần đầu (BountySystem có thể đã chạy rồi)
+        BountySystem.OnCrownListChanged += RefreshCrown;
         RefreshCrown();
     }
 
@@ -50,14 +47,20 @@ public class CrownDisplay : NetworkBehaviour
         if (BountySystem.Instance == null || !BountySystem.Instance.IsSpawned) { return; }
 
         bool shouldHaveCrown = BountySystem.Instance.HasCrown(NetworkObjectId);
-
-        if (shouldHaveCrown == _hasCrown) { return; }  // không đổi → bỏ qua
+        if (shouldHaveCrown == _hasCrown) { return; }
 
         _hasCrown = shouldHaveCrown;
+
+        // Icon trên tên
         if (crownObject != null)
-        {
             crownObject.SetActive(_hasCrown);
-        }
+
+        // Swap minimap: ẩn icon gốc, hiện crown minimap (hoặc ngược lại)
+        if (minimapIcon != null)
+            minimapIcon.SetActive(!_hasCrown);
+
+        if (crownMinimapObject != null)
+            crownMinimapObject.SetActive(_hasCrown);
     }
 
     // ─── Bob animation khi đang có crown ─────────────────────────────────────
