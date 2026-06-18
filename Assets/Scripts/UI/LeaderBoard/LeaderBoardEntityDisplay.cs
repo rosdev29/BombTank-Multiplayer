@@ -86,7 +86,7 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
         bool hasCrown = crownLookupId != 0 &&
             BountySystem.Instance != null &&
             BountySystem.Instance.HasCrown(crownLookupId);
-        string crownPrefix = hasCrown ? "[Bounty] " : "";
+        string crownPrefix = hasCrown ? "<sprite name=\"BountyCrown\"> " : "";
 
         displayText.text = $"{transform.GetSiblingIndex() + 1}. {crownPrefix}{nameToShow} ({Coins})";
     }
