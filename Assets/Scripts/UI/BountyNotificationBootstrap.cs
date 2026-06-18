@@ -28,6 +28,17 @@ public static class BountyNotificationBootstrap
         text.alignment = TextAlignmentOptions.Center;
         text.fontSize = 36;
 
+        // Gán Sprite Asset cho crown icon (đặt file trong Assets/Resources/BountyCrown)
+        TMP_SpriteAsset crownSprite = Resources.Load<TMP_SpriteAsset>("BountyCrown");
+        if (crownSprite != null)
+        {
+            text.spriteAsset = crownSprite;
+        }
+        else
+        {
+            Debug.LogWarning("[Bounty] Không tìm thấy BountyCrown trong Resources.");
+        }
+
         RectTransform rt =
             notificationGO.GetComponent<RectTransform>();
 
