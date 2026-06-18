@@ -81,6 +81,12 @@ public class Leaderboard : NetworkBehaviour
             }
         }
 
+        if (IsClient)
+        {
+            // Khi crown list thay đổi → redraw để 👑 icon cập nhật trên leaderboard
+            BountySystem.OnCrownListChanged += RefreshAllDisplayTexts;
+        }
+
         if (IsServer)
         {
             TankPlayer[] players = FindObjectsByType<TankPlayer>(FindObjectsSortMode.None);
@@ -112,9 +118,19 @@ public class Leaderboard : NetworkBehaviour
         RemoveStaleEntries();
     }
 
+    private void RefreshAllDisplayTexts()
+    {
+        foreach (LeaderBoardEntityDisplay display in entityDisplays)
+        {
+            if (display != null) { display.UpdateText(); }
+        }
+    }
+
     public override void OnNetworkDespawn()
     {
         isTearingDown = true;
+
+        BountySystem.OnCrownListChanged -= RefreshAllDisplayTexts;
 
         if (leaderboardEntities != null)
         {
@@ -128,6 +144,20 @@ public class Leaderboard : NetworkBehaviour
         {
             NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnectedServer;
         }
+    }
+
+    private ulong ResolveCrownLookupId(ulong leaderboardId)
+    {
+        TankPlayer[] players = FindObjectsByType<TankPlayer>(FindObjectsSortMode.None);
+        foreach (TankPlayer player in players)
+        {
+            if (player != null && GetLeaderboardId(player) == leaderboardId)
+            {
+                return player.NetworkObjectId;
+            }
+        }
+
+        return leaderboardId;
     }
 
     private ulong GetLeaderboardId(TankPlayer player)
@@ -180,10 +210,13 @@ public class Leaderboard : NetworkBehaviour
                     LeaderBoardEntityDisplay leaderboardEntity =
                         Instantiate(leaderboardEntityPrefab, leaderboardEntityHolder);
 
+                    ulong crownLookupId = ResolveCrownLookupId(changeEvent.Value.ClientId);
+
                     leaderboardEntity.Initialise(
                         changeEvent.Value.ClientId,
                         changeEvent.Value.PlayerName,
-                        changeEvent.Value.Coins);
+                        changeEvent.Value.Coins,
+                        crownLookupId);
 
                     if (NetworkManager.Singleton.LocalClientId == changeEvent.Value.ClientId)
                     {
@@ -301,6 +334,17 @@ public class Leaderboard : NetworkBehaviour
                     Coins = leaderboardEntities[i].Coins
                 };
 
+                if (IsClient)
+                {
+                    LeaderBoardEntityDisplay display =
+                        entityDisplays.FirstOrDefault(x => x.ClientId == leaderboardId);
+
+                    if (display != null)
+                    {
+                        display.SetCrownLookupId(player.NetworkObjectId);
+                    }
+                }
+
                 return;
             }
         }
@@ -312,6 +356,17 @@ public class Leaderboard : NetworkBehaviour
             TeamIndex = player.TeamIndex.Value,
             Coins = 0
         });
+
+        if (IsClient)
+        {
+            LeaderBoardEntityDisplay display =
+                entityDisplays.FirstOrDefault(x => x.ClientId == leaderboardId);
+
+            if (display != null)
+            {
+                display.SetCrownLookupId(player.NetworkObjectId);
+            }
+        }
 
         if (player.Wallet != null && !coinChangedSubscriptions.ContainsKey(leaderboardId))
         {

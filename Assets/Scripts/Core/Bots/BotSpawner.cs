@@ -23,7 +23,7 @@ public class BotSpawner : MonoBehaviour
             $"Hard={(hardConfig != null)}");
     }
 
-    private const int TargetTotalTanks = 3;
+    private const int TargetTotalTanks = 8;
     
     private List<TankPlayer> activeBots = new List<TankPlayer>();
     private int realPlayerCount = 0;
