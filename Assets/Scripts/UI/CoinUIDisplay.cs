@@ -14,45 +14,40 @@ public class CoinUIDisplay : MonoBehaviour
         instance = go.AddComponent<CoinUIDisplay>();
     }
 
-    private Texture2D bgTexture;
+    private Texture2D coinsBgTexture;
+    private Texture2D totalBgTexture;
 
-    private void CreateBackgroundTexture()
+    private Texture2D CreateBoxTexture(Color bgColor, Color borderColor)
     {
-        bgTexture = new Texture2D(64, 64);
-        Color bgColor = new Color(0.18f, 0.12f, 0.08f, 0.85f); // Nâu tối (rỉ sét)
-        Color borderColor = new Color(0.7f, 0.35f, 0.1f, 1f); // Cam đất
-        Color highlightColor = new Color(0.9f, 0.5f, 0.15f, 1f); // Viền sáng
-        Color shadowColor = new Color(0.05f, 0.03f, 0.02f, 1f); // Viền đen
+        Texture2D tex = new Texture2D(64, 64);
+        Color highlightColor = borderColor * 1.2f;
+        Color shadowColor = new Color(0.05f, 0.05f, 0.05f, 1f);
 
         for (int y = 0; y < 64; y++)
         {
             for (int x = 0; x < 64; x++)
             {
-                // Viền ngoài cùng màu đen
                 if (x < 2 || x > 61 || y < 2 || y > 61)
                 {
-                    bgTexture.SetPixel(x, y, shadowColor);
+                    tex.SetPixel(x, y, shadowColor);
                 }
-                // Viền kim loại màu cam đất
                 else if (x < 6 || x > 57 || y < 6 || y > 57)
                 {
-                    bgTexture.SetPixel(x, y, borderColor);
+                    tex.SetPixel(x, y, borderColor);
                 }
-                // Highlight mỏng bên trong
                 else if (x == 6 || x == 57 || y == 6 || y == 57)
                 {
-                    bgTexture.SetPixel(x, y, highlightColor);
+                    tex.SetPixel(x, y, highlightColor);
                 }
-                // Nền bên trong
                 else
                 {
-                    // Tạo chút noise/grunge mờ để nhìn cũ kỹ
-                    float noise = Random.Range(0.85f, 1.15f);
-                    bgTexture.SetPixel(x, y, bgColor * noise);
+                    float noise = Random.Range(0.9f, 1.1f);
+                    tex.SetPixel(x, y, bgColor * noise);
                 }
             }
         }
-        bgTexture.Apply();
+        tex.Apply();
+        return tex;
     }
 
     private void OnGUI()
@@ -67,58 +62,67 @@ public class CoinUIDisplay : MonoBehaviour
 
         BoPhongDan combat = localPlayer.GetComponent<BoPhongDan>();
         int currentCoins = localPlayer.Wallet.TotalCoins.Value;
+        int totalCollected = localPlayer.Wallet.LifetimeCoins.Value;
         
         int cost = combat != null ? combat.GetShootingCost() : 5;
         bool canShoot = currentCoins >= cost;
 
-        // Ensure we scale properly for different resolutions
         GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(Screen.width / 1920f, Screen.height / 1080f, 1f));
 
-        if (bgTexture == null)
+        if (coinsBgTexture == null || totalBgTexture == null)
         {
-            CreateBackgroundTexture();
+            coinsBgTexture = CreateBoxTexture(new Color(0.2f, 0.12f, 0.05f, 0.95f), new Color(0.8f, 0.5f, 0.1f, 1f));
+            totalBgTexture = CreateBoxTexture(new Color(0.05f, 0.2f, 0.05f, 0.95f), new Color(0.1f, 0.8f, 0.2f, 1f));
         }
 
         GUIStyle style = new GUIStyle(GUI.skin.label)
         {
-            fontSize = 48,
+            fontSize = 34,
             fontStyle = FontStyle.Bold,
             alignment = TextAnchor.MiddleCenter
         };
         
-        string text = canShoot ? $"🪙 Coins: {currentCoins}" : $"🪙 Coins: {currentCoins}";
-        Vector2 textSize = style.CalcSize(new GUIContent(text));
+        // Kích thước cố định cho cả 2 box để chúng thẳng hàng tuyệt đối
+        float boxWidth = 320f;
+        float boxHeight = 65f;
+        float spacing = 10f;
+        float bottomMargin = 30f;
         
-        // Căn chỉnh kích thước hộp
-        float boxWidth = textSize.x + 80f;
-        float boxHeight = 80f;
-        Rect boxRect = new Rect(30f, 1080f - 110f, boxWidth, boxHeight);
-        
-        // Căn chữ vào giữa
-        Rect rect = new Rect(boxRect.x, boxRect.y, boxWidth, boxHeight);
-        Rect shadowRect = new Rect(rect.x + 3f, rect.y + 3f, rect.width, rect.height);
+        // Y vị trí: Coins ở trên, Total ở dưới
+        float totalY = 1080f - bottomMargin - boxHeight;
+        float coinsY = totalY - boxHeight - spacing;
 
-        GUIStyle boxStyle = new GUIStyle(GUI.skin.box);
-        boxStyle.normal.background = bgTexture;
-        boxStyle.border = new RectOffset(8, 8, 8, 8); // Cắt góc để scale 9-slicing
-        
-        // Vẽ khung nền
-        GUI.Box(boxRect, GUIContent.none, boxStyle);
+        Rect coinsRect = new Rect(30f, coinsY, boxWidth, boxHeight);
+        Rect totalRect = new Rect(30f, totalY, boxWidth, boxHeight);
+
+        // --- VẼ BOX COINS ---
+        GUIStyle coinsBoxStyle = new GUIStyle(GUI.skin.box);
+        coinsBoxStyle.normal.background = coinsBgTexture;
+        coinsBoxStyle.border = new RectOffset(8, 8, 8, 8);
+        GUI.Box(coinsRect, GUIContent.none, coinsBoxStyle);
+
+        string coinsText = $"Coins: {currentCoins}";
+        DrawTextWithShadow(coinsRect, coinsText, style, canShoot ? new Color(1f, 0.85f, 0f, 1f) : new Color(1f, 0.3f, 0.3f, 1f));
+
+        // --- VẼ BOX TOTAL ---
+        GUIStyle totalBoxStyle = new GUIStyle(GUI.skin.box);
+        totalBoxStyle.normal.background = totalBgTexture;
+        totalBoxStyle.border = new RectOffset(8, 8, 8, 8);
+        GUI.Box(totalRect, GUIContent.none, totalBoxStyle);
+
+        string totalText = $"Total: {totalCollected}";
+        DrawTextWithShadow(totalRect, totalText, style, new Color(0.3f, 1f, 0.3f, 1f));
+    }
+
+    private void DrawTextWithShadow(Rect rect, string text, GUIStyle style, Color textColor)
+    {
+        Rect shadowRect = new Rect(rect.x + 2f, rect.y + 2f, rect.width, rect.height);
         
         GUIStyle shadowStyle = new GUIStyle(style);
         shadowStyle.normal.textColor = new Color(0, 0, 0, 0.8f);
-        
         GUI.Label(shadowRect, text, shadowStyle);
         
-        if (canShoot)
-        {
-            style.normal.textColor = new Color(1f, 0.85f, 0f, 1f); // Gold
-        }
-        else
-        {
-            style.normal.textColor = new Color(1f, 0.3f, 0.3f, 1f); // Red
-        }
-
+        style.normal.textColor = textColor;
         GUI.Label(rect, text, style);
     }
 }

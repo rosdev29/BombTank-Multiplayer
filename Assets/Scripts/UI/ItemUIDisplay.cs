@@ -188,10 +188,17 @@ public class ItemUIDisplay : MonoBehaviour
     private Texture2D CreateBackgroundTexture(Color themeColor)
     {
         Texture2D bgTexture = new Texture2D(64, 64);
-        Color bgColor = new Color(0.1f, 0.1f, 0.1f, 0.9f); 
-        Color borderColor = themeColor * 0.7f; 
-        Color highlightColor = themeColor; 
-        Color shadowColor = new Color(0.05f, 0.05f, 0.05f, 1f); 
+        
+        // Tạo màu nền riêng biệt (tint theo themeColor)
+        Color bgColor = new Color(themeColor.r * 0.2f, themeColor.g * 0.2f, themeColor.b * 0.2f, 0.95f); 
+        // Đảm bảo không quá tối nếu themeColor nhạt
+        bgColor.r = Mathf.Max(bgColor.r, 0.05f);
+        bgColor.g = Mathf.Max(bgColor.g, 0.05f);
+        bgColor.b = Mathf.Max(bgColor.b, 0.05f);
+        
+        Color borderColor = themeColor * 0.6f; 
+        Color highlightColor = themeColor * 1.1f; 
+        Color shadowColor = new Color(0.02f, 0.02f, 0.02f, 1f); 
 
         for (int y = 0; y < 64; y++)
         {
@@ -211,7 +218,7 @@ public class ItemUIDisplay : MonoBehaviour
                 }
                 else
                 {
-                    float noise = UnityEngine.Random.Range(0.9f, 1.1f);
+                    float noise = UnityEngine.Random.Range(0.85f, 1.15f);
                     bgTexture.SetPixel(x, y, bgColor * noise);
                 }
             }
@@ -235,20 +242,21 @@ public class ItemUIDisplay : MonoBehaviour
         {
             fontSize = 26,
             fontStyle = FontStyle.Bold,
-            alignment = TextAnchor.MiddleLeft
+            alignment = TextAnchor.MiddleLeft,
+            wordWrap = false
         };
 
         float currentX = 30f; 
-        float currentY = 1080f - 110f - 10f; // Bắt đầu ngay phía trên CoinUI
+        float currentY = 1080f - 160f - 10f; // Bắt đầu ngay phía trên CoinUIDisplay (chiều cao mới)
 
         for (int i = 0; i < activeItems.Count; i++)
         {
             ActiveItem item = activeItems[i];
             
             string itemName = "";
-            if (item.Type == ItemType.BuffCoin) itemName = "✨ X3 COIN ✨";
-            else if (item.Type == ItemType.DoubleBarrel) itemName = "🔥 ĐẠN ĐÔI 🔥";
-            else if (item.Type == ItemType.Trap) itemName = "💀 DÍNH BẪY 💀";
+            if (item.Type == ItemType.BuffCoin) itemName = "X3 COIN";
+            else if (item.Type == ItemType.DoubleBarrel) itemName = "ĐẠN ĐÔI";
+            else if (item.Type == ItemType.Trap) itemName = "DÍNH BẪY";
 
             string text = $"{itemName} ({Mathf.CeilToInt(item.Timer)}s)";
             
