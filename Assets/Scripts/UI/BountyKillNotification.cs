@@ -3,17 +3,17 @@ using TMPro;
 using UnityEngine;
 
 /// <summary>
-/// Hiện thông báo nhanh "+XX coin (Bounty Kill!)" cho kẻ giết crown.
+/// Hiện thông báo nhanh "Bounty Kill! +XX coin từ [tên]" cho kẻ giết crown.
 ///
-/// Setup:
-///   1. Tạo Canvas/GameObject "BountyKillNotification" trong Game scene.
-///   2. Attach script này.
-///   3. Gán notificationText (TMP_Text).
-///   4. Đảm bảo GameObject này tự tắt mặc định — script sẽ bật/tắt tự động.
+/// Setup trong Inspector:
+///   1. Attach script này vào GameObject "BountyKillNotification" (con của BountyCanvas).
+///   2. Gán notificationText → TMP_Text cùng GameObject hoặc child.
+///   3. GameObject này tự tắt mặc định — script bật/tắt tự động.
+///   Xóa BountyNotificationBootstrap nếu còn trong project.
 /// </summary>
 public class BountyKillNotification : MonoBehaviour
 {
-    // ─── Singleton ─────────────────────────────────────────────────────────
+    // ─── Singleton ────────────────────────────────────────────────────────────
     private static BountyKillNotification _instance;
 
     [Header("References")]
@@ -28,6 +28,10 @@ public class BountyKillNotification : MonoBehaviour
     // ─────────────────────────────────────────────────────────────────────────
     private void Awake()
     {
+        // Tự tìm TMP_Text nếu chưa gán trong Inspector
+        if (notificationText == null)
+            notificationText = GetComponentInChildren<TMP_Text>(true);
+
         _instance = this;
         gameObject.SetActive(false);
     }
@@ -37,7 +41,7 @@ public class BountyKillNotification : MonoBehaviour
         if (_instance == this) { _instance = null; }
     }
 
-    // ─── Public API (gọi từ BountySystem ClientRpc) ───────────────────────
+    // ─── Public API (gọi từ BountySystem ClientRpc) ──────────────────────────
     public static void Show(string victimName, int reward)
     {
         if (_instance == null)
@@ -49,12 +53,24 @@ public class BountyKillNotification : MonoBehaviour
         _instance.ShowInternal(victimName, reward);
     }
 
+    // ─── Dùng khi tạo bằng code (Bootstrap) ─────────────────────────────────
+    public void Init(TMP_Text text)
+    {
+        notificationText = text;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     private void ShowInternal(string victimName, int reward)
     {
         if (notificationText != null)
         {
             notificationText.color = textColor;
-            notificationText.text  = $"Bounty Kill!\n+{reward} coin từ {victimName}";
+            notificationText.text = $"<sprite name=\"BountyCrown\"> Bounty Kill: {victimName}\n+{reward} coin";
+
+        }
+        else
+        {
+            Debug.LogWarning("[BountyKillNotification] notificationText chưa được gán.");
         }
 
         gameObject.SetActive(true);
