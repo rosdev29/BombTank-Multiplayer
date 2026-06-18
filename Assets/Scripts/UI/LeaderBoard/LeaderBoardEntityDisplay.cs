@@ -11,15 +11,17 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
     [SerializeField] private Color myColour;
 
     private string displayName;
+    private ulong crownLookupId;
 
     public ulong ClientId { get; private set; }
     public int TeamIndex { get; private set; } = -1;
     public int Coins { get; private set; }
     public string DisplayName => displayName;
 
-    public void Initialise(ulong clientId, FixedString32Bytes playerName, int coins)
+    public void Initialise(ulong clientId, FixedString32Bytes playerName, int coins, ulong networkObjectId = 0)
     {
         ClientId = clientId;
+        crownLookupId = networkObjectId != 0 ? networkObjectId : clientId;
         TeamIndex = -1;
         displayName = playerName.ToString();
 
@@ -32,9 +34,18 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
         UpdateCoins(coins);
     }
 
+    public void SetCrownLookupId(ulong networkObjectId)
+    {
+        if (networkObjectId != 0)
+        {
+            crownLookupId = networkObjectId;
+        }
+    }
+
     public void Initialise(int teamIndex, string teamName, int coins)
     {
         ClientId = 0;
+        crownLookupId = 0;
         TeamIndex = teamIndex;
         displayName = teamName;
         UpdateCoins(coins);
@@ -60,17 +71,25 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
 
 
     public void UpdateText()
-{
-    if (displayText == null) { return; }
-
-    string nameToShow = string.IsNullOrWhiteSpace(displayName) ? "Player" : displayName;
-
-    if (NetworkManager.Singleton != null &&
-        ClientId == NetworkManager.Singleton.LocalClientId)
     {
-        nameToShow += " [YOU]";
-    }
+        if (displayText == null) { return; }
 
-    displayText.text = $"{transform.GetSiblingIndex() + 1}. {nameToShow} ({Coins})";
+        string nameToShow = string.IsNullOrWhiteSpace(displayName) ? "Player" : displayName;
+
+        if (NetworkManager.Singleton != null &&
+            ClientId == NetworkManager.Singleton.LocalClientId)
+        {
+            nameToShow += " [YOU]";
+        }
+
+        // Hiện icon vương miện 👑 nếu player này đang có bounty
+        bool hasCrown = crownLookupId != 0 &&
+            BountySystem.Instance != null &&
+            BountySystem.Instance.HasCrown(crownLookupId);
+        string crownPrefix = hasCrown ? "[Bounty] " : "";
+
+        displayText.text = $"{transform.GetSiblingIndex() + 1}. {crownPrefix}{nameToShow} ({Coins})";
+    }
 }
-}
+
+
