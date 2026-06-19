@@ -254,7 +254,7 @@ public class ItemUIDisplay : MonoBehaviour
             ActiveItem item = activeItems[i];
             
             string itemName = "";
-            if (item.Type == ItemType.BuffCoin) itemName = "X3 COIN";
+            if (item.Type == ItemType.BuffCoin) itemName = "X3 XU";
             else if (item.Type == ItemType.DoubleBarrel) itemName = "ĐẠN ĐÔI";
             else if (item.Type == ItemType.Trap) itemName = "DÍNH BẪY";
 
