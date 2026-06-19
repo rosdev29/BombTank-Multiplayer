@@ -101,7 +101,7 @@ public class CoinUIDisplay : MonoBehaviour
         coinsBoxStyle.border = new RectOffset(8, 8, 8, 8);
         GUI.Box(coinsRect, GUIContent.none, coinsBoxStyle);
 
-        string coinsText = $"Coins: {currentCoins}";
+        string coinsText = $"XU: {currentCoins}";
         DrawTextWithShadow(coinsRect, coinsText, style, canShoot ? new Color(1f, 0.85f, 0f, 1f) : new Color(1f, 0.3f, 0.3f, 1f));
 
         // --- VẼ BOX TOTAL ---
@@ -110,7 +110,7 @@ public class CoinUIDisplay : MonoBehaviour
         totalBoxStyle.border = new RectOffset(8, 8, 8, 8);
         GUI.Box(totalRect, GUIContent.none, totalBoxStyle);
 
-        string totalText = $"Total: {totalCollected}";
+        string totalText = $"TỔNG: {totalCollected}";
         DrawTextWithShadow(totalRect, totalText, style, new Color(0.3f, 1f, 0.3f, 1f));
     }
 
