@@ -10,11 +10,13 @@ public class ItemSpawner : NetworkBehaviour
     public ItemPickup trapPrefab;
     public ItemPickup doubleBarrelPrefab;
 
+    // Các thông số được cấu hình cứng trong code để tránh bị Inspector ghi đè
+    private int maxItemsOnMap = 10;
+    private float respawnTime = 10f;
+    private Vector2 xSpawnRange = new Vector2(-50, 50);
+    private Vector2 ySpawnRange = new Vector2(-50, 50);
+    
     [Header("Settings")]
-    [SerializeField] private int maxItemsOnMap = 10;
-    [SerializeField] private float respawnTime = 10f;
-    [SerializeField] private Vector2 xSpawnRange = new Vector2(-20, 20);
-    [SerializeField] private Vector2 ySpawnRange = new Vector2(-20, 20);
     [SerializeField] private LayerMask layerMask;
 
     private Collider2D[] itemBuffer = new Collider2D[1];
@@ -24,6 +26,9 @@ public class ItemSpawner : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         if (!IsServer) { return; }
+
+        // Khởi tạo Random với seed theo thời gian thực để mỗi trận luôn khác nhau hoàn toàn
+        Random.InitState(System.Environment.TickCount);
 
         if (buffCoinPrefab != null)
         {
@@ -87,13 +92,19 @@ public class ItemSpawner : NetworkBehaviour
             y = Random.Range(ySpawnRange.x, ySpawnRange.y);
             Vector2 spawnPoint = new Vector2(x, y);
             
-            // Lấy tất cả colliders tại vị trí này để tránh lỗi cấu hình layerMask thiếu layer tường/đá
-            Collider2D[] colliders = Physics2D.OverlapCircleAll(spawnPoint, itemRadius);
+            // Lấy tất cả colliders tại vị trí này, cộng thêm bán kính để item giãn cách ra
+            Collider2D[] colliders = Physics2D.OverlapCircleAll(spawnPoint, itemRadius + 1.5f);
             bool hitObstacle = false;
             foreach (Collider2D col in colliders)
             {
-                // Nếu chạm phải collider cứng (không phải trigger) như tường, đá
+                // Nếu chạm phải collider cứng (tường, đá...)
                 if (!col.isTrigger)
+                {
+                    hitObstacle = true;
+                    break;
+                }
+                // Nếu khu vực này đã có một Item khác, bỏ qua để không spawn đè/quá sát nhau
+                if (col.GetComponent<ItemPickup>() != null)
                 {
                     hitObstacle = true;
                     break;

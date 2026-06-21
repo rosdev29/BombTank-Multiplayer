@@ -4666,7 +4666,7 @@ MonoBehaviour:
   buffCoinPrefab: {fileID: 5409926093422813181, guid: 6f949bc30d8b7814e9a50ce24dc2baa0, type: 3}
   trapPrefab: {fileID: 2141389028680069045, guid: a821350a75ff4d643a801a5c399a0a6e, type: 3}
   doubleBarrelPrefab: {fileID: 9094317069041789883, guid: 6a23b6d3eb3871849b260eea843f14df, type: 3}
-  maxItemsOnMap: 5
+  maxItemsOnMap: 10
   respawnTime: 10
   xSpawnRange: {x: -20, y: 20}
   ySpawnRange: {x: -20, y: 20}
