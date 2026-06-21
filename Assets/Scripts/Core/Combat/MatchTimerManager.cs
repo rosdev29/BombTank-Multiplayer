@@ -23,6 +23,7 @@ public class MatchTimerManager : NetworkBehaviour
     {
         base.OnNetworkSpawn();
         matchEnded = false;
+        MatchEndBridge.Reset();
 
         if (IsServer && IsSpawned)
         {
@@ -58,7 +59,30 @@ public class MatchTimerManager : NetworkBehaviour
         matchEnded = true;
 
         MatchEndBridge.NotifyMatchEnded();
+        FreezeAllTanks();
         NotifyMatchEndedClientRpc();
+    }
+
+    private void FreezeAllTanks()
+    {
+        TankPlayer[] tanks = FindObjectsByType<TankPlayer>(FindObjectsSortMode.None);
+        for (int i = 0; i < tanks.Length; i++)
+        {
+            TankPlayer tank = tanks[i];
+            if (tank == null) { continue; }
+
+            BotBrain brain = tank.GetComponent<BotBrain>();
+            if (brain != null)
+            {
+                brain.enabled = false;
+            }
+
+            if (tank.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
+            {
+                rb.velocity = Vector2.zero;
+                rb.angularVelocity = 0f;
+            }
+        }
     }
 
     [ClientRpc]

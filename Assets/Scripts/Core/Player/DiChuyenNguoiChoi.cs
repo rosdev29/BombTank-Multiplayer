@@ -54,14 +54,46 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        DungBui();
+
         if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
 
         docInput.MoveEvent -= XuLyDiChuyen;
     }
 
+    private void OnDisable()
+    {
+        DungBui();
+    }
+
+    private void DungBui()
+    {
+        if (dustTrail != null)
+        {
+            dustTrail.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
+        if (vetBanhTrails == null) { return; }
+
+        for (int i = 0; i < vetBanhTrails.Length; i++)
+        {
+            if (vetBanhTrails[i] != null)
+            {
+                vetBanhTrails[i].Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
+        }
+    }
+
     private void Update()
     {
         if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
+
+        if (GameplayInputGate.IsBlocked || MatchEndBridge.IsMatchEnded)
+        {
+            inputDiChuyenTruoc = Vector2.zero;
+            dangDiChuyen.Value = false;
+            return;
+        }
 
         float gocXoayZ = inputDiChuyenTruoc.x * -tocDoXoay * Time.deltaTime;
         bodyTransform.Rotate(0f, 0f, gocXoayZ);
@@ -74,6 +106,12 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
         CapNhatVetBanh(nenPhat);
 
         if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
+
+        if (GameplayInputGate.IsBlocked || MatchEndBridge.IsMatchEnded)
+        {
+            rb.velocity = Vector2.zero;
+            return;
+        }
 
         rb.velocity = (Vector2)bodyTransform.up * inputDiChuyenTruoc.y * tocDoDiChuyen;
     }

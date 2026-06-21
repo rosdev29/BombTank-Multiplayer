@@ -13,6 +13,7 @@ public class NguoiChoiNgamBan : NetworkBehaviour
     private void LateUpdate()
     {
         if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
+        if (GameplayInputGate.IsBlocked || MatchEndBridge.IsMatchEnded) { return; }
 
         Vector2 ViTriNgamTrenManHinh = inputReader.ViTriNgam;
         Vector2 ViTriNgamTrongTheGioi = Camera.main.ScreenToWorldPoint(ViTriNgamTrenManHinh);
