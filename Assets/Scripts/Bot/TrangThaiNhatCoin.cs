@@ -14,31 +14,8 @@ public class TrangThaiNhatCoin : IBotState
             return new BotCommand();
         }
 
-<<<<<<< HEAD
         float throttle = ctx.DistanceToCoin < KHOANG_CACH_CHAM ? 0.3f : 1f;
         return BotSteering.MoveTowards(ctx, ctx.CoinPosition, throttle);
-=======
-        Vector2 targetPos = ctx.BotPosition;
-        if (ctx.NearestItem != null)
-        {
-            targetPos = ctx.ItemPosition;
-        }
-        else if (ctx.NearestCoin != null)
-        {
-            targetPos = ctx.CoinPosition;
-        }
-        else
-        {
-            return cmd;
-        }
-
-        Vector2 huong = targetPos - ctx.BotPosition;
-        float gocLech = Vector2.SignedAngle((Vector2)ctx.BodyTransform.up, huong.normalized);
-
-        cmd.MoveInput = new Vector2(gocLech > 0 ? -1f : 1f, 1f);
-
-        return cmd;
->>>>>>> origin/item
     }
 
     public void OnExit(BotContext ctx) { }

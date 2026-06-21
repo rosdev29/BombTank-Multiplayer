@@ -318,17 +318,9 @@ public class Leaderboard : NetworkBehaviour
         if (isTearingDown) { return; }
         if (!IsServer || !IsSpawned || leaderboardEntities == null || player == null) { return; }
         if (NetworkManager == null || NetworkManager.ShutdownInProgress) { return; }
-<<<<<<< HEAD
-
         ulong leaderboardId = GetLeaderboardId(player);
         FixedString32Bytes leaderboardName = GetLeaderboardName(player);
 
-=======
-        
-        // CHẶN BOT: Không cho phép Bot được đưa lên bảng Leaderboard
-        if (player.IsCurrentlyBot()) { return; }
-        
->>>>>>> origin/item
         for (int i = 0; i < leaderboardEntities.Count; i++)
         {
             if (leaderboardEntities[i].ClientId == leaderboardId)
