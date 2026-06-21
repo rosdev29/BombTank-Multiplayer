@@ -6,6 +6,23 @@ using UnityEngine;
 
 public class BotSpawner : MonoBehaviour
 {
+    private BotConfig easyConfig;
+    private BotConfig mediumConfig;
+    private BotConfig hardConfig;
+
+    private void Awake()
+    {
+        easyConfig   = Resources.Load<BotConfig>("Bot/BotConfig_Easy");
+        mediumConfig = Resources.Load<BotConfig>("Bot/BotConfig_Medium");
+        hardConfig   = Resources.Load<BotConfig>("Bot/BotConfig_Hard");
+
+        Debug.Log(
+            $"[BotSpawner] Load Configs: " +
+            $"Easy={(easyConfig != null)}, " +
+            $"Medium={(mediumConfig != null)}, " +
+            $"Hard={(hardConfig != null)}");
+    }
+
     private const int TargetTotalTanks = 3;
     
     private List<TankPlayer> activeBots = new List<TankPlayer>();
@@ -154,10 +171,36 @@ public class BotSpawner : MonoBehaviour
         if (botInstance.GetComponent<BotShooter>() == null)
             botInstance.gameObject.AddComponent<BotShooter>();
 
-        if (botInstance.GetComponent<BotBrain>() == null)
-            botInstance.gameObject.AddComponent<BotBrain>();
+        BotBrain botBrain = botInstance.GetComponent<BotBrain>();
+        if (botBrain == null)
+            botBrain = botInstance.gameObject.AddComponent<BotBrain>();
 
         // LayerMask được BotBrain tự set trong OnNetworkSpawn qua KhoiTao() — không cần override ở đây.
+
+
+        // =======================
+        // THÊM MỚI
+        // Chọn độ khó bot
+        // =======================
+
+        BotConfig pickedConfig = easyConfig;
+
+        // Ví dụ random độ khó:
+        // int roll = Random.Range(0, 3);
+        // pickedConfig = roll switch
+        // {
+        //     0 => easyConfig,
+        //     1 => mediumConfig,
+        //     _ => hardConfig
+        // };
+
+        if (pickedConfig != null)
+        {
+            botBrain.GanConfig(pickedConfig);
+
+            Debug.Log(
+                $"[BotSpawner] GanConfig={pickedConfig.name}");
+        }
 
         TankPlayer tankPlayer = botInstance.GetComponent<TankPlayer>();
 
