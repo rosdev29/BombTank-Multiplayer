@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class AudioManager : MonoBehaviour
 {
@@ -11,6 +12,10 @@ public class AudioManager : MonoBehaviour
     [Header("Audio Clips")]
     public AudioClip gunShot;
     public AudioClip coinPickup;
+
+    [Header("Volume")]
+    [Range(0f, 1f)] public float gunShotVolume    = 0.7f;
+    [Range(0f, 1f)] public float coinPickupVolume = 0.075f;
 
     [Header("Music Clips")]
     public AudioClip menuMusic;
@@ -28,21 +33,53 @@ public class AudioManager : MonoBehaviour
         }
     }
 
-    private void Start()
+    private void OnEnable()
     {
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+    }
+
+    private void OnDisable()
+    {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (scene.name != ClientSessionOverlay.MenuSceneName) { return; }
+
         PlayMusic(menuMusic);
     }
 
-    public void PlaySFX(AudioClip clip)
+    private void Start()
     {
-        if (clip == null) return;
+        float musicVolume = PlayerPrefs.GetFloat("MusicVolume", 1f);
+        float sfxVolume = PlayerPrefs.GetFloat("SfxVolume", 1f);
 
-        sfxSource.PlayOneShot(clip);
+        if (musicSource != null)
+        {
+            musicSource.volume = musicVolume;
+        }
+
+        if (sfxSource != null)
+        {
+            sfxSource.volume = sfxVolume;
+        }
+
+        PlayMusic(menuMusic);
+    }
+
+    public void PlaySFX(AudioClip clip, float volumeScale = 1f)
+    {
+        if (clip == null || sfxSource == null) { return; }
+
+        sfxSource.PlayOneShot(clip, Mathf.Clamp01(volumeScale));
     }
 
     public void PlayMusic(AudioClip musicClip)
     {
-        if (musicClip == null) return;
+        if (musicClip == null || musicSource == null) { return; }
+
+        if (musicSource.clip == musicClip && musicSource.isPlaying) { return; }
 
         musicSource.clip = musicClip;
         musicSource.Play();

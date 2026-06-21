@@ -63,7 +63,7 @@ public class ItemInventory : NetworkBehaviour
 
         if (!col.TryGetComponent<ItemPickup>(out ItemPickup item)) { return; }
 
-        // Bẫy - Trừ máu, trừ coin từ từ trong 5s
+        // Bẫy - chỉ trừ máu trong 5s (không trừ coin)
         if (item.Type == ItemType.Trap)
         {
             int ticksToAdd = Mathf.RoundToInt(trapDuration);
@@ -72,7 +72,7 @@ public class ItemInventory : NetworkBehaviour
             
             if (trapCoroutine == null)
             {
-                trapCoroutine = StartCoroutine(TrapRoutine(item.TrapDamageAmount, item.TrapCoinPenalty));
+                trapCoroutine = StartCoroutine(TrapRoutine(item.TrapDamageAmount));
             }
             item.Collect();
             PlaySquishEffectClientRpc();
@@ -170,18 +170,16 @@ public class ItemInventory : NetworkBehaviour
         }
     }
 
-    private IEnumerator TrapRoutine(int totalDamage, int totalCoinPenalty)
+    private IEnumerator TrapRoutine(int totalDamage)
     {
         IsTrapActive.Value = true;
         
         int dmgPerTick = totalDamage / Mathf.RoundToInt(trapDuration);
-        int coinPerTick = totalCoinPenalty / Mathf.RoundToInt(trapDuration);
 
         while (trapTicksRemaining > 0)
         {
             health.NhanSatThuong(dmgPerTick);
-            wallet.SpendCoins(coinPerTick);
-            PlayEffectClientRpc(ItemType.Trap); // Chớp đỏ mỗi giây
+            PlayEffectClientRpc(ItemType.Trap);
             yield return new WaitForSeconds(1f);
             trapTicksRemaining--;
         }

@@ -28,6 +28,7 @@ public class Leaderboard : NetworkBehaviour
 
     private bool isTearingDown;
     private float staleCleanupTimer;
+    private bool leaderboardUiSetup;
 
     private void Awake()
     {
@@ -51,6 +52,7 @@ public class Leaderboard : NetworkBehaviour
                 leaderboardEntityPrefab != null)
             {
                 teamLeaderboardBackground.SetActive(true);
+                ConfigureLeaderboardHolder(teamLeaderboardEntityHolder);
 
                 for (int i = 0; i < teamNames.Length; i++)
                 {
@@ -83,7 +85,7 @@ public class Leaderboard : NetworkBehaviour
 
         if (IsClient)
         {
-            // Khi crown list thay đổi → redraw để 👑 icon cập nhật trên leaderboard
+            SetupLeaderboardPresentation();
             BountySystem.OnCrownListChanged += RefreshAllDisplayTexts;
         }
 
@@ -256,12 +258,13 @@ public class Leaderboard : NetworkBehaviour
 
         for (int i = 0; i < entityDisplays.Count; i++)
         {
+            entityDisplays[i].SetRank(i + 1);
             entityDisplays[i].transform.SetSiblingIndex(i);
             entityDisplays[i].UpdateText();
             entityDisplays[i].gameObject.SetActive(true);
         }
 
-        EnsureVisibleStack(leaderboardEntityHolder, entityDisplays);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(leaderboardEntityHolder as RectTransform);
 
         if (teamLeaderboardBackground == null || !teamLeaderboardBackground.activeSelf) { return; }
 
@@ -284,19 +287,89 @@ public class Leaderboard : NetworkBehaviour
 
             for (int i = 0; i < teamEntityDisplays.Count; i++)
             {
+                teamEntityDisplays[i].SetRank(i + 1);
                 teamEntityDisplays[i].transform.SetSiblingIndex(i);
                 teamEntityDisplays[i].UpdateText();
             }
 
-            EnsureVisibleStack(teamLeaderboardEntityHolder, teamEntityDisplays);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(teamLeaderboardEntityHolder as RectTransform);
+        }
+    }
+
+    private void SetupLeaderboardPresentation()
+    {
+        if (leaderboardUiSetup || leaderboardEntityHolder == null) { return; }
+
+        leaderboardUiSetup = true;
+        ConfigureLeaderboardHolder(leaderboardEntityHolder);
+    }
+
+    private void ConfigureLeaderboardHolder(Transform holderTransform)
+    {
+        if (holderTransform == null) { return; }
+
+        RectTransform holder = holderTransform as RectTransform;
+        if (holder == null) { return; }
+
+        RectTransform background = holder.parent as RectTransform;
+        if (background == null) { return; }
+
+        if (background.GetComponent<ScrollRect>() == null)
+        {
+            ScrollRect scroll = background.gameObject.AddComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 18f;
+
+            GameObject viewportObject = new GameObject("LeaderboardViewport", typeof(RectTransform));
+            RectTransform viewport = viewportObject.GetComponent<RectTransform>();
+            viewport.SetParent(background, false);
+            viewport.SetAsFirstSibling();
+            viewport.anchorMin = Vector2.zero;
+            viewport.anchorMax = Vector2.one;
+            viewport.offsetMin = new Vector2(12f, 12f);
+            viewport.offsetMax = new Vector2(-12f, -12f);
+            viewportObject.AddComponent<RectMask2D>();
+
+            holder.SetParent(viewport, false);
+            holder.anchorMin = new Vector2(0f, 1f);
+            holder.anchorMax = new Vector2(1f, 1f);
+            holder.pivot = new Vector2(0.5f, 1f);
+            holder.anchoredPosition = Vector2.zero;
+            holder.sizeDelta = new Vector2(0f, 0f);
+
+            scroll.viewport = viewport;
+            scroll.content = holder;
+        }
+        else if (background.GetComponent<RectMask2D>() == null)
+        {
+            background.gameObject.AddComponent<RectMask2D>();
+        }
+
+        VerticalLayoutGroup layout = holder.GetComponent<VerticalLayoutGroup>();
+        if (layout != null)
+        {
+            layout.spacing = 3f;
+            layout.childAlignment = TextAnchor.UpperLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.padding = new RectOffset(8, 8, 6, 6);
+        }
+
+        ContentSizeFitter fitter = holder.GetComponent<ContentSizeFitter>();
+        if (fitter != null)
+        {
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         }
     }
 
     private void EnsureVisibleStack(Transform holder, List<LeaderBoardEntityDisplay> displays)
     {
         if (holder == null || displays == null || displays.Count == 0) { return; }
-
-
         if (holder.GetComponent<LayoutGroup>() != null) { return; }
 
         for (int i = 0; i < displays.Count; i++)
@@ -325,12 +398,14 @@ public class Leaderboard : NetworkBehaviour
         {
             if (leaderboardEntities[i].ClientId == leaderboardId)
             {
+                int score = player.Wallet != null ? player.Wallet.LifetimeCoins.Value : leaderboardEntities[i].Coins;
+
                 leaderboardEntities[i] = new LeaderboardEntityState
                 {
                     ClientId = leaderboardId,
                     PlayerName = leaderboardName,
                     TeamIndex = player.TeamIndex.Value,
-                    Coins = leaderboardEntities[i].Coins
+                    Coins = score
                 };
 
                 if (IsClient)
@@ -353,7 +428,7 @@ public class Leaderboard : NetworkBehaviour
             ClientId = leaderboardId,
             PlayerName = leaderboardName,
             TeamIndex = player.TeamIndex.Value,
-            Coins = player.Wallet != null ? player.Wallet.TotalCoins.Value : 0
+            Coins = player.Wallet != null ? player.Wallet.LifetimeCoins.Value : 0
         });
 
         if (IsClient)
@@ -378,7 +453,7 @@ public class Leaderboard : NetworkBehaviour
                 handler = handler
             };
 
-            player.Wallet.TotalCoins.OnValueChanged += handler;
+            player.Wallet.LifetimeCoins.OnValueChanged += handler;
         }
     }
 
@@ -458,7 +533,7 @@ public class Leaderboard : NetworkBehaviour
 
         if (subscription.wallet != null)
         {
-            subscription.wallet.TotalCoins.OnValueChanged -= subscription.handler;
+            subscription.wallet.LifetimeCoins.OnValueChanged -= subscription.handler;
         }
 
         coinChangedSubscriptions.Remove(clientId);

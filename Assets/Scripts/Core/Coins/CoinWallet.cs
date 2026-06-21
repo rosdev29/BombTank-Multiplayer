@@ -28,31 +28,33 @@ public class CoinWallet : NetworkBehaviour
         if (!IsServer) { return; }
 
         coinRadius = coinPrefab.GetComponent<CircleCollider2D>().radius;
-
-        health.KhiChet += HandleDie;
-    }
-
-    public override void OnNetworkDespawn()
-    {
-        if (!IsServer) { return; }
-
-        health.KhiChet -= HandleDie;
     }
 
     public void SpendCoins(int chiPhiBan)
     {
+        if (chiPhiBan <= 0) { return; }
+
+        TotalCoins.Value = Mathf.Max(0, TotalCoins.Value - chiPhiBan);
+    }
+
+    public bool TrySpendCoins(int chiPhiBan)
+    {
+        if (chiPhiBan <= 0) { return true; }
+        if (TotalCoins.Value < chiPhiBan) { return false; }
+
         TotalCoins.Value -= chiPhiBan;
+        return true;
     }
 
     private void OnTriggerEnter2D(Collider2D col)
     {
         if (!col.TryGetComponent<Coin>(out Coin coin)) { return; }
 
-        // Phát âm thanh nhặt coin
-        if (IsOwner)
+        if (LaNguoiChoiLocal())
         {
             AudioManager.Instance?.PlaySFX(
-                AudioManager.Instance.coinPickup
+                AudioManager.Instance.coinPickup,
+                AudioManager.Instance.coinPickupVolume
             );
         }
 
@@ -70,11 +72,36 @@ public class CoinWallet : NetworkBehaviour
         LifetimeCoins.Value += coinValue;
     }
 
-    private void HandleDie(Mau health)
+    /// <summary>
+    /// Rơi 50% coin ra map, xóa ví. Trả về 50% số coin đã rơi để hồi sinh.
+    /// </summary>
+    public int ProcessDeathCoinDrop()
     {
-        int bountyValue = (int)(TotalCoins.Value * (bountyPercentage / 100f));
-        if (bountyValue <= 0) { return; }
+        if (!IsServer) { return 0; }
 
+        int total = TotalCoins.Value;
+        if (total <= 0)
+        {
+            LifetimeCoins.Value = LifetimeCoins.Value / 2;
+            TotalCoins.Value = 0;
+            return 0;
+        }
+
+        int dropAmount = Mathf.FloorToInt(total * (bountyPercentage / 100f));
+        dropAmount = Mathf.Clamp(dropAmount, 0, total);
+
+        if (dropAmount > 0)
+        {
+            SpawnBountyCoins(dropAmount);
+        }
+
+        LifetimeCoins.Value = LifetimeCoins.Value / 2;
+        TotalCoins.Value = 0;
+        return dropAmount / 2;
+    }
+
+    private void SpawnBountyCoins(int bountyValue)
+    {
         int spawnCount = Mathf.Max(1, bountyCoinCount);
         spawnCount = Mathf.Min(spawnCount, bountyValue);
 
@@ -94,6 +121,12 @@ public class CoinWallet : NetworkBehaviour
             coinInstance.SetValue(coinValue);
             coinInstance.NetworkObject.Spawn();
         }
+    }
+
+    private bool LaNguoiChoiLocal()
+    {
+        TankPlayer tank = GetComponent<TankPlayer>();
+        return tank != null && tank.IsOwner && !tank.IsCurrentlyBot();
     }
 
     private Vector2 GetSpawnPoint()

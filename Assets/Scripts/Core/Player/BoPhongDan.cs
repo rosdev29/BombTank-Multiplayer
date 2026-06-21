@@ -198,6 +198,7 @@ public class BoPhongDan : NetworkBehaviour
             timer -= Time.deltaTime;
 
         if (!duocTanCong) { return; }
+        if (MatchEndBridge.IsMatchEnded) { return; }
         if (timer > 0f)    { return; }
         if (wallet.TotalCoins.Value < GetShootingCost()) { return; }
 
@@ -206,7 +207,7 @@ public class BoPhongDan : NetworkBehaviour
         spawnDanGia(DiemSpawnDan.position, DiemSpawnDan.up, teamIndex);
 
         if (AudioManager.Instance != null)
-            AudioManager.Instance.PlaySFX(AudioManager.Instance.gunShot);
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.gunShot, AudioManager.Instance.gunShotVolume);
 
         timer = 1f / tanSuatTanCong;
     }
@@ -221,6 +222,7 @@ public class BoPhongDan : NetworkBehaviour
     public void BanBot()
     {
         if (!IsServer) { return; }
+        if (MatchEndBridge.IsMatchEnded) { return; }
         if (DiemSpawnDan == null) { return; }
         if (timerBot > 0f) { return; }
         if (wallet == null || wallet.TotalCoins.Value < GetShootingCost()) { return; }
@@ -240,6 +242,8 @@ public class BoPhongDan : NetworkBehaviour
     [ServerRpc]
     private void xuLyBanChinhServerRpc(Vector3 viTriSpawn, Vector3 huongDi)
     {
+        if (MatchEndBridge.IsMatchEnded) { return; }
+
         SpawnServerBullets(viTriSpawn, huongDi, TeamIndexHienTai());
         spawnDanGiaClientRpc(viTriSpawn, huongDi, TeamIndexHienTai());
     }
@@ -253,12 +257,14 @@ public class BoPhongDan : NetworkBehaviour
 
     private void SpawnServerBullets(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)
     {
+        if (MatchEndBridge.IsMatchEnded) { return; }
+
         int soLuongDan = IsDoubleBarrelActive.Value ? 2 : 1;
         int tongChiPhi = ChiPhiBan * soLuongDan;
 
         if (wallet.TotalCoins.Value < tongChiPhi) { return; }
 
-        wallet.SpendCoins(tongChiPhi);
+        if (!wallet.TrySpendCoins(tongChiPhi)) { return; }
 
         const float offsetTrucTiep = 0.3f;
 

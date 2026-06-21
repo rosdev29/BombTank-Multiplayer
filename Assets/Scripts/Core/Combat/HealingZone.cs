@@ -75,21 +75,15 @@ public class HealingZone : NetworkBehaviour
 
     private void OnTriggerEnter2D(Collider2D col)
     {
-        if (!IsServer) { return; }
-
-        if (!col.attachedRigidbody.TryGetComponent<TankPlayer>(out TankPlayer player)) { return; }
-
-        if (playersInZone.Add(player))
-        {
-            Debug.Log($"Entered: {player.PlayerName.Value}");
-        }
+        if (!IsServer || !IsSpawned) { return; }
+        TryRegisterPlayer(col);
     }
 
     private void OnTriggerExit2D(Collider2D col)
     {
-        if (!IsServer) { return; }
+        if (!IsServer || !IsSpawned) { return; }
 
-        if (!col.attachedRigidbody.TryGetComponent<TankPlayer>(out TankPlayer player)) { return; }
+        if (!TryGetTankPlayer(col, out TankPlayer player)) { return; }
 
         if (playersInZone.Remove(player))
         {
@@ -97,9 +91,53 @@ public class HealingZone : NetworkBehaviour
         }
     }
 
+    private void OnTriggerStay2D(Collider2D col)
+    {
+        if (!IsServer || !IsSpawned) { return; }
+        TryRegisterPlayer(col);
+    }
+
+    private void TryRegisterPlayer(Collider2D col)
+    {
+        if (!TryGetTankPlayer(col, out TankPlayer player)) { return; }
+
+        if (playersInZone.Add(player))
+        {
+            Debug.Log($"Entered: {player.PlayerName.Value}");
+        }
+    }
+
+    private static bool TryGetTankPlayer(Collider2D col, out TankPlayer player)
+    {
+        player = null;
+        if (col == null) { return false; }
+
+        player = col.GetComponentInParent<TankPlayer>();
+        return player != null && player.IsSpawned;
+    }
+
+    private void RefreshPlayersInZone()
+    {
+        Collider2D zoneCollider = GetComponent<Collider2D>();
+        if (zoneCollider == null) { return; }
+
+        playersInZone.Clear();
+
+        Bounds bounds = zoneCollider.bounds;
+        Collider2D[] hits = Physics2D.OverlapBoxAll(bounds.center, bounds.size, 0f);
+        foreach (Collider2D hit in hits)
+        {
+            if (TryGetTankPlayer(hit, out TankPlayer player))
+            {
+                playersInZone.Add(player);
+            }
+        }
+    }
+
     private void Update()
     {
-        if (!IsServer) { return; }
+        if (!IsServer || !IsSpawned) { return; }
+        if (MatchEndBridge.IsMatchEnded) { return; }
         if (healTickRate <= 0f) { return; }
 
         if (remainingCooldown > 0f)
@@ -117,28 +155,36 @@ public class HealingZone : NetworkBehaviour
 
         float tickInterval = 1f / healTickRate;
         tickTimer += Time.deltaTime;
-        if (tickTimer >= tickInterval)
+        if (tickTimer < tickInterval) { return; }
+
+        RefreshPlayersInZone();
+
+        foreach (TankPlayer player in playersInZone)
         {
-            foreach (TankPlayer player in playersInZone)
+            if (player == null || player.Health == null || player.Wallet == null) { continue; }
+            if (HealPower.Value == 0) { break; }
+
+            int maxHealth = player.Health.MauToiDaNet.Value;
+            if (player.Health.MauHienTai.Value >= maxHealth) { continue; }
+
+            int availableCoins = player.Wallet.TotalCoins.Value;
+            if (availableCoins <= 0) { continue; }
+
+            int coinsSpent = Mathf.Min(coinsPerTick, availableCoins);
+            int healthGain = Mathf.Max(1, Mathf.RoundToInt(healthPerTick * (coinsSpent / (float)coinsPerTick)));
+
+            player.Wallet.SpendCoins(coinsSpent);
+            player.Health.HoiMau(healthGain);
+
+            HealPower.Value -= 1;
+
+            if (HealPower.Value == 0)
             {
-                if (player == null || player.Health == null || player.Wallet == null) { continue; }
-                if (HealPower.Value == 0) { break; }
-                if (player.Health.MauHienTai.Value == player.Health.MauToiDa) { continue; }
-                if (player.Wallet.TotalCoins.Value < coinsPerTick) { continue; }
-
-                player.Wallet.SpendCoins(coinsPerTick);
-                player.Health.HoiMau(healthPerTick);
-
-                HealPower.Value -= 1;
-
-                if (HealPower.Value == 0)
-                {
-                    remainingCooldown = healCooldown;
-                }
+                remainingCooldown = healCooldown;
             }
-
-            tickTimer = tickTimer % tickInterval;
         }
+
+        tickTimer = tickTimer % tickInterval;
     }
 
     private void HandleHealPowerChanged(int oldHealPower, int newHealPower)
