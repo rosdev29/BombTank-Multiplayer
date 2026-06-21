@@ -73,16 +73,26 @@ public class MainMenu : MonoBehaviour
 
         isStartingHost = true;
         bool started = networkManager.StartHost();
+
         Debug.Log($"[LAN] StartHost result={started} port={port}");
+
         if (started)
         {
+            // Tắt nhạc menu khi vào trận
+            AudioManager.Instance?.StopMusic();
+
             SetStatus($"Host dang mo. IP: {GetLocalIpv4Text()}  Port: {port}");
-            networkManager.SceneManager.LoadScene(gameSceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
+
+            networkManager.SceneManager.LoadScene(
+                gameSceneName,
+                UnityEngine.SceneManagement.LoadSceneMode.Single
+            );
         }
         else
         {
             SetStatus("Khong the tao Host. Kiem tra lai mang/port.");
         }
+
         isStartingHost = false;
     }
 
@@ -92,11 +102,13 @@ public class MainMenu : MonoBehaviour
         if (networkManager.IsListening) { return; }
 
         string ip = ipField != null ? ipField.text.Trim() : string.Empty;
+
         if (string.IsNullOrWhiteSpace(ip))
         {
             SetStatus("Ban chua nhap IP Host. Hay nhap IP truoc khi bam Client.");
             return;
         }
+
         if (!IsValidIpv4(ip))
         {
             SetStatus("IP khong hop le. Dung dinh dang 192.168.x.x");
@@ -104,6 +116,7 @@ public class MainMenu : MonoBehaviour
         }
 
         UnityTransport transport = networkManager.GetComponent<UnityTransport>();
+
         if (transport != null)
         {
             transport.SetConnectionData(ip, port);
@@ -112,22 +125,35 @@ public class MainMenu : MonoBehaviour
         SetConnectionPayload();
 
         bool started = networkManager.StartClient();
+
+        if (started)
+        {
+            // Tắt nhạc menu khi vào trận
+            AudioManager.Instance?.StopMusic();
+        }
+
         Debug.Log($"[LAN] StartClient result={started} ip={ip}:{port}");
-        SetStatus(started
-            ? $"Dang ket noi toi {ip}:{port}..."
-            : "Khong the bat Client. Kiem tra IP/Port roi thu lai.");
+
+        SetStatus(
+            started
+                ? $"Dang ket noi toi {ip}:{port}..."
+                : "Khong the bat Client. Kiem tra IP/Port roi thu lai."
+        );
     }
 
     private void HandleClientConnected(ulong clientId)
     {
         if (networkManager == null) { return; }
+
         Debug.Log($"[LAN] Connected. LocalClientId={networkManager.LocalClientId}, EventClientId={clientId}");
+
         SetStatus("Ket noi thanh cong.");
     }
 
     private void HandleClientDisconnected(ulong clientId)
     {
         Debug.Log($"[LAN] Disconnected clientId={clientId}");
+
         SetStatus("Da ngat ket noi. Kiem tra IP Host va mang LAN.");
     }
 
@@ -144,6 +170,7 @@ public class MainMenu : MonoBehaviour
         };
 
         string payload = JsonUtility.ToJson(userData);
+
         networkManager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(payload);
     }
 
@@ -155,20 +182,25 @@ public class MainMenu : MonoBehaviour
         }
 
         const string key = "LanAuthId";
+
         string cached = PlayerPrefs.GetString(key, string.Empty);
+
         if (!string.IsNullOrEmpty(cached))
         {
             return cached;
         }
 
         cached = System.Guid.NewGuid().ToString("N");
+
         PlayerPrefs.SetString(key, cached);
+
         return cached;
     }
 
     private void HandleIpChanged(string rawValue)
     {
         string ip = rawValue == null ? string.Empty : rawValue.Trim();
+
         bool hasIp = !string.IsNullOrWhiteSpace(ip);
         bool isValid = hasIp && IsValidIpv4(ip);
 
@@ -217,10 +249,12 @@ public class MainMenu : MonoBehaviour
         try
         {
             IPHostEntry hostEntry = Dns.GetHostEntry(Dns.GetHostName());
+
             foreach (IPAddress address in hostEntry.AddressList)
             {
                 if (address.AddressFamily != AddressFamily.InterNetwork) { continue; }
                 if (IPAddress.IsLoopback(address)) { continue; }
+
                 return address.ToString();
             }
         }
