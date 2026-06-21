@@ -33,4 +33,20 @@ public class ItemPickup : NetworkBehaviour
         // Sau khi nhặt thì xoá khỏi mạng
         NetworkObject.Despawn();
     }
+
+    private void Start()
+    {
+        if (spriteRenderer == null)
+        {
+            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        }
+
+        // Ghi đè hình ảnh của item thành hộp bí ẩn (dấu chấm hỏi) để giấu chức năng
+        Sprite mysterySprite = Resources.Load<Sprite>("MysteryBox");
+        if (mysterySprite != null && spriteRenderer != null)
+        {
+            spriteRenderer.sprite = mysterySprite;
+            spriteRenderer.color = Color.white;
+        }
+    }
 }
