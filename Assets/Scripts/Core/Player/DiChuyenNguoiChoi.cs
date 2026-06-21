@@ -20,7 +20,7 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
     [SerializeField] private float thoiGianTonTaiVetBanh = 2.5f;
     [SerializeField] private float nguongDiChuyenDePhatBui = 0.0004f;
 
-    private ParticleSystem.EmissionModule emissionModule;
+
     private Vector2 inputDiChuyenTruoc;
     private Vector3 viTriTruoc;
     private bool daKhoiTaoViTri;
@@ -29,11 +29,6 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
 
     private void Awake()
     {
-        if (dustTrail != null)
-        {
-            emissionModule = dustTrail.emission;
-        }
-
         if (vetBanhTrails == null || vetBanhTrails.Length == 0)
         {
             vetBanhTrails = TimVetBanhTheoTen();
@@ -105,7 +100,8 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
         bool nenPhatBui = dangDiChuyen.Value || coDiChuyenTheoViTri;
         if (dustTrail != null)
         {
-            emissionModule.rateOverTime = nenPhatBui ? tocDoEmission : 0f;
+            var em = dustTrail.emission;
+            em.rateOverTime = nenPhatBui ? tocDoEmission : 0f;
         }
 
         if (dustTrail != null && nenPhatBui && !dustTrail.isPlaying)
