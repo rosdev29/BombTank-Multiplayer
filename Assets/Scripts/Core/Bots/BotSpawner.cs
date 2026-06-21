@@ -6,7 +6,7 @@ using UnityEngine;
 
 public class BotSpawner : MonoBehaviour
 {
-    private const int TargetTotalTanks = 8;
+    private const int TargetTotalTanks = 3;
     
     private List<TankPlayer> activeBots = new List<TankPlayer>();
     private int realPlayerCount = 0;
@@ -90,6 +90,7 @@ public class BotSpawner : MonoBehaviour
         if (player.IsBot.Value || player.GetComponent<BotTag>() != null)
         {
             activeBots.Remove(player);
+            UpdateBots();
         }
         else
         {
@@ -144,18 +145,29 @@ public class BotSpawner : MonoBehaviour
         if (botInstance.GetComponent<BotSense>() == null)
             botInstance.gameObject.AddComponent<BotSense>();
 
+        if (botInstance.GetComponent<BotMover>() == null)
+            botInstance.gameObject.AddComponent<BotMover>();
+
+        if (botInstance.GetComponent<BotTurretController>() == null)
+            botInstance.gameObject.AddComponent<BotTurretController>();
+
+        if (botInstance.GetComponent<BotShooter>() == null)
+            botInstance.gameObject.AddComponent<BotShooter>();
+
         if (botInstance.GetComponent<BotBrain>() == null)
             botInstance.gameObject.AddComponent<BotBrain>();
+
+        // LayerMask được BotBrain tự set trong OnNetworkSpawn qua KhoiTao() — không cần override ở đây.
 
         TankPlayer tankPlayer = botInstance.GetComponent<TankPlayer>();
 
         botInstance.Spawn(true);
 
-        // Set values after spawn — never replace NetworkVariable instances (breaks Mau and other behaviours).
+        // Đặt giá trị thông qua .Value SAU KHI Spawn
         if (tankPlayer != null)
         {
             tankPlayer.IsBot.Value = true;
-            tankPlayer.PlayerName.Value = new FixedString32Bytes(GetRandomBotName());
+            tankPlayer.PlayerName.Value = new Unity.Collections.FixedString32Bytes(GetRandomBotName());
             tankPlayer.TeamIndex.Value = -1;
         }
     }

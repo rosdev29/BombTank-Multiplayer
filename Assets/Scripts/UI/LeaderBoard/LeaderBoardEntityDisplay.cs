@@ -15,6 +15,7 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
     public ulong ClientId { get; private set; }
     public int TeamIndex { get; private set; } = -1;
     public int Coins { get; private set; }
+    public string DisplayName => displayName;
 
     public void Initialise(ulong clientId, FixedString32Bytes playerName, int coins)
     {
@@ -51,10 +52,25 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
         displayText.color = colour;
     }
 
-    public void UpdateText()
+    public void UpdateName(FixedString32Bytes playerName)
     {
-        if (displayText == null) { return; }
-        string nameToShow = string.IsNullOrWhiteSpace(displayName) ? "Unknown" : displayName;
-        displayText.text = $"{transform.GetSiblingIndex() + 1}. {nameToShow} ({Coins})";
+        displayName = playerName.ToString();
+        UpdateText();
     }
+
+
+    public void UpdateText()
+{
+    if (displayText == null) { return; }
+
+    string nameToShow = string.IsNullOrWhiteSpace(displayName) ? "Player" : displayName;
+
+    if (NetworkManager.Singleton != null &&
+        ClientId == NetworkManager.Singleton.LocalClientId)
+    {
+        nameToShow += " [YOU]";
+    }
+
+    displayText.text = $"{transform.GetSiblingIndex() + 1}. {nameToShow} ({Coins})";
+}
 }
