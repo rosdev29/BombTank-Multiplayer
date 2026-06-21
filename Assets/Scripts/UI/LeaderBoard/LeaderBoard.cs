@@ -18,6 +18,7 @@ public class Leaderboard : NetworkBehaviour
     [SerializeField] private TeamColourLookup teamColourLookup;
     [SerializeField] private float leaderboardRowSpacing = 28f;
     [SerializeField] private float staleEntryCleanupInterval = 0.5f;
+    [SerializeField] private float pingRefreshInterval = 0.5f;
 
     private NetworkList<LeaderboardEntityState> leaderboardEntities;
     private List<LeaderBoardEntityDisplay> entityDisplays = new List<LeaderBoardEntityDisplay>();
@@ -28,6 +29,7 @@ public class Leaderboard : NetworkBehaviour
 
     private bool isTearingDown;
     private float staleCleanupTimer;
+    private float pingRefreshTimer;
     private bool leaderboardUiSetup;
 
     private void Awake()
@@ -39,6 +41,7 @@ public class Leaderboard : NetworkBehaviour
     {
         isTearingDown = false;
         staleCleanupTimer = 0f;
+        pingRefreshTimer = 0f;
 
         if (IsClient)
         {
@@ -112,6 +115,13 @@ public class Leaderboard : NetworkBehaviour
         if (!IsServer || isTearingDown) { return; }
         if (!IsSpawned || NetworkManager == null || !NetworkManager.IsListening) { return; }
         if (leaderboardEntities == null || leaderboardEntities.Count == 0) { return; }
+
+        pingRefreshTimer += Time.unscaledDeltaTime;
+        if (pingRefreshTimer >= pingRefreshInterval)
+        {
+            pingRefreshTimer = 0f;
+            RefreshPingValues();
+        }
 
         staleCleanupTimer += Time.unscaledDeltaTime;
         if (staleCleanupTimer < staleEntryCleanupInterval) { return; }
@@ -218,7 +228,8 @@ public class Leaderboard : NetworkBehaviour
                         changeEvent.Value.ClientId,
                         changeEvent.Value.PlayerName,
                         changeEvent.Value.Coins,
-                        crownLookupId);
+                        crownLookupId,
+                        changeEvent.Value.PingMs);
 
                     if (NetworkManager.Singleton.LocalClientId == changeEvent.Value.ClientId)
                     {
@@ -250,6 +261,7 @@ public class Leaderboard : NetworkBehaviour
                 {
                     displayToUpdate.UpdateName(changeEvent.Value.PlayerName);
                     displayToUpdate.UpdateCoins(changeEvent.Value.Coins);
+                    displayToUpdate.UpdatePing(changeEvent.Value.PingMs);
                 }
                 break;
         }
@@ -405,7 +417,8 @@ public class Leaderboard : NetworkBehaviour
                     ClientId = leaderboardId,
                     PlayerName = leaderboardName,
                     TeamIndex = player.TeamIndex.Value,
-                    Coins = score
+                    Coins = score,
+                    PingMs = GetPingForLeaderboardClient(leaderboardId)
                 };
 
                 if (IsClient)
@@ -428,7 +441,8 @@ public class Leaderboard : NetworkBehaviour
             ClientId = leaderboardId,
             PlayerName = leaderboardName,
             TeamIndex = player.TeamIndex.Value,
-            Coins = player.Wallet != null ? player.Wallet.LifetimeCoins.Value : 0
+            Coins = player.Wallet != null ? player.Wallet.LifetimeCoins.Value : 0,
+            PingMs = GetPingForLeaderboardClient(leaderboardId)
         });
 
         if (IsClient)
@@ -483,7 +497,8 @@ public class Leaderboard : NetworkBehaviour
                 ClientId = leaderboardEntities[i].ClientId,
                 PlayerName = leaderboardEntities[i].PlayerName,
                 TeamIndex = leaderboardEntities[i].TeamIndex,
-                Coins = newCoins
+                Coins = newCoins,
+                PingMs = leaderboardEntities[i].PingMs
             };
 
             return;
@@ -575,6 +590,44 @@ public class Leaderboard : NetworkBehaviour
         if (NetworkManager.ConnectedClients == null) { return false; }
 
         return NetworkManager.ConnectedClients.ContainsKey(clientId);
+    }
+
+    private bool IsHumanLeaderboardClient(ulong clientId)
+    {
+        if (NetworkManager == null || NetworkManager.ConnectedClients == null) { return false; }
+        return NetworkManager.ConnectedClients.ContainsKey(clientId);
+    }
+
+    private int GetPingForLeaderboardClient(ulong clientId)
+    {
+        if (!IsHumanLeaderboardClient(clientId)) { return -1; }
+
+        NetworkTransport transport = NetworkManager?.NetworkConfig?.NetworkTransport;
+        if (transport == null) { return -1; }
+
+        return (int)transport.GetCurrentRtt(clientId);
+    }
+
+    private void RefreshPingValues()
+    {
+        if (!IsServer || leaderboardEntities == null) { return; }
+
+        for (int i = 0; i < leaderboardEntities.Count; i++)
+        {
+            LeaderboardEntityState entity = leaderboardEntities[i];
+            int pingMs = GetPingForLeaderboardClient(entity.ClientId);
+
+            if (entity.PingMs == pingMs) { continue; }
+
+            leaderboardEntities[i] = new LeaderboardEntityState
+            {
+                ClientId = entity.ClientId,
+                PlayerName = entity.PlayerName,
+                TeamIndex = entity.TeamIndex,
+                Coins = entity.Coins,
+                PingMs = pingMs
+            };
+        }
     }
 
     private sealed class CoinChangedSubscription
