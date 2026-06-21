@@ -1,5 +1,3 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
@@ -24,18 +22,23 @@ public class BoPhongDan : NetworkBehaviour
     [SerializeField] private int ChiPhiBan = 5;
 
     public NetworkVariable<bool> IsDoubleBarrelActive = new NetworkVariable<bool>(false);
-    private Coroutine doubleBarrelCoroutine;
 
     private bool  isPointerOverUI;
     private bool  duocTanCong;
-    private float timer;       // cooldown người chơi thật
-    private float timerBot;    // cooldown riêng cho bot
+    private float timer;
+    private float timerBot;
     private float henGioLoeNong;
+    private float doubleBarrelTimer;
 
-    // Visual Double Barrel
     private GameObject leftBarrel;
     private GameObject rightBarrel;
     private SpriteRenderer originalTurretRenderer;
+
+    public int GetShootingCost()
+    {
+        int soLuongDan = IsDoubleBarrelActive.Value ? 2 : 1;
+        return ChiPhiBan * soLuongDan;
+    }
 
     private int TeamIndexHienTai()
     {
@@ -45,7 +48,6 @@ public class BoPhongDan : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        // Visual hook cho MỌI TANK trên bản đồ (để người khác nhìn thấy mình có 2 nòng)
         IsDoubleBarrelActive.OnValueChanged += UpdateDoubleBarrelVisuals;
         UpdateDoubleBarrelVisuals(false, IsDoubleBarrelActive.Value);
 
@@ -61,11 +63,8 @@ public class BoPhongDan : NetworkBehaviour
         inputReader.PrimaryFireEvent -= xuLyTanCongChinh;
     }
 
-<<<<<<< HEAD
-    // ─────────────────────────────────────────────────────────────────────
     /// <summary>
     /// Đặt tần suất bắn cho bot (viên/giây). Gọi từ BotBrain.GanConfig().
-    /// Ví dụ: thoiGianGiuaHaiVien=1.5s → DatTanSuatBot(1f/1.5f ≈ 0.667/s)
     /// </summary>
     public void DatTanSuatBot(float tanSuat)
     {
@@ -78,13 +77,25 @@ public class BoPhongDan : NetworkBehaviour
         tanSuatTanCong = tanSuat;
         Debug.Log($"[BoPhongDan] DatTanSuatBot → {tanSuat:F3}/s (delay={1f / tanSuat:F2}s)");
     }
-    // ─────────────────────────────────────────────────────────────────────
-=======
+
+    public void ActivateDoubleBarrel(float duration)
+    {
+        if (!IsServer) { return; }
+
+        if (doubleBarrelTimer > 0f)
+            doubleBarrelTimer += duration;
+        else
+        {
+            doubleBarrelTimer = duration;
+            IsDoubleBarrelActive.Value = true;
+        }
+    }
+
     private void UpdateDoubleBarrelVisuals(bool oldVal, bool newVal)
     {
         if (originalTurretRenderer == null)
         {
-            foreach (var sr in GetComponentsInChildren<SpriteRenderer>(true))
+            foreach (SpriteRenderer sr in GetComponentsInChildren<SpriteRenderer>(true))
             {
                 if (sr.gameObject.name == "Turret")
                 {
@@ -94,39 +105,22 @@ public class BoPhongDan : NetworkBehaviour
             }
         }
 
-        if (originalTurretRenderer == null) return;
+        if (originalTurretRenderer == null) { return; }
+
+        PlayerColourDisplay colorDisplay = GetComponent<PlayerColourDisplay>();
 
         if (newVal)
         {
             originalTurretRenderer.enabled = false;
-            PlayerColourDisplay colorDisplay = GetComponent<PlayerColourDisplay>();
 
             if (leftBarrel == null)
             {
-                leftBarrel = new GameObject("LeftBarrel");
-                leftBarrel.transform.SetParent(originalTurretRenderer.transform.parent, false);
-                leftBarrel.transform.localPosition = originalTurretRenderer.transform.localPosition + new Vector3(-0.3f, 0, 0);
-                leftBarrel.transform.localRotation = originalTurretRenderer.transform.localRotation;
-                leftBarrel.transform.localScale = originalTurretRenderer.transform.localScale;
-                SpriteRenderer sr = leftBarrel.AddComponent<SpriteRenderer>();
-                sr.sprite = originalTurretRenderer.sprite;
-                sr.color = originalTurretRenderer.color;
-                sr.sortingLayerID = originalTurretRenderer.sortingLayerID;
-                sr.sortingOrder = originalTurretRenderer.sortingOrder;
+                leftBarrel = TaoNongPhu(originalTurretRenderer, new Vector3(-0.3f, 0f, 0f));
             }
 
             if (rightBarrel == null)
             {
-                rightBarrel = new GameObject("RightBarrel");
-                rightBarrel.transform.SetParent(originalTurretRenderer.transform.parent, false);
-                rightBarrel.transform.localPosition = originalTurretRenderer.transform.localPosition + new Vector3(0.3f, 0, 0);
-                rightBarrel.transform.localRotation = originalTurretRenderer.transform.localRotation;
-                rightBarrel.transform.localScale = originalTurretRenderer.transform.localScale;
-                SpriteRenderer sr = rightBarrel.AddComponent<SpriteRenderer>();
-                sr.sprite = originalTurretRenderer.sprite;
-                sr.color = originalTurretRenderer.color;
-                sr.sortingLayerID = originalTurretRenderer.sortingLayerID;
-                sr.sortingOrder = originalTurretRenderer.sortingOrder;
+                rightBarrel = TaoNongPhu(originalTurretRenderer, new Vector3(0.3f, 0f, 0f));
             }
 
             leftBarrel.SetActive(true);
@@ -141,24 +135,51 @@ public class BoPhongDan : NetworkBehaviour
         else
         {
             originalTurretRenderer.enabled = true;
-            PlayerColourDisplay colorDisplay = GetComponent<PlayerColourDisplay>();
 
             if (leftBarrel != null)
             {
                 leftBarrel.SetActive(false);
-                if (colorDisplay != null) colorDisplay.RemoveDynamicSprite(leftBarrel.GetComponent<SpriteRenderer>());
+                if (colorDisplay != null)
+                    colorDisplay.RemoveDynamicSprite(leftBarrel.GetComponent<SpriteRenderer>());
             }
+
             if (rightBarrel != null)
             {
                 rightBarrel.SetActive(false);
-                if (colorDisplay != null) colorDisplay.RemoveDynamicSprite(rightBarrel.GetComponent<SpriteRenderer>());
+                if (colorDisplay != null)
+                    colorDisplay.RemoveDynamicSprite(rightBarrel.GetComponent<SpriteRenderer>());
             }
         }
     }
->>>>>>> origin/item
+
+    private static GameObject TaoNongPhu(SpriteRenderer nongGoc, Vector3 localOffset)
+    {
+        GameObject nongPhu = new GameObject(nongGoc.gameObject.name == "Turret" ? "BarrelClone" : "ExtraBarrel");
+        nongPhu.transform.SetParent(nongGoc.transform.parent, false);
+        nongPhu.transform.localPosition = nongGoc.transform.localPosition + localOffset;
+        nongPhu.transform.localRotation = nongGoc.transform.localRotation;
+        nongPhu.transform.localScale    = nongGoc.transform.localScale;
+
+        SpriteRenderer sr = nongPhu.AddComponent<SpriteRenderer>();
+        sr.sprite         = nongGoc.sprite;
+        sr.color          = nongGoc.color;
+        sr.sortingLayerID = nongGoc.sortingLayerID;
+        sr.sortingOrder   = nongGoc.sortingOrder;
+        return nongPhu;
+    }
 
     private void Update()
     {
+        if (IsServer && doubleBarrelTimer > 0f)
+        {
+            doubleBarrelTimer -= Time.deltaTime;
+            if (doubleBarrelTimer <= 0f)
+            {
+                doubleBarrelTimer = 0f;
+                IsDoubleBarrelActive.Value = false;
+            }
+        }
+
         if (henGioLoeNong > 0f)
         {
             henGioLoeNong -= Time.deltaTime;
@@ -173,28 +194,17 @@ public class BoPhongDan : NetworkBehaviour
 
         isPointerOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
-        if (timer > 0)
+        if (timer > 0f)
             timer -= Time.deltaTime;
 
         if (!duocTanCong) { return; }
-        if (timer > 0)    { return; }
-        if (wallet.TotalCoins.Value < ChiPhiBan) { return; }
+        if (timer > 0f)    { return; }
+        if (wallet.TotalCoins.Value < GetShootingCost()) { return; }
 
-<<<<<<< HEAD
-=======
-
-        if (timer > 0 ) { return; }
-
-        int soLuongDanCheck = IsDoubleBarrelActive.Value ? 2 : 1;
-        int tongChiPhiCheck = ChiPhiBan * soLuongDanCheck;
-
-        if (wallet.TotalCoins.Value < tongChiPhiCheck) { return; }
-        
->>>>>>> origin/item
         int teamIndex = TeamIndexHienTai();
         xuLyBanChinhServerRpc(DiemSpawnDan.position, DiemSpawnDan.up);
         spawnDanGia(DiemSpawnDan.position, DiemSpawnDan.up, teamIndex);
-        timer = 1 / tanSuatTanCong;
+        timer = 1f / tanSuatTanCong;
     }
 
     private void xuLyTanCongChinh(bool duocTanCong)
@@ -203,107 +213,31 @@ public class BoPhongDan : NetworkBehaviour
         this.duocTanCong = duocTanCong;
     }
 
-<<<<<<< HEAD
     /// <summary>BotShooter gọi method này. Cooldown được kiểm soát qua timerBot.</summary>
     public void BanBot()
     {
         if (!IsServer) { return; }
         if (DiemSpawnDan == null) { return; }
         if (timerBot > 0f) { return; }
-        if (wallet == null || wallet.TotalCoins.Value < ChiPhiBan) { return; }
-=======
-    public void ActivateDoubleBarrel(float duration)
-    {
-        if (!IsServer) { return; }
-        if (doubleBarrelCoroutine != null)
-        {
-            StopCoroutine(doubleBarrelCoroutine);
-        }
-        doubleBarrelCoroutine = StartCoroutine(DoubleBarrelRoutine(duration));
-    }
-
-    private IEnumerator DoubleBarrelRoutine(float duration)
-    {
-        IsDoubleBarrelActive.Value = true;
-        yield return new WaitForSeconds(duration);
-        IsDoubleBarrelActive.Value = false;
-    }
-
-    [ServerRpc]
->>>>>>> origin/item
+        if (wallet == null || wallet.TotalCoins.Value < GetShootingCost()) { return; }
 
         Vector3 viTriSpawn = DiemSpawnDan.position;
         Vector3 huongDi    = DiemSpawnDan.up;
         int     teamIndex  = TeamIndexHienTai();
 
-        SpawnServerBullet(viTriSpawn, huongDi, teamIndex);
+        SpawnServerBullets(viTriSpawn, huongDi, teamIndex);
         spawnDanGiaClientRpc(viTriSpawn, huongDi, teamIndex);
 
         hieuUngLoeNong?.SetActive(true);
         henGioLoeNong = thoiGianHieuUngBan;
-
         timerBot = 1f / tanSuatTanCong;
     }
 
     [ServerRpc]
     private void xuLyBanChinhServerRpc(Vector3 viTriSpawn, Vector3 huongDi)
     {
-<<<<<<< HEAD
-        int teamIndex = TeamIndexHienTai();
-        SpawnServerBullet(viTriSpawn, huongDi, teamIndex);
-        spawnDanGiaClientRpc(viTriSpawn, huongDi, teamIndex);
-=======
-
-        int soLuongDan = IsDoubleBarrelActive.Value ? 2 : 1;
-        int tongChiPhi = ChiPhiBan * soLuongDan;
-
-        if (wallet.TotalCoins.Value < tongChiPhi) { return; }
-
-        wallet.SpendCoins(tongChiPhi);
-
-        float offsetTrucTiep = 0.3f; // Khoảng cách giữa 2 nòng (khớp với hình ảnh 2 nòng súng) (khớp với hình ảnh 2 nòng súng)
-
-        for (int i = 0; i < soLuongDan; i++)
-        {
-            Vector3 huongBan = huongDi;
-            Vector3 viTriBan = viTriSpawn;
-
-            if (soLuongDan == 2)
-            {
-                // Tính vector bên phải của nòng súng để dịch chuyển 2 viên đạn sang 2 bên
-                Vector3 vectorBenPhai = Vector3.Cross(huongDi, Vector3.forward).normalized;
-                viTriBan += vectorBenPhai * (i == 0 ? -offsetTrucTiep : offsetTrucTiep);
-            }
-
-            GameObject danInstance = Instantiate(
-                ServerDanPrefab,
-                viTriBan,
-                Quaternion.identity);
-
-            danInstance.transform.up = huongBan;
-
-        Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
-
-        if (danInstance.TryGetComponent<SatThuongHoiMauVaCham>(out SatThuongHoiMauVaCham gaySatThuong))
-        {
-            int teamIndex = TeamIndexHienTai();
-            TankPlayer ownerTank = player != null ? player : GetComponent<TankPlayer>();
-            gaySatThuong.SetOwner(ownerTank, teamIndex);
-        }    
-
-            if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
-            {
-                projectile.Initialise(TeamIndexHienTai());
-            }
-
-            if (danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
-            {
-                rb.velocity = rb.transform.up * TocDoDan;
-            }
-        }
-
+        SpawnServerBullets(viTriSpawn, huongDi, TeamIndexHienTai());
         spawnDanGiaClientRpc(viTriSpawn, huongDi, TeamIndexHienTai());
->>>>>>> origin/item
     }
 
     [ClientRpc]
@@ -313,54 +247,21 @@ public class BoPhongDan : NetworkBehaviour
         spawnDanGia(viTriSpawn, huongDi, teamIndex);
     }
 
-    private void spawnDanGia(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)
+    private void SpawnServerBullets(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)
     {
-        hieuUngLoeNong.SetActive(true);
-        henGioLoeNong = thoiGianHieuUngBan;
-
-<<<<<<< HEAD
-        GameObject danInstance = Instantiate(ClientDanPrefab, viTriSpawn, Quaternion.identity);
-        danInstance.transform.up = huongDi;
-
-        Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
-
-        if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
-            projectile.Initialise(teamIndex);
-
-        if (danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
-            rb.velocity = rb.transform.up * TocDoDan;
-    }
-
-    private void SpawnServerBullet(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)
-    {
-        if (wallet.TotalCoins.Value < ChiPhiBan) { return; }
-
-        wallet.SpendCoins(ChiPhiBan);
-
-        GameObject danInstance = Instantiate(ServerDanPrefab, viTriSpawn, Quaternion.identity);
-        danInstance.transform.up = huongDi;
-
-        Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
-
-        if (danInstance.TryGetComponent<SatThuongHoiMauVaCham>(out SatThuongHoiMauVaCham gaySatThuong))
-        {
-            TankPlayer ownerTank = player != null ? player : GetComponent<TankPlayer>();
-            gaySatThuong.SetOwner(ownerTank, teamIndex);
-        }
-
-        if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
-            projectile.Initialise(teamIndex);
-
-        if (danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
-            rb.velocity = rb.transform.up * TocDoDan;
-=======
         int soLuongDan = IsDoubleBarrelActive.Value ? 2 : 1;
-        float offsetTrucTiep = 0.3f;
+        int tongChiPhi = ChiPhiBan * soLuongDan;
+
+        if (wallet.TotalCoins.Value < tongChiPhi) { return; }
+
+        wallet.SpendCoins(tongChiPhi);
+
+        const float offsetTrucTiep = 0.3f;
 
         for (int i = 0; i < soLuongDan; i++)
         {
-            Vector3 huongBan = huongDi;
             Vector3 viTriBan = viTriSpawn;
+            Vector3 huongBan = huongDi;
 
             if (soLuongDan == 2)
             {
@@ -368,25 +269,54 @@ public class BoPhongDan : NetworkBehaviour
                 viTriBan += vectorBenPhai * (i == 0 ? -offsetTrucTiep : offsetTrucTiep);
             }
 
-            GameObject danInstance = Instantiate(
-                ClientDanPrefab,
-                viTriBan,
-                Quaternion.identity);
-
+            GameObject danInstance = Instantiate(ServerDanPrefab, viTriBan, Quaternion.identity);
             danInstance.transform.up = huongBan;
 
-        Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
+            Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
+
+            if (danInstance.TryGetComponent<SatThuongHoiMauVaCham>(out SatThuongHoiMauVaCham gaySatThuong))
+            {
+                TankPlayer ownerTank = player != null ? player : GetComponent<TankPlayer>();
+                gaySatThuong.SetOwner(ownerTank, teamIndex);
+            }
 
             if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
-            {
                 projectile.Initialise(teamIndex);
+
+            if (danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
+                rb.velocity = rb.transform.up * TocDoDan;
+        }
+    }
+
+    private void spawnDanGia(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)
+    {
+        hieuUngLoeNong.SetActive(true);
+        henGioLoeNong = thoiGianHieuUngBan;
+
+        int soLuongDan = IsDoubleBarrelActive.Value ? 2 : 1;
+        const float offsetTrucTiep = 0.3f;
+
+        for (int i = 0; i < soLuongDan; i++)
+        {
+            Vector3 viTriBan = viTriSpawn;
+            Vector3 huongBan = huongDi;
+
+            if (soLuongDan == 2)
+            {
+                Vector3 vectorBenPhai = Vector3.Cross(huongDi, Vector3.forward).normalized;
+                viTriBan += vectorBenPhai * (i == 0 ? -offsetTrucTiep : offsetTrucTiep);
             }
 
-            if(danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb ))
-            {
+            GameObject danInstance = Instantiate(ClientDanPrefab, viTriBan, Quaternion.identity);
+            danInstance.transform.up = huongBan;
+
+            Physics2D.IgnoreCollision(vaChamNguoiChoi, danInstance.GetComponent<Collider2D>());
+
+            if (danInstance.TryGetComponent<Projectile>(out Projectile projectile))
+                projectile.Initialise(teamIndex);
+
+            if (danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
                 rb.velocity = rb.transform.up * TocDoDan;
-            }
         }
->>>>>>> origin/item
     }
 }
