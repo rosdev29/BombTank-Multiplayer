@@ -51,6 +51,12 @@ public class CoinWallet : NetworkBehaviour
 
         if (!IsServer) { return; }
 
+        // Kiểm tra xem có đang kích hoạt BuffCoin không (x3 điểm)
+        if (TryGetComponent<ItemInventory>(out ItemInventory inventory) && inventory.IsCoinBuffActive.Value)
+        {
+            coinValue *= 3;
+        }
+
         TotalCoins.Value += coinValue;
     }
 
