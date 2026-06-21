@@ -204,6 +204,10 @@ public class BoPhongDan : NetworkBehaviour
         int teamIndex = TeamIndexHienTai();
         xuLyBanChinhServerRpc(DiemSpawnDan.position, DiemSpawnDan.up);
         spawnDanGia(DiemSpawnDan.position, DiemSpawnDan.up, teamIndex);
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.gunShot);
+
         timer = 1f / tanSuatTanCong;
     }
 
