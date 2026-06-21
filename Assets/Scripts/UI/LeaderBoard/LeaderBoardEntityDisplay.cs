@@ -73,8 +73,6 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
     public void UpdateText()
     {
         if (displayText == null) { return; }
-<<<<<<< HEAD
-
         string nameToShow = string.IsNullOrWhiteSpace(displayName) ? "Player" : displayName;
 
         if (NetworkManager.Singleton != null &&
@@ -83,17 +81,12 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
             nameToShow += " [YOU]";
         }
 
-        // Hiện icon vương miện 👑 nếu player này đang có bounty
         bool hasCrown = crownLookupId != 0 &&
             BountySystem.Instance != null &&
             BountySystem.Instance.HasCrown(crownLookupId);
         string crownPrefix = hasCrown ? "<sprite name=\"BountyCrown\"> " : "";
 
         displayText.text = $"{transform.GetSiblingIndex() + 1}. {crownPrefix}{nameToShow} ({Coins})";
-=======
-        string nameToShow = string.IsNullOrWhiteSpace(displayName) ? "Unknown" : displayName;
-        displayText.text = $"{transform.GetSiblingIndex() + 1}. {nameToShow}: {Coins} điểm";
->>>>>>> origin/item
     }
 }
 
