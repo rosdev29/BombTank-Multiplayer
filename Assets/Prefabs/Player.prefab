@@ -467,7 +467,7 @@ MonoBehaviour:
   - {x: 0.80078125, y: -0.85546875, z: 0}
   m_ShapePathHash: 0
   m_Mesh: {fileID: 0}
-  m_InstanceId: -75456
+  m_InstanceId: 65266
   m_LocalBounds:
     m_Center: {x: 0, y: 0, z: 0}
     m_Extent: {x: 0.80078125, y: 0.85546875, z: 0}
@@ -5780,6 +5780,7 @@ GameObject:
   - component: {fileID: 3300367238214764530}
   - component: {fileID: 4842045077890216517}
   - component: {fileID: 5197056212993226130}
+  - component: {fileID: 4045108128442885575}
   - component: {fileID: 5705798656086417557}
   - component: {fileID: 6393240751483895355}
   - component: {fileID: 7114059541313905306}
@@ -6001,12 +6002,114 @@ MonoBehaviour:
   rb: {fileID: 3300367238214764530}
   dustTrail: {fileID: 9207640625167436492}
   vetBanhTrails: []
+  engineSource: {fileID: 4045108128442885575}
   tocDoDiChuyen: 5
   tocDoXoay: 270
   tocDoEmission: 10
   tocDoEmissionVetBanh: 26
   thoiGianTonTaiVetBanh: 2.5
   nguongDiChuyenDePhatBui: 0.0004
+  idleVolume: 0.01
+  maxVolume: 0.25
+  idlePitch: 0.45
+  maxPitch: 1.8
+  changeSpeed: 8
+--- !u!82 &4045108128442885575
+AudioSource:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5767629436380736411}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: 0}
+  m_audioClip: {fileID: 8300000, guid: afaacfc8b521a0b48b93d412f21b1bd4, type: 3}
+  m_PlayOnAwake: 0
+  m_Volume: 0.3
+  m_Pitch: 1
+  Loop: 1
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 128
+  DopplerLevel: 1
+  MinDistance: 1
+  MaxDistance: 500
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!114 &5705798656086417557
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6062,6 +6165,12 @@ MonoBehaviour:
   <MauToiDa>k__BackingField: 100
   MauHienTai:
     m_InternalValue: 0
+  MauToiDaNet:
+    m_InternalValue: 100
+  amThanhTrungDan: {fileID: 8300000, guid: e5c2924c6ea15a445951c84624adb49e, type: 3}
+  amLuongTrungDan: 1
+  amThanhNo: {fileID: 8300000, guid: 9db99f9a170fdad4c81c789bf160db35, type: 3}
+  amLuongNo: 1
 --- !u!114 &-8512091747004092066
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6084,6 +6193,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 1
   TotalCoins:
+    m_InternalValue: 0
+  LifetimeCoins:
     m_InternalValue: 0
 --- !u!114 &6568095646496752717
 MonoBehaviour:
