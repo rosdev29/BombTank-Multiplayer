@@ -73,6 +73,7 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
     public void UpdateText()
     {
         if (displayText == null) { return; }
+<<<<<<< HEAD
 
         string nameToShow = string.IsNullOrWhiteSpace(displayName) ? "Player" : displayName;
 
@@ -89,6 +90,10 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
         string crownPrefix = hasCrown ? "<sprite name=\"BountyCrown\"> " : "";
 
         displayText.text = $"{transform.GetSiblingIndex() + 1}. {crownPrefix}{nameToShow} ({Coins})";
+=======
+        string nameToShow = string.IsNullOrWhiteSpace(displayName) ? "Unknown" : displayName;
+        displayText.text = $"{transform.GetSiblingIndex() + 1}. {nameToShow}: {Coins} điểm";
+>>>>>>> origin/item
     }
 }
 
