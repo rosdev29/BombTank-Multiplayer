@@ -18,6 +18,10 @@ public class PlayerColourDisplay : MonoBehaviour
         new Color(1.00f, 0.55f, 0.20f, 1.00f), // orange
     };
 
+    private Coroutine effectCoroutine;
+    private Color originalColor;
+    private List<SpriteRenderer> dynamicSprites = new List<SpriteRenderer>();
+
     private void Start()
     {
         HandleTeamChanged(-1, player.TeamIndex.Value);
@@ -28,6 +32,23 @@ public class PlayerColourDisplay : MonoBehaviour
     private void OnDestroy()
     {
         player.TeamIndex.OnValueChanged -= HandleTeamChanged;
+    }
+
+    public void AddDynamicSprite(SpriteRenderer sr)
+    {
+        if (!dynamicSprites.Contains(sr))
+        {
+            dynamicSprites.Add(sr);
+            sr.color = originalColor;
+        }
+    }
+
+    public void RemoveDynamicSprite(SpriteRenderer sr)
+    {
+        if (dynamicSprites.Contains(sr))
+        {
+            dynamicSprites.Remove(sr);
+        }
     }
 
     private void HandleTeamChanged(int oldTeamIndex, int newTeamIndex)
@@ -46,7 +67,70 @@ public class PlayerColourDisplay : MonoBehaviour
 
         foreach (SpriteRenderer sprite in playerSprites)
         {
-            sprite.color = teamColour;
+            if (sprite != null) sprite.color = teamColour;
         }
+        foreach (SpriteRenderer sprite in dynamicSprites)
+        {
+            if (sprite != null) sprite.color = teamColour;
+        }
+
+        if (effectCoroutine == null)
+        {
+            originalColor = teamColour;
+        }
+    }
+
+    public void PlayEffect(Color effectColor, float duration, bool flash = false)
+    {
+        if (effectCoroutine != null)
+        {
+            StopCoroutine(effectCoroutine);
+            foreach (SpriteRenderer sprite in playerSprites)
+            {
+                if (sprite != null) sprite.color = originalColor;
+            }
+            foreach (SpriteRenderer sprite in dynamicSprites)
+            {
+                if (sprite != null) sprite.color = originalColor;
+            }
+        }
+        else
+        {
+            if (playerSprites.Length > 0 && playerSprites[0] != null)
+                originalColor = playerSprites[0].color;
+        }
+
+        effectCoroutine = StartCoroutine(EffectRoutine(effectColor, duration, flash));
+    }
+
+    private IEnumerator EffectRoutine(Color effectColor, float duration, bool flash)
+    {
+        float timer = 0f;
+        while (timer < duration)
+        {
+            Color current = flash ? (Mathf.PingPong(Time.time * 8f, 1f) > 0.5f ? effectColor : originalColor) : effectColor;
+            
+            foreach (SpriteRenderer sprite in playerSprites)
+            {
+                if (sprite != null) sprite.color = current;
+            }
+            foreach (SpriteRenderer sprite in dynamicSprites)
+            {
+                if (sprite != null) sprite.color = current;
+            }
+            
+            timer += Time.deltaTime;
+            yield return null;
+        }
+
+        foreach (SpriteRenderer sprite in playerSprites)
+        {
+            if (sprite != null) sprite.color = originalColor;
+        }
+        foreach (SpriteRenderer sprite in dynamicSprites)
+        {
+            if (sprite != null) sprite.color = originalColor;
+        }
+        effectCoroutine = null;
     }
 }
