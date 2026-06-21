@@ -8,6 +8,8 @@ public class NguoiChoiNgamBan : NetworkBehaviour
     [SerializeField] private InputReader inputReader;
     [SerializeField] private Transform turretTransform;
 
+    public Transform TurretTransform => turretTransform;
+
     private void LateUpdate()
     {
         if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
