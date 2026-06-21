@@ -19,9 +19,13 @@ public class BotBrain : NetworkBehaviour
     [SerializeField] private float chuKyDanhGiaMax = 0.5f;
 
     [Header("Ngưỡng chuyển trạng thái")]
-    [SerializeField] private float nguongMauThapDeRutLui = 0.35f;
-    [SerializeField] private float banKinhGiaoTranh      = 20f;
-    [SerializeField] private int   chiPhiBan             = 1;
+    // nguongMauThapDeRutLui đọc từ ctx.Config.nguongRutLui (fallback 0.35f)
+    [SerializeField] private float banKinhGiaoTranh = 20f;
+    [SerializeField] private int   chiPhiBan        = 1;
+
+    [Header("Config độ khó (fallback dev)")]
+    [Tooltip("Kéo BotConfig_Medium vào đây. GanConfig() tự gọi trong OnNetworkSpawn nếu BotSpawner chưa wire.")]
+    [SerializeField] private BotConfig configMacDinh;
 
     [Header("Cấu hình Perception")]
     [SerializeField] private float banKinhPhatHienDich = 20f;
@@ -73,12 +77,7 @@ public class BotBrain : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        if (!IsServer)
-        {
-            enabled = false;
-            return;
-        }
-
+        if (!IsServer) { enabled = false; return; }
 
         // Khởi tạo Blackboard
         ctx = new BotContext
@@ -96,10 +95,14 @@ public class BotBrain : NetworkBehaviour
         // Truyền context + layermask sang BotMover
         botMover.KhoiTao(ctx, ctx.LayerMaskTuong);
 
+        // Fallback: BotSpawner chưa gọi GanConfig → dùng configMacDinh
+        if (configMacDinh != null)
+            GanConfig(configMacDinh);
+
         // Khởi tạo Priority transitions (Priority cao → kiểm tra trước)
         _transitions = new List<IBotStateTransition>
         {
-            new ChuyenRutLui   (stateRutLui,    priority: 40, nguongMauThap: nguongMauThapDeRutLui),
+            new ChuyenRutLui   (stateRutLui,    priority: 40),
             new ChuyenGiaoTranh(stateGiaoTranh, priority: 30, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
             new ChuyenNhatCoin (stateNhatCoin,  priority: 20, chiPhi: chiPhiBan),
             new ChuyenTuanTra  (stateTuanTra,   priority: 10),   // fallback luôn true
@@ -111,6 +114,36 @@ public class BotBrain : NetworkBehaviour
     }
 
     public override void OnNetworkDespawn() { }
+
+    // ─────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Gán config độ khó. BotSpawner gọi ngay sau Spawn():
+    ///   botInstance.GetComponent&lt;BotBrain&gt;()?.GanConfig(pickedConfig);
+    /// </summary>
+    public void GanConfig(BotConfig config)
+    {
+        if (config == null)
+        {
+            Debug.LogWarning("[BotBrain] GanConfig: config null, bỏ qua.");
+            return;
+        }
+
+        // Nếu ctx chưa sẵn (gọi trước OnNetworkSpawn), chỉ lưu vào configMacDinh
+        if (ctx == null)
+        {
+            configMacDinh = config;
+            return;
+        }
+
+        ctx.Config = config;
+        tankPlayer.Health?.DatMauToiDa(config.mauToiDa);
+        GetComponent<BoPhongDan>()?.DatTanSuatBot(1f / config.thoiGianGiuaHaiVien);
+
+        Debug.Log($"[BotBrain] {tankPlayer.PlayerName.Value} GanConfig → " +
+                  $"mau={config.mauToiDa}  delay={config.thoiGianGiuaHaiVien}s  " +
+                  $"saiSo=±{config.saiSoNgamDo}°  rutLui={config.nguongRutLui:P0}");
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
     private void Update()
     {
@@ -137,6 +170,9 @@ public class BotBrain : NetworkBehaviour
 
             // Think: state hiện tại ra lệnh
             _currentCommand = currentState.Update(ctx);
+
+            // Áp dụng sai số ngắm từ config (1 lần / chu kỳ đánh giá)
+            ApDungSaiSoNgam(_currentCommand);
 
             ctx.OutputHuongDiChuyen = _currentCommand.MoveInput;
             ctx.OutputDiemNgam      = _currentCommand.AimTarget ?? ctx.BotPosition;
@@ -167,6 +203,33 @@ public class BotBrain : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// Lệch điểm ngắm một góc ngẫu nhiên ±saiSoNgamDo° quanh mục tiêu thực.
+    /// Gọi 1 lần / chu kỳ đánh giá — không cộng dồn qua từng frame.
+    /// </summary>
+    private void ApDungSaiSoNgam(BotCommand cmd)
+    {
+        if (cmd.AimTarget == null) { return; }
+        if (ctx.Config == null)    { return; }
+
+        float saiSo = ctx.Config.saiSoNgamDo;
+        if (saiSo <= 0f) { return; }
+
+        Vector2 huong = cmd.AimTarget.Value - ctx.BotPosition;
+        float   dist  = huong.magnitude;
+        if (dist < 0.01f) { return; }
+
+        float   rad  = Random.Range(-saiSo, saiSo) * Mathf.Deg2Rad;
+        float   cos  = Mathf.Cos(rad);
+        float   sin  = Mathf.Sin(rad);
+        Vector2 moi  = new Vector2(
+            huong.x * cos - huong.y * sin,
+            huong.x * sin + huong.y * cos
+        ).normalized;
+
+        cmd.AimTarget = ctx.BotPosition + moi * dist;
+    }
+
     private void ChuyenTrangThai(IBotState tiepTheo)
     {
         currentState?.OnExit(ctx);
@@ -194,6 +257,9 @@ public class BotBrain : NetworkBehaviour
 
     private float RandomChuKy() => Random.Range(chuKyDanhGiaMin, chuKyDanhGiaMax);
 
+    private static float LayNguongRutLui(BotContext botCtx) =>
+        botCtx.Config != null ? botCtx.Config.nguongRutLui : 0.35f;
+
 
     // ── Transition implementations (nested classes) ───────────────────────────
 
@@ -201,17 +267,15 @@ public class BotBrain : NetworkBehaviour
     {
         public int       Priority { get; }
         public IBotState State    { get; }
-        private readonly float _nguongMauThap;
 
-        public ChuyenRutLui(IBotState state, int priority, float nguongMauThap)
+        public ChuyenRutLui(IBotState state, int priority)
         {
-            State          = state;
-            Priority       = priority;
-            _nguongMauThap = nguongMauThap;
+            State    = state;
+            Priority = priority;
         }
 
-        public bool CanEnter(BotContext ctx) =>
-            ctx.HealthRatio < _nguongMauThap;
+        public bool CanEnter(BotContext botCtx) =>
+            botCtx.HealthRatio < LayNguongRutLui(botCtx);
     }
 
     private sealed class ChuyenGiaoTranh : IBotStateTransition
@@ -229,10 +293,10 @@ public class BotBrain : NetworkBehaviour
             _chiPhi  = chiPhi;
         }
 
-        public bool CanEnter(BotContext ctx) =>
-            ctx.NearestEnemy != null
-            && ctx.DistanceToEnemy < _banKinh
-            && ctx.DuCoinDeBan(_chiPhi);
+        public bool CanEnter(BotContext botCtx) =>
+            botCtx.NearestEnemy != null
+            && botCtx.DistanceToEnemy < _banKinh
+            && botCtx.DuCoinDeBan(_chiPhi);
     }
 
     private sealed class ChuyenNhatCoin : IBotStateTransition
@@ -248,8 +312,8 @@ public class BotBrain : NetworkBehaviour
             _chiPhi  = chiPhi;
         }
 
-        public bool CanEnter(BotContext ctx) =>
-            !ctx.DuCoinDeBan(_chiPhi) && ctx.NearestCoin != null;
+        public bool CanEnter(BotContext botCtx) =>
+            !botCtx.DuCoinDeBan(_chiPhi) && botCtx.NearestCoin != null;
     }
 
     private sealed class ChuyenTuanTra : IBotStateTransition
@@ -264,6 +328,6 @@ public class BotBrain : NetworkBehaviour
         }
 
         // Fallback: luôn true — tuần tra khi không có điều kiện nào khác thoả
-        public bool CanEnter(BotContext ctx) => true;
+        public bool CanEnter(BotContext botCtx) => true;
     }
 }
