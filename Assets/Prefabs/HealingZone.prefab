@@ -255,7 +255,7 @@ MonoBehaviour:
   maxHealPower: 30
   healCooldown: 60
   healTickRate: 1
-  coinsPerTick: 10
+  coinsPerTick: 5
   healthPerTick: 10
 --- !u!1 &6581560957575882194
 GameObject:
