@@ -3,43 +3,67 @@ using Unity.Netcode;
 using UnityEngine;
 using TMPro;
 
+/// <summary>
+/// Não bot — chỉ chịu trách nhiệm Think:
+///   Sense  → BotSense.DocMoiTruong() cập nhật BotContext
+///   Think  → Priority FSM chọn state → state.Update() trả về BotCommand
+///   Act    → BotMover.ThucThiLenh() + BotMover.CapNhatAntiStuck() thực thi lệnh
+/// </summary>
 [RequireComponent(typeof(TankPlayer))]
 [RequireComponent(typeof(BotSense))]
+[RequireComponent(typeof(BotMover))]
 public class BotBrain : NetworkBehaviour
 {
     [Header("Chu kỳ đánh giá")]
-    [Tooltip("Bot đánh giá lại trạng thái sau mỗi X giây (random trong khoảng min-max)")]
     [SerializeField] private float chuKyDanhGiaMin = 0.2f;
     [SerializeField] private float chuKyDanhGiaMax = 0.5f;
 
     [Header("Ngưỡng chuyển trạng thái")]
     [SerializeField] private float nguongMauThapDeRutLui = 0.35f;
-    [SerializeField] private float banKinhGiaoTranh      = 10f;
+    [SerializeField] private float banKinhGiaoTranh      = 20f;
+    [SerializeField] private int   chiPhiBan             = 1;
+
+    [Header("Cấu hình Perception")]
+    [SerializeField] private float banKinhPhatHienDich = 20f;
+    [SerializeField] private float banKinhPhatHienCoin = 20f;
 
     [Header("Debug")]
     [SerializeField] private TextMeshPro labelTrangThai;
 
-    public static IReadOnlyList<TankPlayer> AllPlayers => _allPlayers;
-    private static readonly List<TankPlayer> _allPlayers = new List<TankPlayer>();
+    // BotBrain không tự quản lý player list — dùng TankPlayer.AllTankPlayers
 
-    private BotContext  ctx;
-    private BotSense    sense;
-    private TankPlayer  tankPlayer;
-    private Rigidbody2D rb;
+    // ── Component references ────────────────────────────────────────────────
+    private BotContext          ctx;
+    private BotSense            sense;
+    private BotMover            botMover;
+    private TankPlayer          tankPlayer;
+    private BotTurretController turretController;
+    private BotShooter          botShooter;
 
+    // ── FSM states ──────────────────────────────────────────────────────────
     private IBotState stateTuanTra;
     private IBotState stateGiaoTranh;
     private IBotState stateNhatCoin;
     private IBotState stateRutLui;
     private IBotState currentState;
 
-    private float _timerDanhGia;
+    // ── Priority transitions (duyệt theo Priority giảm dần) ─────────────────
+    private List<IBotStateTransition> _transitions;
+
+    // ── Timing ──────────────────────────────────────────────────────────────
+    private float      _timerDanhGia;
+    private float      _deltaTichLuy;
+    private BotCommand _currentCommand = new BotCommand();
+
+    // ──────────────────────────────────────────────────────────────────────────
 
     private void Awake()
     {
-        tankPlayer = GetComponent<TankPlayer>();
-        sense      = GetComponent<BotSense>();
-        rb         = GetComponent<Rigidbody2D>();
+        tankPlayer       = GetComponent<TankPlayer>();
+        sense            = GetComponent<BotSense>();
+        botMover         = GetComponent<BotMover>();
+        turretController = GetComponent<BotTurretController>();
+        botShooter       = GetComponent<BotShooter>();
 
         stateTuanTra   = new TrangThaiTuanTra();
         stateGiaoTranh = new TrangThaiGiaoTranh();
@@ -49,76 +73,97 @@ public class BotBrain : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        if (!IsServer) { enabled = false; return; }
+        if (!IsServer)
+        {
+            enabled = false;
+            return;
+        }
 
-        TankPlayer.OnPlayerSpawned   += OnPlayerSpawned;
-        TankPlayer.OnPlayerDespawned += OnPlayerDespawned;
 
+        // Khởi tạo Blackboard
         ctx = new BotContext
         {
-            Player        = tankPlayer,
-            BodyTransform = transform,
-            Health        = tankPlayer.Health,
-            Wallet        = tankPlayer.Wallet,
+            Player               = tankPlayer,
+            BodyTransform        = transform,
+            TurretTransform      = GetComponent<NguoiChoiNgamBan>()?.TurretTransform,
+            Health               = tankPlayer.Health,
+            Wallet               = tankPlayer.Wallet,
+            LayerMaskTuong       = LayerMask.GetMask("Terrain"),
+            BanKinhPhatHienDich  = banKinhPhatHienDich,
+            BanKinhPhatHienCoin  = banKinhPhatHienCoin,
         };
+
+        // Truyền context + layermask sang BotMover
+        botMover.KhoiTao(ctx, ctx.LayerMaskTuong);
+
+        // Khởi tạo Priority transitions (Priority cao → kiểm tra trước)
+        _transitions = new List<IBotStateTransition>
+        {
+            new ChuyenRutLui   (stateRutLui,    priority: 40, nguongMauThap: nguongMauThapDeRutLui),
+            new ChuyenGiaoTranh(stateGiaoTranh, priority: 30, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
+            new ChuyenNhatCoin (stateNhatCoin,  priority: 20, chiPhi: chiPhiBan),
+            new ChuyenTuanTra  (stateTuanTra,   priority: 10),   // fallback luôn true
+        };
+        _transitions.Sort((a, b) => b.Priority.CompareTo(a.Priority));
 
         _timerDanhGia = RandomChuKy();
         ChuyenTrangThai(stateTuanTra);
     }
 
-    public override void OnNetworkDespawn()
-    {
-        TankPlayer.OnPlayerSpawned   -= OnPlayerSpawned;
-        TankPlayer.OnPlayerDespawned -= OnPlayerDespawned;
-    }
+    public override void OnNetworkDespawn() { }
 
     private void Update()
     {
-        if (!IsServer) { return; }
+        if (!IsServer || ctx == null) { return; }
 
-        _timerDanhGia -= Time.deltaTime;
-        if (_timerDanhGia > 0f) { return; }
+        float dt = Time.deltaTime;
+        _timerDanhGia -= dt;
+        _deltaTichLuy += dt;
 
-        _timerDanhGia = RandomChuKy();
-        ctx.DeltaTime = Time.deltaTime;
+        // Anti-stuck cập nhật mỗi frame (trước ThucThiLenh)
+        botMover.CapNhatAntiStuck(dt, _currentCommand);
 
-        sense.DocMoiTruong(ctx);
-        ChonTrangThai();
+        if (_timerDanhGia <= 0f)
+        {
+            _timerDanhGia = RandomChuKy();
+            ctx.DeltaTime = _deltaTichLuy;
+            _deltaTichLuy = 0f;
 
-        BotCommand cmd = currentState.Update(ctx);
+            // Sense
+            sense.DocMoiTruong(ctx);
 
-        ctx.OutputHuongDiChuyen = cmd.MoveInput;
-        ctx.OutputDiemNgam      = cmd.AimTarget ?? ctx.BotPosition;
-        ctx.OutputCoBopCo       = cmd.Fire;
+            // Think: chọn state theo priority
+            ChonTrangThaiTheoPriority();
 
-        ThucThiLenh(cmd);
-        CapNhatLabelDebug();
+            // Think: state hiện tại ra lệnh
+            _currentCommand = currentState.Update(ctx);
+
+            ctx.OutputHuongDiChuyen = _currentCommand.MoveInput;
+            ctx.OutputDiemNgam      = _currentCommand.AimTarget ?? ctx.BotPosition;
+            ctx.OutputCoBopCo       = _currentCommand.Fire;
+
+            turretController?.DatContext(ctx);
+            botShooter?.XuLyBan(_currentCommand.Fire);
+
+            CapNhatLabelDebug();
+        }
+
+        // Act: BotMover thực thi lệnh mỗi frame (để chuyển động mượt)
+        botMover.ThucThiLenh(_currentCommand);
     }
 
-    private void ChonTrangThai()
+    // ── Priority FSM ─────────────────────────────────────────────────────────
+
+    private void ChonTrangThaiTheoPriority()
     {
-        IBotState muon;
-
-        if (ctx.HealthRatio < nguongMauThapDeRutLui)
+        foreach (IBotStateTransition t in _transitions)
         {
-            muon = stateRutLui;
-        }
-        else if (ctx.NearestEnemy != null && ctx.DistanceToEnemy < banKinhGiaoTranh)
-        {
-            muon = stateGiaoTranh;
-        }
-        else if (ctx.NearestCoin != null)
-        {
-            muon = stateNhatCoin;
-        }
-        else
-        {
-            muon = stateTuanTra;
-        }
-
-        if (muon != currentState)
-        {
-            ChuyenTrangThai(muon);
+            if (t.CanEnter(ctx))
+            {
+                if (t.State != currentState)
+                    ChuyenTrangThai(t.State);
+                return;
+            }
         }
     }
 
@@ -127,22 +172,10 @@ public class BotBrain : NetworkBehaviour
         currentState?.OnExit(ctx);
         currentState = tiepTheo;
         currentState.OnEnter(ctx);
-
         Debug.Log($"[BotBrain] {tankPlayer.PlayerName.Value} → {TenTrangThai(currentState)}");
     }
 
-    private void ThucThiLenh(BotCommand cmd)
-    {
-        if (rb == null) { return; }
-
-        float steer     = cmd.MoveInput.x;
-        float throttle  = cmd.MoveInput.y;
-        float tocDo     = 5f;
-        float tocDoXoay = 120f;
-
-        ctx.BodyTransform.Rotate(0f, 0f, steer * -tocDoXoay * Time.deltaTime);
-        rb.velocity = (Vector2)ctx.BodyTransform.up * throttle * tocDo;
-    }
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void CapNhatLabelDebug()
     {
@@ -161,13 +194,76 @@ public class BotBrain : NetworkBehaviour
 
     private float RandomChuKy() => Random.Range(chuKyDanhGiaMin, chuKyDanhGiaMax);
 
-    private static void OnPlayerSpawned(TankPlayer p)
+
+    // ── Transition implementations (nested classes) ───────────────────────────
+
+    private sealed class ChuyenRutLui : IBotStateTransition
     {
-        if (!_allPlayers.Contains(p)) { _allPlayers.Add(p); }
+        public int       Priority { get; }
+        public IBotState State    { get; }
+        private readonly float _nguongMauThap;
+
+        public ChuyenRutLui(IBotState state, int priority, float nguongMauThap)
+        {
+            State          = state;
+            Priority       = priority;
+            _nguongMauThap = nguongMauThap;
+        }
+
+        public bool CanEnter(BotContext ctx) =>
+            ctx.HealthRatio < _nguongMauThap;
     }
 
-    private static void OnPlayerDespawned(TankPlayer p)
+    private sealed class ChuyenGiaoTranh : IBotStateTransition
     {
-        _allPlayers.Remove(p);
+        public int       Priority { get; }
+        public IBotState State    { get; }
+        private readonly float _banKinh;
+        private readonly int   _chiPhi;
+
+        public ChuyenGiaoTranh(IBotState state, int priority, float banKinh, int chiPhi)
+        {
+            State    = state;
+            Priority = priority;
+            _banKinh = banKinh;
+            _chiPhi  = chiPhi;
+        }
+
+        public bool CanEnter(BotContext ctx) =>
+            ctx.NearestEnemy != null
+            && ctx.DistanceToEnemy < _banKinh
+            && ctx.DuCoinDeBan(_chiPhi);
+    }
+
+    private sealed class ChuyenNhatCoin : IBotStateTransition
+    {
+        public int       Priority { get; }
+        public IBotState State    { get; }
+        private readonly int _chiPhi;
+
+        public ChuyenNhatCoin(IBotState state, int priority, int chiPhi)
+        {
+            State    = state;
+            Priority = priority;
+            _chiPhi  = chiPhi;
+        }
+
+        public bool CanEnter(BotContext ctx) =>
+            !ctx.DuCoinDeBan(_chiPhi) && ctx.NearestCoin != null;
+    }
+
+    private sealed class ChuyenTuanTra : IBotStateTransition
+    {
+        public int       Priority { get; }
+        public IBotState State    { get; }
+
+        public ChuyenTuanTra(IBotState state, int priority)
+        {
+            State    = state;
+            Priority = priority;
+        }
+
+        // Fallback: luôn true — tuần tra khi không có điều kiện nào khác thoả
+        public bool CanEnter(BotContext ctx) => true;
     }
 }

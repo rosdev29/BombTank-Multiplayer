@@ -30,6 +30,10 @@ public class TankPlayer : NetworkBehaviour
     public static event Action<TankPlayer> OnPlayerSpawned;
     public static event Action<TankPlayer> OnPlayerDespawned;
 
+    // Danh sách tất cả TankPlayer đang tồn tại trên Server (cả bot lẫn người thật).
+    public static IReadOnlyList<TankPlayer> AllTankPlayers => _allTankPlayers;
+    private static readonly List<TankPlayer> _allTankPlayers = new List<TankPlayer>();
+
     public override void OnNetworkSpawn()
     {
         if (virtualCamera == null)
@@ -62,7 +66,22 @@ public class TankPlayer : NetworkBehaviour
 
                 if (userData != null)
                 {
-                    PlayerName.Value = userData.userName;
+                    string playerPrefsName = PlayerPrefs.GetString(NameSelector.PlayerNameKey, "");
+
+                    if (OwnerClientId == NetworkManager.ServerClientId &&
+                        !string.IsNullOrWhiteSpace(playerPrefsName))
+                    {
+                        PlayerName.Value = playerPrefsName;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(userData.userName))
+                    {
+                        PlayerName.Value = userData.userName;
+                    }
+                    else
+                    {
+                        PlayerName.Value = $"Player {OwnerClientId}";
+                    }
+
                     TeamIndex.Value = userData.teamIndex;
                 }
                 else
@@ -71,6 +90,7 @@ public class TankPlayer : NetworkBehaviour
                     string fallbackName = OwnerClientId == NetworkManager.ServerClientId
                         ? PlayerPrefs.GetString("PlayerName", $"Player {OwnerClientId}")
                         : $"Player {OwnerClientId}";
+
                     PlayerName.Value = fallbackName;
 
                     if (TeamIndex.Value == 0 && OwnerClientId != NetworkManager.ServerClientId)
@@ -79,8 +99,14 @@ public class TankPlayer : NetworkBehaviour
                     }
                 }
             }
-
+            PlayerName.OnValueChanged += HandlePlayerNameChanged;
             OnPlayerSpawned?.Invoke(this);
+        }
+
+        // Tự đăng ký vào danh sách toàn cục người chơi (server-side)
+        if (IsServer && !_allTankPlayers.Contains(this))
+        {
+            _allTankPlayers.Add(this);
         }
 
         if (IsOwner && !IsCurrentlyBot())
@@ -94,11 +120,21 @@ public class TankPlayer : NetworkBehaviour
         }
     }
 
+    private void HandlePlayerNameChanged(FixedString32Bytes oldName, FixedString32Bytes newName)
+    {
+        if (!IsServer) { return; }
+
+        OnPlayerSpawned?.Invoke(this);
+    }
+
     public override void OnNetworkDespawn()
     {
+        PlayerName.OnValueChanged -= HandlePlayerNameChanged;
+
         if (IsServer && NetworkManager != null && !NetworkManager.ShutdownInProgress)
         {
             OnPlayerDespawned?.Invoke(this);
+            _allTankPlayers.Remove(this);
         }
     }
 }
