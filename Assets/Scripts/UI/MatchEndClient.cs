@@ -10,6 +10,7 @@ public class MatchEndClient : MonoBehaviour
 
     private GUIStyle titleStyle;
     private GUIStyle labelStyle;
+    private GUIStyle rankingStyle;
     private GUIStyle buttonStyle;
     private GUIStyle boxStyle;
 
@@ -30,8 +31,18 @@ public class MatchEndClient : MonoBehaviour
             EnsureInstance();
         }
 
+        DeathSpectatorClient.Dismiss();
         instance.showOverlay = true;
-        Time.timeScale = 0f;
+        GameplayInputGate.SetBlocked(true);
+    }
+
+    public static void HideOverlay()
+    {
+        if (instance == null) { return; }
+
+        instance.showOverlay = false;
+        GameplayInputGate.SetBlocked(false);
+        Time.timeScale = 1f;
     }
 
     private void InitStyles()
@@ -52,6 +63,13 @@ public class MatchEndClient : MonoBehaviour
             fontSize = 22,
             fontStyle = FontStyle.Bold,
             normal = { textColor = Color.white }
+        };
+
+        rankingStyle = new GUIStyle(labelStyle)
+        {
+            alignment = TextAnchor.UpperLeft,
+            clipping = TextClipping.Overflow,
+            wordWrap = true
         };
 
         buttonStyle = new GUIStyle(GUI.skin.button)
@@ -84,7 +102,7 @@ public class MatchEndClient : MonoBehaviour
         GUI.Label(new Rect(x + 45f, y + 95f, width - 90f, 35f), "RANKINGS", labelStyle);
 
         string rankingText = GetRankingText();
-        GUI.Label(new Rect(x + 55f, y + 150f, width - 110f, 220f), rankingText, labelStyle);
+        GUI.Label(new Rect(x + 55f, y + 135f, width - 110f, 300f), rankingText, rankingStyle);
 
         if (GUI.Button(new Rect(x + (width - 170f) / 2f, y + 470f, 170f, 55f), "HOME", buttonStyle))
         {
@@ -123,27 +141,18 @@ public class MatchEndClient : MonoBehaviour
 
     private void GoHome()
     {
-        showOverlay = false;
-        Time.timeScale = 1f;
-
-        if (NetworkManager.Singleton != null)
-        {
-            NetworkManager.Singleton.Shutdown();
-        }
-
-        SceneManager.LoadScene(0);
+        ClientSessionOverlay.ReturnToMenu();
     }
 
     private void PlayAgain()
     {
-        showOverlay = false;
-        Time.timeScale = 1f;
+        HideOverlay();
 
         if (NetworkManager.Singleton != null)
         {
             NetworkManager.Singleton.Shutdown();
         }
 
-        SceneManager.LoadScene(1);
+        SceneManager.LoadScene("Game");
     }
 }

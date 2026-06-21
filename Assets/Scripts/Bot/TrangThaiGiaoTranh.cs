@@ -7,7 +7,6 @@ public class TrangThaiGiaoTranh : IBotState
     private const float KHOANG_CACH_QUA_GAN         = 7f;
     private const float NGUONG_GOC_DE_BAN           = 10f;
     private const float HE_SO_LEAD                  = 0.15f;
-    private const int   CHI_PHI_BAN                 = 1;
     private const float TOC_DO_TIEN_LUI             = 1f;
     private const float THOI_GIAN_DOI_CHIEU         = 1.5f;
     private const float KHOANG_KIEM_TRA_TUONG_VONG  = 3f;
@@ -33,7 +32,7 @@ public class TrangThaiGiaoTranh : IBotState
         _dangRutLui      = false;
         _viTriDatLOS     = null;
         _timerRefreshLOS = 0f;
-        ChonKieuMoi(null);
+        ChonKieuMoi(ctx, null);
     }
 
     public BotCommand Update(BotContext ctx)
@@ -41,6 +40,24 @@ public class TrangThaiGiaoTranh : IBotState
         var cmd = new BotCommand();
 
         if (ctx.NearestEnemy == null) { return cmd; }
+
+        if (!ctx.DuCoinDeBan(ctx.ChiPhiBan))
+        {
+            Vector2 huongThoat = ctx.BotPosition - ctx.EnemyPosition;
+            if (huongThoat.sqrMagnitude < 0.001f)
+            {
+                huongThoat = Random.insideUnitCircle;
+            }
+            else
+            {
+                huongThoat.Normalize();
+            }
+
+            BotCommand flee = BotSteering.MoveTowards(ctx, ctx.BotPosition + huongThoat * 14f);
+            flee.AimTarget = ctx.EnemyPosition;
+            flee.Fire = false;
+            return flee;
+        }
 
         const float TOC_DO_DAN = 10f;
         Vector2 vanTocDich  = (ctx.EnemyPosition - _viTriDichCu) / Mathf.Max(ctx.DeltaTime, 0.001f);
@@ -68,6 +85,11 @@ public class TrangThaiGiaoTranh : IBotState
         {
             throttle = -TOC_DO_TIEN_LUI;
             steer    = gocLechThanXe > 0f ? -1f : 1f;
+            if (khoangCach < 5f)
+            {
+                throttle = 0f;
+                steer    = 0f;
+            }
             if (_kieuHienTai == KieuDiChuyen.TienGan)
             {
                 _timerDoiKieu = 0f;
@@ -96,7 +118,7 @@ public class TrangThaiGiaoTranh : IBotState
                         ? _kieuHienTai
                         : (KieuDiChuyen?)null;
 
-                ChonKieuMoi(_kieuVuaLam);
+                ChonKieuMoi(ctx, _kieuVuaLam);
             }
 
             if ((_kieuHienTai == KieuDiChuyen.VongTrai || _kieuHienTai == KieuDiChuyen.VongPhai)
@@ -168,7 +190,8 @@ public class TrangThaiGiaoTranh : IBotState
         Transform nongNgam    = ctx.TurretTransform != null ? ctx.TurretTransform : ctx.BodyTransform;
         float     gocLechNgam = Vector2.Angle((Vector2)nongNgam.up, huongNgam);
 
-        if (gocLechNgam < NGUONG_GOC_DE_BAN && ctx.DuCoinDeBan(CHI_PHI_BAN) && losThong)
+        float nguongGoc = khoangCach < 10f ? 28f : NGUONG_GOC_DE_BAN;
+        if (gocLechNgam < nguongGoc && ctx.DuCoinDeBan(ctx.ChiPhiBan) && losThong)
             cmd.Fire = true;
 
         return cmd;
@@ -218,12 +241,20 @@ public class TrangThaiGiaoTranh : IBotState
         _timerDoiKieu = Random.Range(THOI_GIAN_DOI_CHIEU * 0.5f, THOI_GIAN_DOI_CHIEU * 1.0f);
     }
 
-    private void ChonKieuMoi(KieuDiChuyen? loaiTru)
+    private void ChonKieuMoi(BotContext ctx, KieuDiChuyen? loaiTru)
     {
+        float khoangCach = ctx != null && ctx.NearestEnemy != null
+            ? Vector2.Distance(ctx.BotPosition, ctx.EnemyPosition)
+            : 0f;
+
         float r = Random.value;
 
         KieuDiChuyen chon;
-        if      (r < 0.10f) chon = KieuDiChuyen.VongTrai;
+        if (khoangCach > 0f && khoangCach < 8f)
+        {
+            chon = r < 0.55f ? KieuDiChuyen.DungBan : (r < 0.8f ? KieuDiChuyen.VongTrai : KieuDiChuyen.VongPhai);
+        }
+        else if      (r < 0.10f) chon = KieuDiChuyen.VongTrai;
         else if (r < 0.20f) chon = KieuDiChuyen.VongPhai;
         else if (r < 0.45f) chon = KieuDiChuyen.TienGan;
         else if (r < 0.70f) chon = KieuDiChuyen.LuiXa;

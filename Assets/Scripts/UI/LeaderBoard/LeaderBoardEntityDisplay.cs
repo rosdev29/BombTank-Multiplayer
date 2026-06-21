@@ -13,6 +13,8 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
     private string displayName;
     private ulong crownLookupId;
 
+    private int displayRank = 1;
+
     public ulong ClientId { get; private set; }
     public int TeamIndex { get; private set; } = -1;
     public int Coins { get; private set; }
@@ -51,6 +53,11 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
         UpdateCoins(coins);
     }
 
+    public void SetRank(int rank)
+    {
+        displayRank = Mathf.Max(1, rank);
+    }
+
     public void UpdateCoins(int coins)
     {
         Coins = coins;
@@ -86,7 +93,8 @@ public class LeaderBoardEntityDisplay : MonoBehaviour
             BountySystem.Instance.HasCrown(crownLookupId);
         string crownPrefix = hasCrown ? "<sprite name=\"BountyCrown\"> " : "";
 
-        displayText.text = $"{transform.GetSiblingIndex() + 1}. {crownPrefix}{nameToShow} ({Coins})";
+        displayText.alignment = TextAlignmentOptions.MidlineLeft;
+        displayText.text = $"{displayRank,2}. {crownPrefix}{nameToShow} ({Coins})";
     }
 }
 

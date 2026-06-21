@@ -26,6 +26,7 @@ public class BotContext
     public float       DistanceToCoin  { get; set; } = float.MaxValue;
     public List<Coin>  DanhSachCoinGan { get; }      = new List<Coin>();
     public int         SoCoinHienTai   { get; set; }
+    public int         ChiPhiBan       { get; set; } = 5;
 
     public HealingZone NearestHealingZone    { get; set; }
     public Vector2     HealingZonePosition   { get; set; }

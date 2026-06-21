@@ -41,6 +41,14 @@ public class MainMenu : MonoBehaviour
         HandleIpChanged(ipField != null ? ipField.text : string.Empty);
     }
 
+    private void OnEnable()
+    {
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayMusic(AudioManager.Instance.menuMusic);
+        }
+    }
+
     private void OnDestroy()
     {
         if (networkManager != null)

@@ -246,6 +246,11 @@ public class BotSpawner : MonoBehaviour
             tankPlayer.IsBot.Value = true;
             tankPlayer.PlayerName.Value = new Unity.Collections.FixedString32Bytes(GetRandomBotName());
             tankPlayer.TeamIndex.Value = -1;
+
+            if (tankPlayer.Wallet != null)
+            {
+                tankPlayer.Wallet.TotalCoins.Value = 10;
+            }
         }
     }
 
