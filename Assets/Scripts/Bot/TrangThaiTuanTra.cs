@@ -29,6 +29,10 @@ public class TrangThaiTuanTra : IBotState
             }
         }
 
+        if (ctx.Pathfinder != null)
+        {
+            return ctx.Pathfinder.GetMoveCommandToTarget(_diemMucTieu);
+        }
         return BotSteering.MoveTowards(ctx, _diemMucTieu);
     }
 

@@ -70,7 +70,15 @@ public class TrangThaiRutLui : IBotState
             _timerBiKet = THOI_GIAN_BI_KET;
         }
 
-        BotCommand cmd = BotSteering.MoveTowards(ctx, _diemMucTieu);
+        BotCommand cmd;
+        if (ctx.Pathfinder != null)
+        {
+            cmd = ctx.Pathfinder.GetMoveCommandToTarget(_diemMucTieu);
+        }
+        else
+        {
+            cmd = BotSteering.MoveTowards(ctx, _diemMucTieu);
+        }
         cmd.Fire = false;
         return cmd;
     }
