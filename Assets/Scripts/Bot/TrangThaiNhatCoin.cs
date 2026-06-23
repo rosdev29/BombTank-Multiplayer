@@ -15,6 +15,10 @@ public class TrangThaiNhatCoin : IBotState
         }
 
         float throttle = ctx.DistanceToCoin < KHOANG_CACH_CHAM ? 0.3f : 1f;
+        if (ctx.Pathfinder != null)
+        {
+            return ctx.Pathfinder.GetMoveCommandToTarget(ctx.CoinPosition, throttle);
+        }
         return BotSteering.MoveTowards(ctx, ctx.CoinPosition, throttle);
     }
 
