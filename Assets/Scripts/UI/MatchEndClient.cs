@@ -97,14 +97,14 @@ public class MatchEndClient : MonoBehaviour
 
         GUI.Box(new Rect(x, y, width, height), "", boxStyle);
 
-        GUI.Label(new Rect(x, y + 25f, width, 50f), "MATCH END", titleStyle);
+        GUI.Label(new Rect(x, y + 25f, width, 50f), "TRẬN ĐẤU KẾT THÚC", titleStyle);
 
-        GUI.Label(new Rect(x + 45f, y + 95f, width - 90f, 35f), "RANKINGS", labelStyle);
+        GUI.Label(new Rect(x + 45f, y + 95f, width - 90f, 35f), "BẢNG XẾP HẠNG", labelStyle);
 
         string rankingText = GetRankingText();
         GUI.Label(new Rect(x + 55f, y + 135f, width - 110f, 300f), rankingText, rankingStyle);
 
-        if (GUI.Button(new Rect(x + (width - 170f) / 2f, y + 470f, 170f, 55f), "HOME", buttonStyle))
+        if (GUI.Button(new Rect(x + (width - 170f) / 2f, y + 470f, 170f, 55f), "TRANG CHỦ", buttonStyle))
         {
             GoHome();
         }
