@@ -6,7 +6,7 @@ public class PathfindingGrid : MonoBehaviour
     public static PathfindingGrid Instance { get; private set; }
 
     [Header("Grid Settings")]
-    public Vector2 GridWorldSize = new Vector2(60, 60);
+    public Vector2 GridWorldSize = new Vector2(160, 160);
     public float NodeRadius = 0.5f;
 
     private Node[,] _grid;
@@ -51,15 +51,40 @@ public class PathfindingGrid : MonoBehaviour
         UpdateGridWalkability();
     }
 
-    private void Update()
+    private void Start()
     {
-        _updateTimer -= Time.deltaTime;
-        if (_updateTimer <= 0f)
+        // Thay vi quet toan bo trong Update, ta dung Coroutine de chia nho khoi luong cong viec ra nhieu frame
+        StartCoroutine(UpdateGridRoutine());
+    }
+
+    private System.Collections.IEnumerator UpdateGridRoutine()
+    {
+        while (true)
         {
-            _updateTimer = 1.0f; // Quet lai grid moi 1 giay
-            UpdateGridWalkability();
+            int nodesProcessed = 0;
+            int maxNodesPerFrame = 1000; // Chi quet toi da 1000 o moi frame de khong gay giat lag
+
+            for (int x = 0; x < _gridSizeX; x++)
+            {
+                for (int y = 0; y < _gridSizeY; y++)
+                {
+                    UpdateNodeWalkability(x, y);
+
+                    nodesProcessed++;
+                    if (nodesProcessed >= maxNodesPerFrame)
+                    {
+                        nodesProcessed = 0;
+                        yield return null; // Tam nghi, cho den frame tiep theo moi quet tiep
+                    }
+                }
+            }
+
+            // Sau khi quet xong toan bo ban do, nghi 0.5 giay truoc khi bat dau chu ky quet moi
+            yield return new WaitForSeconds(0.5f);
         }
     }
+
+    private Collider2D[] _results = new Collider2D[10];
 
     public void UpdateGridWalkability()
     {
@@ -68,39 +93,42 @@ public class PathfindingGrid : MonoBehaviour
         {
             for (int y = 0; y < _gridSizeY; y++)
             {
-                bool walkable = true;
-                int penalty = 0;
-                
-                // Kiem tra vat can sat ranh gioi (Walkability)
-                Collider2D[] cols = Physics2D.OverlapCircleAll(_grid[x, y].WorldPosition, NodeRadius * 1.0f);
-                foreach (var col in cols)
-                {
-                    if (BotSteering.LaTuong(col))
-                    {
-                        walkable = false;
-                        break;
-                    }
-                }
-
-                if (walkable)
-                {
-                    // Neu di duoc, kiem tra xem co nam gan tuong khong de tang Penalty
-                    // Ban kinh 2.5 lan NodeRadius de phat hien tuong o gan
-                    Collider2D[] penaltyCols = Physics2D.OverlapCircleAll(_grid[x, y].WorldPosition, NodeRadius * 2.5f);
-                    foreach (var col in penaltyCols)
-                    {
-                        if (BotSteering.LaTuong(col))
-                        {
-                            penalty = 25; // Phat them 25 diem chi phi neu di sat tuong (khuyen khich di ra giua duong)
-                            break;
-                        }
-                    }
-                }
-
-                _grid[x, y].Walkable = walkable;
-                _grid[x, y].Penalty = penalty;
+                UpdateNodeWalkability(x, y);
             }
         }
+    }
+
+    private void UpdateNodeWalkability(int x, int y)
+    {
+        bool walkable = true;
+        int penalty = 0;
+        
+        // Su dung NonAlloc de tranh tao ra rac bo nho (Garbage Collection) giup chong lag
+        int hitCount = Physics2D.OverlapCircleNonAlloc(_grid[x, y].WorldPosition, NodeRadius * 1.0f, _results);
+        for (int i = 0; i < hitCount; i++)
+        {
+            if (BotSteering.LaTuong(_results[i]))
+            {
+                walkable = false;
+                break;
+            }
+        }
+
+        if (walkable)
+        {
+            int penaltyHitCount = Physics2D.OverlapCircleNonAlloc(_grid[x, y].WorldPosition, NodeRadius * 2.5f, _results);
+            for (int i = 0; i < penaltyHitCount; i++)
+            {
+                if (BotSteering.LaTuong(_results[i]))
+                {
+                    penalty = 25;
+                    break;
+                }
+            }
+        }
+
+        _grid[x, y].Walkable = walkable;
+        _grid[x, y].Penalty = penalty;
     }
 
     public Node NodeFromWorldPoint(Vector2 worldPosition)
