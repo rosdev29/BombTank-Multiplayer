@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI; // Thêm dòng này để làm việc với UI
 
 public class AudioManager : MonoBehaviour
 {
@@ -49,6 +50,9 @@ public class AudioManager : MonoBehaviour
         {
             PlayMusic(menuMusic);
         }
+
+        // TỰ ĐỘNG GẮN ÂM THANH CLICK CHO TẤT CẢ CÁC NÚT KHI LOAD SCENE
+        AttachClickSoundToAllButtons();
     }
 
     private void Start()
@@ -57,6 +61,28 @@ public class AudioManager : MonoBehaviour
         musicSource.volume = PlayerPrefs.GetFloat("MusicVolume", 1f);
         sfxSource.volume = PlayerPrefs.GetFloat("SfxVolume", 1f);
         PlayMusic(menuMusic);
+
+        // Gọi thêm ở Start phòng trường hợp Scene hiện tại là Scene đầu tiên
+        AttachClickSoundToAllButtons();
+    }
+
+    // --- Hàm mới: Tự động tìm và gắn sự kiện âm thanh cho mọi Button ---
+    private void AttachClickSoundToAllButtons()
+    {
+        // Tìm tất cả các Button có trong Scene (bao gồm cả các nút đang bị ẩn/inactive)
+        Button[] allButtons = Resources.FindObjectsOfTypeAll<Button>();
+
+        foreach (Button btn in allButtons)
+        {
+            // Bỏ qua các nút thuộc về Prefab chưa được đưa ra màn hình để tránh lỗi
+            if (btn.gameObject.scene.name == null) continue;
+
+            // Xóa sự kiện cũ (nếu có) để tránh việc bị phát tiếng 2 lần khi click
+            btn.onClick.RemoveListener(PlayClick);
+
+            // Gắn sự kiện phát tiếng click vào nút
+            btn.onClick.AddListener(PlayClick);
+        }
     }
 
     // --- Các hàm điều khiển Âm thanh ---

@@ -135,7 +135,7 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
 
         if (GameplayInputGate.IsBlocked || MatchEndBridge.IsMatchEnded)
         {
-        break_velocity:
+
             rb.velocity = Vector2.zero;
             return;
         }
