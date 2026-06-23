@@ -7,7 +7,7 @@ using UnityEngine;
 public class BotSpawner : MonoBehaviour
 {
     private const int TargetTotalTanks = 3;
-    
+
     private List<TankPlayer> activeBots = new List<TankPlayer>();
     private int realPlayerCount = 0;
 
@@ -36,9 +36,9 @@ public class BotSpawner : MonoBehaviour
             {
                 cachedNetworkManager.OnServerStarted -= HandleServerStarted;
             }
-            
+
             cachedNetworkManager = NetworkManager.Singleton;
-            
+
             if (cachedNetworkManager != null)
             {
                 cachedNetworkManager.OnServerStarted += HandleServerStarted;
@@ -137,9 +137,9 @@ public class BotSpawner : MonoBehaviour
         if (prefabObj == null) return;
 
         Vector3 spawnPosition = GetRandomSpawnPosition();
-        
+
         NetworkObject botInstance = Instantiate(prefabObj, spawnPosition, Quaternion.identity).GetComponent<NetworkObject>();
-        
+
         botInstance.gameObject.AddComponent<BotTag>();
 
         if (botInstance.GetComponent<BotSense>() == null)
@@ -178,12 +178,12 @@ public class BotSpawner : MonoBehaviour
         // Pick a random name that isn't already used by an active bot
         var usedNames = activeBots.Select(b => b.PlayerName.Value.ToString()).ToHashSet();
         var availableNames = BotNames.Where(n => !usedNames.Contains(n)).ToList();
-        
+
         if (availableNames.Count > 0)
         {
             return availableNames[Random.Range(0, availableNames.Count)];
         }
-        
+
         return BotNames[Random.Range(0, BotNames.Length)];
     }
 
@@ -197,7 +197,7 @@ public class BotSpawner : MonoBehaviour
 
         TankPlayer[] allTanks = Object.FindObjectsByType<TankPlayer>(FindObjectsSortMode.None);
         var availablePoints = spawnPoints.ToList();
-        
+
         // Trộn danh sách để chọn ngẫu nhiên
         for (int i = 0; i < availablePoints.Count; i++)
         {

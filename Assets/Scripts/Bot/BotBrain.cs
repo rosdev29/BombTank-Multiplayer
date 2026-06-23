@@ -20,8 +20,8 @@ public class BotBrain : NetworkBehaviour
 
     [Header("Ngưỡng chuyển trạng thái")]
     [SerializeField] private float nguongMauThapDeRutLui = 0.35f;
-    [SerializeField] private float banKinhGiaoTranh      = 20f;
-    [SerializeField] private int   chiPhiBan             = 1;
+    [SerializeField] private float banKinhGiaoTranh = 20f;
+    [SerializeField] private int chiPhiBan = 1;
 
     [Header("Cấu hình Perception")]
     [SerializeField] private float banKinhPhatHienDich = 20f;
@@ -33,12 +33,12 @@ public class BotBrain : NetworkBehaviour
     // BotBrain không tự quản lý player list — dùng TankPlayer.AllTankPlayers
 
     // ── Component references ────────────────────────────────────────────────
-    private BotContext          ctx;
-    private BotSense            sense;
-    private BotMover            botMover;
-    private TankPlayer          tankPlayer;
+    private BotContext ctx;
+    private BotSense sense;
+    private BotMover botMover;
+    private TankPlayer tankPlayer;
     private BotTurretController turretController;
-    private BotShooter          botShooter;
+    private BotShooter botShooter;
 
     // ── FSM states ──────────────────────────────────────────────────────────
     private IBotState stateTuanTra;
@@ -51,24 +51,24 @@ public class BotBrain : NetworkBehaviour
     private List<IBotStateTransition> _transitions;
 
     // ── Timing ──────────────────────────────────────────────────────────────
-    private float      _timerDanhGia;
-    private float      _deltaTichLuy;
+    private float _timerDanhGia;
+    private float _deltaTichLuy;
     private BotCommand _currentCommand = new BotCommand();
 
     // ──────────────────────────────────────────────────────────────────────────
 
     private void Awake()
     {
-        tankPlayer       = GetComponent<TankPlayer>();
-        sense            = GetComponent<BotSense>();
-        botMover         = GetComponent<BotMover>();
+        tankPlayer = GetComponent<TankPlayer>();
+        sense = GetComponent<BotSense>();
+        botMover = GetComponent<BotMover>();
         turretController = GetComponent<BotTurretController>();
-        botShooter       = GetComponent<BotShooter>();
+        botShooter = GetComponent<BotShooter>();
 
-        stateTuanTra   = new TrangThaiTuanTra();
+        stateTuanTra = new TrangThaiTuanTra();
         stateGiaoTranh = new TrangThaiGiaoTranh();
-        stateNhatCoin  = new TrangThaiNhatCoin();
-        stateRutLui    = new TrangThaiRutLui();
+        stateNhatCoin = new TrangThaiNhatCoin();
+        stateRutLui = new TrangThaiRutLui();
     }
 
     public override void OnNetworkSpawn()
@@ -83,14 +83,14 @@ public class BotBrain : NetworkBehaviour
         // Khởi tạo Blackboard
         ctx = new BotContext
         {
-            Player               = tankPlayer,
-            BodyTransform        = transform,
-            TurretTransform      = GetComponent<NguoiChoiNgamBan>()?.TurretTransform,
-            Health               = tankPlayer.Health,
-            Wallet               = tankPlayer.Wallet,
-            LayerMaskTuong       = LayerMask.GetMask("Terrain"),
-            BanKinhPhatHienDich  = banKinhPhatHienDich,
-            BanKinhPhatHienCoin  = banKinhPhatHienCoin,
+            Player = tankPlayer,
+            BodyTransform = transform,
+            TurretTransform = GetComponent<NguoiChoiNgamBan>()?.TurretTransform,
+            Health = tankPlayer.Health,
+            Wallet = tankPlayer.Wallet,
+            LayerMaskTuong = LayerMask.GetMask("Terrain"),
+            BanKinhPhatHienDich = banKinhPhatHienDich,
+            BanKinhPhatHienCoin = banKinhPhatHienCoin,
         };
 
         // Truyền context + layermask sang BotMover
@@ -139,8 +139,8 @@ public class BotBrain : NetworkBehaviour
             _currentCommand = currentState.Update(ctx);
 
             ctx.OutputHuongDiChuyen = _currentCommand.MoveInput;
-            ctx.OutputDiemNgam      = _currentCommand.AimTarget ?? ctx.BotPosition;
-            ctx.OutputCoBopCo       = _currentCommand.Fire;
+            ctx.OutputDiemNgam = _currentCommand.AimTarget ?? ctx.BotPosition;
+            ctx.OutputCoBopCo = _currentCommand.Fire;
 
             turretController?.DatContext(ctx);
             botShooter?.XuLyBan(_currentCommand.Fire);
@@ -186,10 +186,10 @@ public class BotBrain : NetworkBehaviour
     private static string TenTrangThai(IBotState s) => s switch
     {
         TrangThaiGiaoTranh => "⚔️ Giao tranh",
-        TrangThaiNhatCoin  => "💰 Nhặt coin",
-        TrangThaiRutLui    => "🏃 Rút lui",
-        TrangThaiTuanTra   => "🔍 Tuần tra",
-        _                  => s?.GetType().Name ?? "null"
+        TrangThaiNhatCoin => "💰 Nhặt coin",
+        TrangThaiRutLui => "🏃 Rút lui",
+        TrangThaiTuanTra => "🔍 Tuần tra",
+        _ => s?.GetType().Name ?? "null"
     };
 
     private float RandomChuKy() => Random.Range(chuKyDanhGiaMin, chuKyDanhGiaMax);
@@ -199,14 +199,14 @@ public class BotBrain : NetworkBehaviour
 
     private sealed class ChuyenRutLui : IBotStateTransition
     {
-        public int       Priority { get; }
-        public IBotState State    { get; }
+        public int Priority { get; }
+        public IBotState State { get; }
         private readonly float _nguongMauThap;
 
         public ChuyenRutLui(IBotState state, int priority, float nguongMauThap)
         {
-            State          = state;
-            Priority       = priority;
+            State = state;
+            Priority = priority;
             _nguongMauThap = nguongMauThap;
         }
 
@@ -216,17 +216,17 @@ public class BotBrain : NetworkBehaviour
 
     private sealed class ChuyenGiaoTranh : IBotStateTransition
     {
-        public int       Priority { get; }
-        public IBotState State    { get; }
+        public int Priority { get; }
+        public IBotState State { get; }
         private readonly float _banKinh;
-        private readonly int   _chiPhi;
+        private readonly int _chiPhi;
 
         public ChuyenGiaoTranh(IBotState state, int priority, float banKinh, int chiPhi)
         {
-            State    = state;
+            State = state;
             Priority = priority;
             _banKinh = banKinh;
-            _chiPhi  = chiPhi;
+            _chiPhi = chiPhi;
         }
 
         public bool CanEnter(BotContext ctx) =>
@@ -237,15 +237,15 @@ public class BotBrain : NetworkBehaviour
 
     private sealed class ChuyenNhatCoin : IBotStateTransition
     {
-        public int       Priority { get; }
-        public IBotState State    { get; }
+        public int Priority { get; }
+        public IBotState State { get; }
         private readonly int _chiPhi;
 
         public ChuyenNhatCoin(IBotState state, int priority, int chiPhi)
         {
-            State    = state;
+            State = state;
             Priority = priority;
-            _chiPhi  = chiPhi;
+            _chiPhi = chiPhi;
         }
 
         public bool CanEnter(BotContext ctx) =>
@@ -254,12 +254,12 @@ public class BotBrain : NetworkBehaviour
 
     private sealed class ChuyenTuanTra : IBotStateTransition
     {
-        public int       Priority { get; }
-        public IBotState State    { get; }
+        public int Priority { get; }
+        public IBotState State { get; }
 
         public ChuyenTuanTra(IBotState state, int priority)
         {
-            State    = state;
+            State = state;
             Priority = priority;
         }
 

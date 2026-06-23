@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -41,6 +42,16 @@ public class SinhCoinKhiPhaHuy : MonoBehaviour
     private void OnDestroy()
     {
         if (!Application.isPlaying || isQuitting || isSceneTransitionInProgress || prefab == null)
+        {
+            return;
+        }
+
+        if (!gameObject.scene.isLoaded)
+        {
+            return;
+        }
+
+        if (NetworkManager.Singleton != null && !NetworkManager.Singleton.IsListening)
         {
             return;
         }

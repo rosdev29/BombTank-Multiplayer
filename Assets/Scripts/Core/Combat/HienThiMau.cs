@@ -10,24 +10,34 @@ public class HienThiMau : NetworkBehaviour
     [SerializeField] private Mau mau;
     [SerializeField] private Image ThanhMauImage;
 
+    private TankPlayer player;
 
     public override void OnNetworkSpawn()
     {
         if (!IsClient) { return; }
 
         mau.MauHienTai.OnValueChanged += XuLyKhiMauThayDoi;
+        mau.MauToiDaNet.OnValueChanged += XuLyKhiMauToiDaThayDoi;
         XuLyKhiMauThayDoi(0, mau.MauHienTai.Value);
+
+        player = GetComponentInParent<TankPlayer>();
     }
 
     public override void OnNetworkDespawn()
     {
         if(!IsClient) { return; }
         mau.MauHienTai.OnValueChanged -= XuLyKhiMauThayDoi;
+        mau.MauToiDaNet.OnValueChanged -= XuLyKhiMauToiDaThayDoi;
+    }
 
+    private void XuLyKhiMauToiDaThayDoi(int oldMax, int maxMoi)
+    {
+        XuLyKhiMauThayDoi(mau.MauHienTai.Value, mau.MauHienTai.Value);
     }
 
     private void XuLyKhiMauThayDoi(int mauOld, int mauMoi)
     {
-        ThanhMauImage.fillAmount = (float)mauMoi / mau.MauToiDa;
+        int maxMau = Mathf.Max(1, mau.MauToiDaNet.Value);
+        ThanhMauImage.fillAmount = (float)mauMoi / maxMau;
     }
 }
