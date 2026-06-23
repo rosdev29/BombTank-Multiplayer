@@ -18,6 +18,7 @@ public class Leaderboard : NetworkBehaviour
     [SerializeField] private TeamColourLookup teamColourLookup;
     [SerializeField] private float leaderboardRowSpacing = 28f;
     [SerializeField] private float staleEntryCleanupInterval = 0.5f;
+    [SerializeField] private float pingRefreshInterval = 0.5f;
 
     private NetworkList<LeaderboardEntityState> leaderboardEntities;
     private List<LeaderBoardEntityDisplay> entityDisplays = new List<LeaderBoardEntityDisplay>();
@@ -28,6 +29,8 @@ public class Leaderboard : NetworkBehaviour
 
     private bool isTearingDown;
     private float staleCleanupTimer;
+    private float pingRefreshTimer;
+    private bool leaderboardUiSetup;
 
     private void Awake()
     {
@@ -38,6 +41,7 @@ public class Leaderboard : NetworkBehaviour
     {
         isTearingDown = false;
         staleCleanupTimer = 0f;
+        pingRefreshTimer = 0f;
 
         if (IsClient)
         {
@@ -51,6 +55,7 @@ public class Leaderboard : NetworkBehaviour
                 leaderboardEntityPrefab != null)
             {
                 teamLeaderboardBackground.SetActive(true);
+                ConfigureLeaderboardHolder(teamLeaderboardEntityHolder);
 
                 for (int i = 0; i < teamNames.Length; i++)
                 {
@@ -81,6 +86,12 @@ public class Leaderboard : NetworkBehaviour
             }
         }
 
+        if (IsClient)
+        {
+            SetupLeaderboardPresentation();
+            BountySystem.OnCrownListChanged += RefreshAllDisplayTexts;
+        }
+
         if (IsServer)
         {
             TankPlayer[] players = FindObjectsByType<TankPlayer>(FindObjectsSortMode.None);
@@ -105,6 +116,13 @@ public class Leaderboard : NetworkBehaviour
         if (!IsSpawned || NetworkManager == null || !NetworkManager.IsListening) { return; }
         if (leaderboardEntities == null || leaderboardEntities.Count == 0) { return; }
 
+        pingRefreshTimer += Time.unscaledDeltaTime;
+        if (pingRefreshTimer >= pingRefreshInterval)
+        {
+            pingRefreshTimer = 0f;
+            RefreshPingValues();
+        }
+
         staleCleanupTimer += Time.unscaledDeltaTime;
         if (staleCleanupTimer < staleEntryCleanupInterval) { return; }
 
@@ -112,9 +130,19 @@ public class Leaderboard : NetworkBehaviour
         RemoveStaleEntries();
     }
 
+    private void RefreshAllDisplayTexts()
+    {
+        foreach (LeaderBoardEntityDisplay display in entityDisplays)
+        {
+            if (display != null) { display.UpdateText(); }
+        }
+    }
+
     public override void OnNetworkDespawn()
     {
         isTearingDown = true;
+
+        BountySystem.OnCrownListChanged -= RefreshAllDisplayTexts;
 
         if (leaderboardEntities != null)
         {
@@ -128,6 +156,20 @@ public class Leaderboard : NetworkBehaviour
         {
             NetworkManager.OnClientDisconnectCallback -= HandleClientDisconnectedServer;
         }
+    }
+
+    private ulong ResolveCrownLookupId(ulong leaderboardId)
+    {
+        TankPlayer[] players = FindObjectsByType<TankPlayer>(FindObjectsSortMode.None);
+        foreach (TankPlayer player in players)
+        {
+            if (player != null && GetLeaderboardId(player) == leaderboardId)
+            {
+                return player.NetworkObjectId;
+            }
+        }
+
+        return leaderboardId;
     }
 
     private ulong GetLeaderboardId(TankPlayer player)
@@ -180,10 +222,14 @@ public class Leaderboard : NetworkBehaviour
                     LeaderBoardEntityDisplay leaderboardEntity =
                         Instantiate(leaderboardEntityPrefab, leaderboardEntityHolder);
 
+                    ulong crownLookupId = ResolveCrownLookupId(changeEvent.Value.ClientId);
+
                     leaderboardEntity.Initialise(
                         changeEvent.Value.ClientId,
                         changeEvent.Value.PlayerName,
-                        changeEvent.Value.Coins);
+                        changeEvent.Value.Coins,
+                        crownLookupId,
+                        changeEvent.Value.PingMs);
 
                     if (NetworkManager.Singleton.LocalClientId == changeEvent.Value.ClientId)
                     {
@@ -215,6 +261,7 @@ public class Leaderboard : NetworkBehaviour
                 {
                     displayToUpdate.UpdateName(changeEvent.Value.PlayerName);
                     displayToUpdate.UpdateCoins(changeEvent.Value.Coins);
+                    displayToUpdate.UpdatePing(changeEvent.Value.PingMs);
                 }
                 break;
         }
@@ -223,12 +270,13 @@ public class Leaderboard : NetworkBehaviour
 
         for (int i = 0; i < entityDisplays.Count; i++)
         {
+            entityDisplays[i].SetRank(i + 1);
             entityDisplays[i].transform.SetSiblingIndex(i);
             entityDisplays[i].UpdateText();
             entityDisplays[i].gameObject.SetActive(true);
         }
 
-        EnsureVisibleStack(leaderboardEntityHolder, entityDisplays);
+        LayoutRebuilder.ForceRebuildLayoutImmediate(leaderboardEntityHolder as RectTransform);
 
         if (teamLeaderboardBackground == null || !teamLeaderboardBackground.activeSelf) { return; }
 
@@ -251,19 +299,89 @@ public class Leaderboard : NetworkBehaviour
 
             for (int i = 0; i < teamEntityDisplays.Count; i++)
             {
+                teamEntityDisplays[i].SetRank(i + 1);
                 teamEntityDisplays[i].transform.SetSiblingIndex(i);
                 teamEntityDisplays[i].UpdateText();
             }
 
-            EnsureVisibleStack(teamLeaderboardEntityHolder, teamEntityDisplays);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(teamLeaderboardEntityHolder as RectTransform);
+        }
+    }
+
+    private void SetupLeaderboardPresentation()
+    {
+        if (leaderboardUiSetup || leaderboardEntityHolder == null) { return; }
+
+        leaderboardUiSetup = true;
+        ConfigureLeaderboardHolder(leaderboardEntityHolder);
+    }
+
+    private void ConfigureLeaderboardHolder(Transform holderTransform)
+    {
+        if (holderTransform == null) { return; }
+
+        RectTransform holder = holderTransform as RectTransform;
+        if (holder == null) { return; }
+
+        RectTransform background = holder.parent as RectTransform;
+        if (background == null) { return; }
+
+        if (background.GetComponent<ScrollRect>() == null)
+        {
+            ScrollRect scroll = background.gameObject.AddComponent<ScrollRect>();
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 18f;
+
+            GameObject viewportObject = new GameObject("LeaderboardViewport", typeof(RectTransform));
+            RectTransform viewport = viewportObject.GetComponent<RectTransform>();
+            viewport.SetParent(background, false);
+            viewport.SetAsFirstSibling();
+            viewport.anchorMin = Vector2.zero;
+            viewport.anchorMax = Vector2.one;
+            viewport.offsetMin = new Vector2(12f, 12f);
+            viewport.offsetMax = new Vector2(-12f, -12f);
+            viewportObject.AddComponent<RectMask2D>();
+
+            holder.SetParent(viewport, false);
+            holder.anchorMin = new Vector2(0f, 1f);
+            holder.anchorMax = new Vector2(1f, 1f);
+            holder.pivot = new Vector2(0.5f, 1f);
+            holder.anchoredPosition = Vector2.zero;
+            holder.sizeDelta = new Vector2(0f, 0f);
+
+            scroll.viewport = viewport;
+            scroll.content = holder;
+        }
+        else if (background.GetComponent<RectMask2D>() == null)
+        {
+            background.gameObject.AddComponent<RectMask2D>();
+        }
+
+        VerticalLayoutGroup layout = holder.GetComponent<VerticalLayoutGroup>();
+        if (layout != null)
+        {
+            layout.spacing = 3f;
+            layout.childAlignment = TextAnchor.UpperLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.padding = new RectOffset(8, 8, 6, 6);
+        }
+
+        ContentSizeFitter fitter = holder.GetComponent<ContentSizeFitter>();
+        if (fitter != null)
+        {
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         }
     }
 
     private void EnsureVisibleStack(Transform holder, List<LeaderBoardEntityDisplay> displays)
     {
         if (holder == null || displays == null || displays.Count == 0) { return; }
-
-
         if (holder.GetComponent<LayoutGroup>() != null) { return; }
 
         for (int i = 0; i < displays.Count; i++)
@@ -285,7 +403,6 @@ public class Leaderboard : NetworkBehaviour
         if (isTearingDown) { return; }
         if (!IsServer || !IsSpawned || leaderboardEntities == null || player == null) { return; }
         if (NetworkManager == null || NetworkManager.ShutdownInProgress) { return; }
-
         ulong leaderboardId = GetLeaderboardId(player);
         FixedString32Bytes leaderboardName = GetLeaderboardName(player);
 
@@ -293,13 +410,27 @@ public class Leaderboard : NetworkBehaviour
         {
             if (leaderboardEntities[i].ClientId == leaderboardId)
             {
+                int score = player.Wallet != null ? player.Wallet.LifetimeCoins.Value : leaderboardEntities[i].Coins;
+
                 leaderboardEntities[i] = new LeaderboardEntityState
                 {
                     ClientId = leaderboardId,
                     PlayerName = leaderboardName,
                     TeamIndex = player.TeamIndex.Value,
-                    Coins = leaderboardEntities[i].Coins
+                    Coins = score,
+                    PingMs = GetPingForLeaderboardClient(leaderboardId)
                 };
+
+                if (IsClient)
+                {
+                    LeaderBoardEntityDisplay display =
+                        entityDisplays.FirstOrDefault(x => x.ClientId == leaderboardId);
+
+                    if (display != null)
+                    {
+                        display.SetCrownLookupId(player.NetworkObjectId);
+                    }
+                }
 
                 return;
             }
@@ -310,8 +441,20 @@ public class Leaderboard : NetworkBehaviour
             ClientId = leaderboardId,
             PlayerName = leaderboardName,
             TeamIndex = player.TeamIndex.Value,
-            Coins = 0
+            Coins = player.Wallet != null ? player.Wallet.LifetimeCoins.Value : 0,
+            PingMs = GetPingForLeaderboardClient(leaderboardId)
         });
+
+        if (IsClient)
+        {
+            LeaderBoardEntityDisplay display =
+                entityDisplays.FirstOrDefault(x => x.ClientId == leaderboardId);
+
+            if (display != null)
+            {
+                display.SetCrownLookupId(player.NetworkObjectId);
+            }
+        }
 
         if (player.Wallet != null && !coinChangedSubscriptions.ContainsKey(leaderboardId))
         {
@@ -324,7 +467,7 @@ public class Leaderboard : NetworkBehaviour
                 handler = handler
             };
 
-            player.Wallet.TotalCoins.OnValueChanged += handler;
+            player.Wallet.LifetimeCoins.OnValueChanged += handler;
         }
     }
 
@@ -354,7 +497,8 @@ public class Leaderboard : NetworkBehaviour
                 ClientId = leaderboardEntities[i].ClientId,
                 PlayerName = leaderboardEntities[i].PlayerName,
                 TeamIndex = leaderboardEntities[i].TeamIndex,
-                Coins = newCoins
+                Coins = newCoins,
+                PingMs = leaderboardEntities[i].PingMs
             };
 
             return;
@@ -404,7 +548,7 @@ public class Leaderboard : NetworkBehaviour
 
         if (subscription.wallet != null)
         {
-            subscription.wallet.TotalCoins.OnValueChanged -= subscription.handler;
+            subscription.wallet.LifetimeCoins.OnValueChanged -= subscription.handler;
         }
 
         coinChangedSubscriptions.Remove(clientId);
@@ -446,6 +590,44 @@ public class Leaderboard : NetworkBehaviour
         if (NetworkManager.ConnectedClients == null) { return false; }
 
         return NetworkManager.ConnectedClients.ContainsKey(clientId);
+    }
+
+    private bool IsHumanLeaderboardClient(ulong clientId)
+    {
+        if (NetworkManager == null || NetworkManager.ConnectedClients == null) { return false; }
+        return NetworkManager.ConnectedClients.ContainsKey(clientId);
+    }
+
+    private int GetPingForLeaderboardClient(ulong clientId)
+    {
+        if (!IsHumanLeaderboardClient(clientId)) { return -1; }
+
+        NetworkTransport transport = NetworkManager?.NetworkConfig?.NetworkTransport;
+        if (transport == null) { return -1; }
+
+        return (int)transport.GetCurrentRtt(clientId);
+    }
+
+    private void RefreshPingValues()
+    {
+        if (!IsServer || leaderboardEntities == null) { return; }
+
+        for (int i = 0; i < leaderboardEntities.Count; i++)
+        {
+            LeaderboardEntityState entity = leaderboardEntities[i];
+            int pingMs = GetPingForLeaderboardClient(entity.ClientId);
+
+            if (entity.PingMs == pingMs) { continue; }
+
+            leaderboardEntities[i] = new LeaderboardEntityState
+            {
+                ClientId = entity.ClientId,
+                PlayerName = entity.PlayerName,
+                TeamIndex = entity.TeamIndex,
+                Coins = entity.Coins,
+                PingMs = pingMs
+            };
+        }
     }
 
     private sealed class CoinChangedSubscription

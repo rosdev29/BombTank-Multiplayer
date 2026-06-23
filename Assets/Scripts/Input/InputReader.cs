@@ -11,6 +11,7 @@ public class InputReader : ScriptableObject, IPlayerActions
     public event Action<Vector2> MoveEvent;
 
     public event Action<bool> PrimaryFireEvent;
+    public event Action UseItemEvent;
 
     public Vector2 ViTriNgam { get; private set; }
 
@@ -51,11 +52,19 @@ public class InputReader : ScriptableObject, IPlayerActions
 
     public void OnMove(InputAction.CallbackContext context)
     {
+        if (GameplayInputGate.IsBlocked)
+        {
+            MoveEvent?.Invoke(Vector2.zero);
+            return;
+        }
+
         MoveEvent?.Invoke(context.ReadValue<Vector2>());
     }
 
     public void OnPrimaryFire(InputAction.CallbackContext context)
     {
+        if (GameplayInputGate.IsBlocked) { return; }
+
         if (context.performed)
         {
             PrimaryFireEvent?.Invoke(true);  
@@ -68,7 +77,19 @@ public class InputReader : ScriptableObject, IPlayerActions
 
     public void OnAim(InputAction.CallbackContext context)
     {
+        if (GameplayInputGate.IsBlocked) { return; }
+
         ViTriNgam = context.ReadValue<Vector2>();
+    }
+
+    public void OnUseItem(InputAction.CallbackContext context)
+    {
+        if (GameplayInputGate.IsBlocked) { return; }
+
+        if (context.performed)
+        {
+            UseItemEvent?.Invoke();
+        }
     }
 
 }
