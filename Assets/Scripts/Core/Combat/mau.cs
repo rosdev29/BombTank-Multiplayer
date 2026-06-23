@@ -6,9 +6,10 @@ using UnityEngine;
 
 public class Mau : NetworkBehaviour
 {
-    [field: SerializeField] public int MauToiDa {  get; private set; } = 100;
+    [field: SerializeField] public int MauToiDa { get; private set; } = 100;
 
     public NetworkVariable<int> MauHienTai = new NetworkVariable<int>();
+    public NetworkVariable<int> MauToiDaNet = new NetworkVariable<int>(100);
 
     private bool daChet;
     private TankPlayer lastAttacker;
@@ -20,14 +21,36 @@ public class Mau : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
-        daChet = false;
-        lastAttacker = null;
+        daChet           = false;
+        lastAttacker     = null;
         lastAttackerTime = 0f;
 
         if (!IsServer || !IsSpawned) { return; }
 
-        MauHienTai.Value = MauToiDa;
+        MauToiDaNet.Value = MauToiDa;
+        MauHienTai.Value  = MauToiDa;
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Đặt máu tối đa và reset máu hiện tại về đầy.
+    /// BotBrain.GanConfig() gọi method này ngay sau khi bot spawn (Server only).
+    /// </summary>
+    public void DatMauToiDa(int max)
+    {
+        if (max <= 0)
+        {
+            Debug.LogWarning("[Mau] DatMauToiDa: max phải > 0, bỏ qua.");
+            return;
+        }
+
+        MauToiDa         = max;
+        MauToiDaNet.Value = max;
+        MauHienTai.Value = max;
+        daChet           = false;
+        Debug.Log($"[Mau] DatMauToiDa → {MauToiDa}");
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
     public void NhanSatThuong(int giaTriSatThuong)
     {
@@ -38,7 +61,7 @@ public class Mau : NetworkBehaviour
     public void GhiNhanSatThuongTu(TankPlayer attacker)
     {
         if (!IsServer || attacker == null) { return; }
-        lastAttacker = attacker;
+        lastAttacker     = attacker;
         lastAttackerTime = Time.time;
     }
 
@@ -54,20 +77,48 @@ public class Mau : NetworkBehaviour
 
     public void HoiMau(int giaTriHoi)
     {
+        if (!IsServer) { return; }
         ThayDoiMau(giaTriHoi);
     }
 
     private void ThayDoiMau(int value)
     {
-        if (daChet) { return;  }
+        if (daChet) { return; }
 
-        int MauMoi = MauHienTai.Value + value;
-        MauHienTai.Value = Mathf.Clamp(MauMoi, 0, MauToiDa);
+        int maxMau = IsSpawned ? MauToiDaNet.Value : MauToiDa;
+        int mauMoi = MauHienTai.Value + value;
+        MauHienTai.Value = Mathf.Clamp(mauMoi, 0, maxMau);
 
-        if(MauHienTai.Value == 0)
+        if (MauHienTai.Value == 0)
         {
-            KhiChet?.Invoke(this);
             daChet = true;
+            KhiChet?.Invoke(this);
+
+            if (IsServer)
+            {
+                XuLyChetTrenServer();
+            }
+        }
+    }
+
+    private void XuLyChetTrenServer()
+    {
+        TankPlayer tank = GetComponent<TankPlayer>();
+        if (tank == null || !tank.IsCurrentlyBot()) { return; }
+
+        BotBrain brain = GetComponent<BotBrain>();
+        if (brain != null) { brain.enabled = false; }
+
+        CoinWallet wallet = GetComponent<CoinWallet>();
+        if (wallet != null)
+        {
+            wallet.ProcessDeathCoinDrop();
+        }
+
+        NetworkObject netObj = GetComponent<NetworkObject>();
+        if (netObj != null && netObj.IsSpawned)
+        {
+            netObj.Despawn();
         }
     }
 }

@@ -13,6 +13,7 @@ public class TankPlayer : NetworkBehaviour
     [SerializeField] private SpriteRenderer minimapIconRenderer;
     [field: SerializeField] public Mau Health { get; private set; }
     [field: SerializeField] public CoinWallet Wallet { get; private set; }
+    [field: SerializeField] public ItemInventory Inventory { get; private set; }
 
     [Header("Settings")]
     [SerializeField] private int ownerPriority = 15;
@@ -49,6 +50,11 @@ public class TankPlayer : NetworkBehaviour
         if (Wallet == null)
         {
             Wallet = GetComponent<CoinWallet>();
+        }
+
+        if (Inventory == null)
+        {
+            Inventory = GetComponent<ItemInventory>();
         }
 
         if (IsServer)

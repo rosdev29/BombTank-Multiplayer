@@ -46,6 +46,14 @@ public class DeathSpectatorClient : MonoBehaviour
         instance?.BeginDeath(delaySeconds);
     }
 
+    public static void Dismiss()
+    {
+        if (instance == null) { return; }
+
+        instance.isSpectating = false;
+        instance.ReleaseBoost();
+    }
+
     private void BeginDeath(float delaySeconds)
     {
         countdownRemaining = Mathf.Max(0f, delaySeconds);
@@ -225,6 +233,7 @@ public class DeathSpectatorClient : MonoBehaviour
             if (player == null || !player.IsSpawned) { continue; }
             if (!player.IsOwner) { continue; }
             if (player.IsCurrentlyBot()) { continue; }
+            if (player.Health != null && player.Health.MauHienTai.Value <= 0) { continue; }
             return player;
         }
 
@@ -275,21 +284,21 @@ public class DeathSpectatorClient : MonoBehaviour
 
         GUI.Box(new Rect(x, y, width, height), "", boxStyle);
 
-        GUI.Label(new Rect(x, y + 25f, width, 50f), "YOU DIED", titleStyle);
+        GUI.Label(new Rect(x, y + 25f, width, 50f), "BẠN ĐÃ CHẾT", titleStyle);
 
         GUI.Label(
             new Rect(x + 40f, y + 95f, width - 80f, 45f),
-            $"Respawn in: {seconds}s",
+            $"Hồi sinh sau: {seconds} giây",
             messageStyle
         );
 
         GUI.Label(
             new Rect(x + 40f, y + 150f, width - 80f, 50f),
-            "Follow mode : Press the A / D key to follow other players ",
+            "Nhấn A / D để xem người chơi khác",
             hintStyle
         );
 
-        if (GUI.Button(new Rect(x + (width - 170f) / 2f, y + 235f, 170f, 55f), "HOME", buttonStyle))
+        if (GUI.Button(new Rect(x + (width - 170f) / 2f, y + 235f, 170f, 55f), "VỀ MENU", buttonStyle))
         {
             GoHome();
         }
@@ -297,16 +306,7 @@ public class DeathSpectatorClient : MonoBehaviour
 
     private void GoHome()
     {
-        isSpectating = false;
-        ReleaseBoost();
-        Time.timeScale = 1f;
-
-        if (Unity.Netcode.NetworkManager.Singleton != null)
-        {
-            Unity.Netcode.NetworkManager.Singleton.Shutdown();
-        }
-
-        UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+        ClientSessionOverlay.ReturnToMenu();
     }
 
 

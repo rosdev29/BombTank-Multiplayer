@@ -20,7 +20,7 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
     [SerializeField] private float thoiGianTonTaiVetBanh = 2.5f;
     [SerializeField] private float nguongDiChuyenDePhatBui = 0.0004f;
 
-    private ParticleSystem.EmissionModule emissionModule;
+
     private Vector2 inputDiChuyenTruoc;
     private Vector3 viTriTruoc;
     private bool daKhoiTaoViTri;
@@ -29,11 +29,6 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
 
     private void Awake()
     {
-        if (dustTrail != null)
-        {
-            emissionModule = dustTrail.emission;
-        }
-
         if (vetBanhTrails == null || vetBanhTrails.Length == 0)
         {
             vetBanhTrails = TimVetBanhTheoTen();
@@ -59,14 +54,46 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        DungBui();
+
         if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
 
         docInput.MoveEvent -= XuLyDiChuyen;
     }
 
+    private void OnDisable()
+    {
+        DungBui();
+    }
+
+    private void DungBui()
+    {
+        if (dustTrail != null)
+        {
+            dustTrail.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
+        if (vetBanhTrails == null) { return; }
+
+        for (int i = 0; i < vetBanhTrails.Length; i++)
+        {
+            if (vetBanhTrails[i] != null)
+            {
+                vetBanhTrails[i].Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
+        }
+    }
+
     private void Update()
     {
         if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
+
+        if (GameplayInputGate.IsBlocked || MatchEndBridge.IsMatchEnded)
+        {
+            inputDiChuyenTruoc = Vector2.zero;
+            dangDiChuyen.Value = false;
+            return;
+        }
 
         float gocXoayZ = inputDiChuyenTruoc.x * -tocDoXoay * Time.deltaTime;
         bodyTransform.Rotate(0f, 0f, gocXoayZ);
@@ -79,6 +106,12 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
         CapNhatVetBanh(nenPhat);
 
         if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
+
+        if (GameplayInputGate.IsBlocked || MatchEndBridge.IsMatchEnded)
+        {
+            rb.velocity = Vector2.zero;
+            return;
+        }
 
         rb.velocity = (Vector2)bodyTransform.up * inputDiChuyenTruoc.y * tocDoDiChuyen;
     }
@@ -105,7 +138,8 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
         bool nenPhatBui = dangDiChuyen.Value || coDiChuyenTheoViTri;
         if (dustTrail != null)
         {
-            emissionModule.rateOverTime = nenPhatBui ? tocDoEmission : 0f;
+            var em = dustTrail.emission;
+            em.rateOverTime = nenPhatBui ? tocDoEmission : 0f;
         }
 
         if (dustTrail != null && nenPhatBui && !dustTrail.isPlaying)
