@@ -43,6 +43,12 @@ public class TankDeathHandler : NetworkBehaviour
     {
         if (!IsServer) { return; }
 
+        CoinWallet wallet = GetComponent<CoinWallet>();
+        if (wallet != null)
+        {
+            wallet.TotalCoins.Value = wallet.TotalCoins.Value / 2;
+        }
+
         NetworkObject networkObject = GetComponent<NetworkObject>();
 
         if (networkObject != null && networkObject.IsSpawned)

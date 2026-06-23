@@ -366,6 +366,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1183927364269409195}
   - component: {fileID: 938661068716935927}
+  - component: {fileID: 3937430044166436194}
   m_Layer: 0
   m_Name: TankBody
   m_TagString: Untagged
@@ -440,6 +441,36 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &3937430044166436194
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2678769744723633875}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7db70e0ea77f5ac47a8f4565a9406397, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_ShadowGroup: 0
+  m_ComponentVersion: 1
+  m_HasRenderer: 1
+  m_UseRendererSilhouette: 1
+  m_CastsShadows: 1
+  m_SelfShadows: 0
+  m_ApplyToSortingLayers: c1070e6900000000e59829b9a1b4a6548778573c
+  m_ShapePath:
+  - {x: -0.80078125, y: -0.85546875, z: 0}
+  - {x: -0.80078125, y: 0.85546875, z: 0}
+  - {x: 0.80078125, y: 0.85546875, z: 0}
+  - {x: 0.80078125, y: -0.85546875, z: 0}
+  m_ShapePathHash: 0
+  m_Mesh: {fileID: 0}
+  m_InstanceId: -75456
+  m_LocalBounds:
+    m_Center: {x: 0, y: 0, z: 0}
+    m_Extent: {x: 0.80078125, y: 0.85546875, z: 0}
 --- !u!1 &2742295291181435407
 GameObject:
   m_ObjectHideFlags: 0
@@ -5597,6 +5628,7 @@ Transform:
   m_Children:
   - {fileID: 5523347170077017719}
   - {fileID: 2800283636579936552}
+  - {fileID: 260261817992101555}
   m_Father: {fileID: 2831411995225204704}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!212 &5211744345840324793
@@ -5651,6 +5683,88 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!1 &5640704861068608655
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 260261817992101555}
+  - component: {fileID: 7659114896273600913}
+  m_Layer: 0
+  m_Name: TankFlashLight
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &260261817992101555
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5640704861068608655}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0.005235339, w: 0.9999863}
+  m_LocalPosition: {x: 0, y: 0.45, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4058023226012938276}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7659114896273600913
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5640704861068608655}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 073797afb82c5a1438f328866b10b3f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_ComponentVersion: 1
+  m_LightType: 3
+  m_BlendStyleIndex: 0
+  m_FalloffIntensity: 0.5
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Intensity: 2
+  m_LightVolumeIntensity: 1
+  m_LightVolumeIntensityEnabled: 0
+  m_ApplyToSortingLayers: c1070e6900000000e59829b9a1b4a6548778573c
+  m_LightCookieSprite: {fileID: 0}
+  m_DeprecatedPointLightCookieSprite: {fileID: 0}
+  m_LightOrder: 0
+  m_AlphaBlendOnOverlap: 0
+  m_OverlapOperation: 0
+  m_NormalMapDistance: 3
+  m_NormalMapQuality: 2
+  m_UseNormalMap: 0
+  m_ShadowIntensityEnabled: 1
+  m_ShadowIntensity: 1
+  m_ShadowVolumeIntensityEnabled: 0
+  m_ShadowVolumeIntensity: 0.75
+  m_LocalBounds:
+    m_Center: {x: 0, y: -0.00000011920929, z: 0}
+    m_Extent: {x: 0.9985302, y: 0.99853027, z: 0}
+  m_PointLightInnerAngle: 37.668694
+  m_PointLightOuterAngle: 67.66868
+  m_PointLightInnerRadius: 1
+  m_PointLightOuterRadius: 19.046396
+  m_ShapeLightParametricSides: 5
+  m_ShapeLightParametricAngleOffset: 0
+  m_ShapeLightParametricRadius: 1
+  m_ShapeLightFalloffSize: 0.5
+  m_ShapeLightFalloffOffset: {x: 0, y: 0}
+  m_ShapePath:
+  - {x: -0.5, y: -0.5, z: 0}
+  - {x: 0.5, y: -0.5, z: 0}
+  - {x: 0.5, y: 0.5, z: 0}
+  - {x: -0.5, y: 0.5, z: 0}
 --- !u!1 &5767629436380736411
 GameObject:
   m_ObjectHideFlags: 0
@@ -5670,7 +5784,7 @@ GameObject:
   - component: {fileID: 6393240751483895355}
   - component: {fileID: 7114059541313905306}
   - component: {fileID: -8512091747004092066}
-  - component: {fileID: 4399032419032843471}
+  - component: {fileID: 6568095646496752717}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -5735,6 +5849,7 @@ MonoBehaviour:
   minimapIconRenderer: {fileID: 4222814360206425303}
   <Health>k__BackingField: {fileID: 7114059541313905306}
   <Wallet>k__BackingField: {fileID: -8512091747004092066}
+  <Inventory>k__BackingField: {fileID: 0}
   ownerPriority: 15
   ownerColour: {r: 0, g: 0.32156864, b: 0.99215686, a: 1}
   PlayerName:
@@ -5930,6 +6045,8 @@ MonoBehaviour:
   tanSuatTanCong: 0.75
   thoiGianHieuUngBan: 0.075
   ChiPhiBan: 5
+  IsDoubleBarrelActive:
+    m_InternalValue: 0
 --- !u!114 &7114059541313905306
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5968,7 +6085,7 @@ MonoBehaviour:
     m_Bits: 1
   TotalCoins:
     m_InternalValue: 0
---- !u!114 &4399032419032843471
+--- !u!114 &6568095646496752717
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -5977,10 +6094,24 @@ MonoBehaviour:
   m_GameObject: {fileID: 5767629436380736411}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 459ac88864c33e24e86336427b81f3fb, type: 3}
+  m_Script: {fileID: 11500000, guid: 8c8fb1502b41a7e4ea881347f4cd3a6e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mau: {fileID: 0}
+  player: {fileID: 6223019598537030959}
+  health: {fileID: 7114059541313905306}
+  wallet: {fileID: -8512091747004092066}
+  combat: {fileID: 6393240751483895355}
+  inputReader: {fileID: 11400000, guid: 932516b399235f6469e2cb824bd5aad3, type: 2}
+  colorDisplay: {fileID: 8077341493478667693}
+  doubleBarrelDuration: 10
+  buffCoinDuration: 10
+  trapDuration: 5
+  CurrentItem:
+    m_InternalValue: 0
+  IsCoinBuffActive:
+    m_InternalValue: 0
+  IsTrapActive:
+    m_InternalValue: 0
 --- !u!1 &5936809473909094933
 GameObject:
   m_ObjectHideFlags: 0

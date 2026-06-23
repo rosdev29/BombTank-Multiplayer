@@ -7,7 +7,6 @@ using UnityEngine;
 public class RespawnHandler : NetworkBehaviour
 {
     [SerializeField] private TankPlayer playerPrefab;
-    [SerializeField] private float keptCoinPercentage;
     [SerializeField] private float respawnDelaySeconds = 5f;
 
     // Track per-player death handler so we can unsubscribe cleanly.
@@ -74,7 +73,6 @@ public class RespawnHandler : NetworkBehaviour
         if (player.IsCurrentlyBot()) { return; }
 
         ulong ownerClientId = player.OwnerClientId;
-        int keptCoins = (int)(player.Wallet.TotalCoins.Value * (keptCoinPercentage / 100));
 
         NotifyDeathClientRpc(
             respawnDelaySeconds,
@@ -89,12 +87,20 @@ public class RespawnHandler : NetworkBehaviour
         HandlePlayerDespawned(player);
 
         // Wait one frame so KillFeedManager (and other KhiChet listeners) run before despawn unsubscribes them.
-        StartCoroutine(DespawnAndRespawnAfterDeath(player, ownerClientId, keptCoins));
+        StartCoroutine(DespawnAndRespawnAfterDeath(player, ownerClientId));
     }
 
-    private IEnumerator DespawnAndRespawnAfterDeath(TankPlayer player, ulong ownerClientId, int keptCoins)
+    private IEnumerator DespawnAndRespawnAfterDeath(TankPlayer player, ulong ownerClientId)
     {
         yield return null;
+
+        int respawnCoins = 0;
+        int lifetimeScore = 0;
+        if (player != null && player.Wallet != null)
+        {
+            respawnCoins = player.Wallet.ProcessDeathCoinDrop();
+            lifetimeScore = player.Wallet.LifetimeCoins.Value;
+        }
 
         if (player != null)
         {
@@ -102,7 +108,7 @@ public class RespawnHandler : NetworkBehaviour
         }
 
         yield return new WaitForSeconds(respawnDelaySeconds);
-        yield return RespawnPlayer(ownerClientId, keptCoins);
+        yield return RespawnPlayer(ownerClientId, respawnCoins, lifetimeScore);
     }
 
     private static void DespawnPlayerObject(TankPlayer player)
@@ -119,7 +125,7 @@ public class RespawnHandler : NetworkBehaviour
         Destroy(player.gameObject);
     }
 
-    private IEnumerator RespawnPlayer(ulong ownerClientId, int keptCoins)
+    private IEnumerator RespawnPlayer(ulong ownerClientId, int respawnCoins, int lifetimeScore)
     {
         NetworkManager networkManager = NetworkManager.Singleton;
         if (networkManager == null || !networkManager.IsListening || networkManager.ShutdownInProgress)
@@ -144,7 +150,8 @@ public class RespawnHandler : NetworkBehaviour
             playerPrefab, SpawnPoint.GetRandomSpawnPos(), Quaternion.identity);
 
         playerInstance.NetworkObject.SpawnAsPlayerObject(ownerClientId);
-        playerInstance.Wallet.TotalCoins.Value += keptCoins;
+        playerInstance.Wallet.TotalCoins.Value = respawnCoins;
+        playerInstance.Wallet.LifetimeCoins.Value = lifetimeScore;
     }
 
     [ClientRpc]

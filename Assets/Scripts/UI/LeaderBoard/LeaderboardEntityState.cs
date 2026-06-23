@@ -8,6 +8,8 @@ public struct LeaderboardEntityState : INetworkSerializable, IEquatable<Leaderbo
     public int TeamIndex;
     public FixedString32Bytes PlayerName;
     public int Coins;
+  /// <summary>RTT in ms for human clients. -1 = bot / unavailable.</summary>
+    public int PingMs;
 
     public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
     {
@@ -15,6 +17,7 @@ public struct LeaderboardEntityState : INetworkSerializable, IEquatable<Leaderbo
         serializer.SerializeValue(ref TeamIndex);
         serializer.SerializeValue(ref PlayerName);
         serializer.SerializeValue(ref Coins);
+        serializer.SerializeValue(ref PingMs);
     }
 
     public bool Equals(LeaderboardEntityState other)
@@ -22,6 +25,7 @@ public struct LeaderboardEntityState : INetworkSerializable, IEquatable<Leaderbo
         return ClientId == other.ClientId &&
                TeamIndex == other.TeamIndex &&
                PlayerName.Equals(other.PlayerName) &&
-               Coins == other.Coins;
+               Coins == other.Coins &&
+               PingMs == other.PingMs;
     }
 }

@@ -7,6 +7,8 @@ public class GameHUD : MonoBehaviour
 {
     public void LeaveGame()
     {
+        ClientSessionOverlay.ResetForMenu();
+
         if(NetworkManager.Singleton.IsHost)
         {
             HostSingleton.Instance.GameManager.Shutdown();
