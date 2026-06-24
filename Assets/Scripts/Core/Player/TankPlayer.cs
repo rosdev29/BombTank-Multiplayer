@@ -137,7 +137,7 @@ public class TankPlayer : NetworkBehaviour
     {
         PlayerName.OnValueChanged -= HandlePlayerNameChanged;
 
-        if (IsServer && NetworkManager != null && !NetworkManager.ShutdownInProgress)
+        if (IsServer && NetworkManager != null && NetworkManager.IsListening && !NetworkManager.ShutdownInProgress)
         {
             OnPlayerDespawned?.Invoke(this);
             _allTankPlayers.Remove(this);
