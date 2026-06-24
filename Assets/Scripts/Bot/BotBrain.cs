@@ -13,7 +13,7 @@ using TMPro;
 [RequireComponent(typeof(BotSense))]
 [RequireComponent(typeof(BotMover))]
 [RequireComponent(typeof(BotPathfinder))]
-public class BotBrain : NetworkBehaviour
+public class BotBrain : MonoBehaviour
 {
     [Header("Chu kỳ đánh giá")]
     [SerializeField] private float chuKyDanhGiaMin = 0.2f;
@@ -59,6 +59,9 @@ public class BotBrain : NetworkBehaviour
     private float      _deltaTichLuy;
     private BotCommand _currentCommand = new BotCommand();
 
+    private NetworkObject _networkObject;
+    private bool _initialized;
+
     // ──────────────────────────────────────────────────────────────────────────
 
     private void Awake()
@@ -74,9 +77,19 @@ public class BotBrain : NetworkBehaviour
         stateRutLui    = new TrangThaiRutLui();
     }
 
-    public override void OnNetworkSpawn()
+    private void EnsureInitialized()
     {
-        if (!IsServer) { enabled = false; return; }
+        if (_initialized) { return; }
+
+        _networkObject = GetComponent<NetworkObject>();
+        if (_networkObject == null || !_networkObject.IsSpawned) { return; }
+
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+        {
+            enabled = false;
+            _initialized = true;
+            return;
+        }
 
         // Khởi tạo Blackboard
         ctx = new BotContext
@@ -121,9 +134,8 @@ public class BotBrain : NetworkBehaviour
 
         _timerDanhGia = RandomChuKy();
         ChuyenTrangThai(stateNhatCoin);
+        _initialized = true;
     }
-
-    public override void OnNetworkDespawn() { }
 
     // ─────────────────────────────────────────────────────────────────────
     /// <summary>
@@ -157,7 +169,9 @@ public class BotBrain : NetworkBehaviour
 
     private void Update()
     {
-        if (!IsServer || ctx == null) { return; }
+        EnsureInitialized();
+        if (!_initialized || ctx == null) { return; }
+        if (_networkObject == null || NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) { return; }
 
         if (MatchEndBridge.IsMatchEnded)
         {
