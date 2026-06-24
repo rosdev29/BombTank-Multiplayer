@@ -18,7 +18,20 @@ public static class BotSteering
 
         float gocLech = Vector2.SignedAngle((Vector2)ctx.BodyTransform.up, huong.normalized);
         float steer   = -Mathf.Clamp(gocLech / 30f, -1f, 1f); // proportional: mượt trong ±30°
-        cmd.MoveInput = new Vector2(steer, throttle);
+
+        // Giam toc do khi dang phai re gap de bot khong bi "troi" vao tuong do cua rong
+        float absGoc = Mathf.Abs(gocLech);
+        float finalThrottle = throttle;
+        if (absGoc > 60f) 
+        {
+            finalThrottle *= 0.1f; // Re rat gap -> di chuyen rat cham de xoay
+        }
+        else if (absGoc > 30f)
+        {
+            finalThrottle *= 0.5f; // Re vua -> di chuyen cham lai
+        }
+
+        cmd.MoveInput = new Vector2(steer, finalThrottle);
 
         return cmd;
     }
@@ -30,13 +43,13 @@ public static class BotSteering
     }
 
     // CircleCast tu A den B, false neu co tuong chan duong
-    public static bool CoDuongThong(Vector2 from, Vector2 to)
+    public static bool CoDuongThong(Vector2 from, Vector2 to, float radius = BAN_KINH_QUET_DUONG)
     {
         Vector2 delta = to - from;
         float   dist  = delta.magnitude;
         if (dist < 0.01f) { return !CoNamTrongTuong(to); }
 
-        RaycastHit2D[] hits = Physics2D.CircleCastAll(from, BAN_KINH_QUET_DUONG, delta / dist, dist);
+        RaycastHit2D[] hits = Physics2D.CircleCastAll(from, radius, delta / dist, dist);
         foreach (RaycastHit2D hit in hits)
         {
             if (LaTuong(hit.collider)) { return false; }
@@ -166,8 +179,27 @@ public static class BotSteering
         return from;
     }
 
-    // Nhan dien tuong: ten Wall* / Boundary, bo qua player/coin/dan/zone
-    private static bool LaTuong(Collider2D col)
+    public static bool RaycastTuong(Vector2 origin, Vector2 direction, float distance, out RaycastHit2D hitTuong)
+    {
+        hitTuong = default;
+        float minD = float.MaxValue;
+        bool found = false;
+        
+        RaycastHit2D[] hits = Physics2D.RaycastAll(origin, direction, distance);
+        foreach (var h in hits)
+        {
+            if (LaTuong(h.collider) && h.distance < minD)
+            {
+                minD = h.distance;
+                hitTuong = h;
+                found = true;
+            }
+        }
+        return found;
+    }
+
+    // Nhan dien tuong: ten Wall / Boundary / Rock (khong phan biet hoa thuong), bo qua player/coin/dan/zone
+    public static bool LaTuong(Collider2D col)
     {
         if (col == null || col.isTrigger) { return false; }
         if (col.GetComponentInParent<TankPlayer>() != null) { return false; }
@@ -179,7 +211,12 @@ public static class BotSteering
         while (t != null)
         {
             string ten = t.name;
-            if (ten.StartsWith("Wall") || ten.Contains("Boundary")) { return true; }
+            if (ten.IndexOf("Wall", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                ten.IndexOf("Boundary", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                ten.IndexOf("Rock", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
             t = t.parent;
         }
 

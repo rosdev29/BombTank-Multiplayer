@@ -20,6 +20,8 @@ public class TrangThaiNhatCoin : IBotState
         if (ctx.NearestCoin != null)
         {
             float throttle = ctx.DistanceToCoin < KHOANG_CACH_CHAM ? 0.3f : 1f;
+            if (ctx.Pathfinder != null)
+                return ctx.Pathfinder.GetMoveCommandToTarget(ctx.CoinPosition, throttle);
             return BotSteering.MoveTowards(ctx, ctx.CoinPosition, throttle);
         }
 
@@ -31,11 +33,11 @@ public class TrangThaiNhatCoin : IBotState
         {
             _timerTimeout -= ctx.DeltaTime;
             if (_timerTimeout <= 0f)
-            {
                 ChonDiemMoi();
-            }
         }
 
+        if (ctx.Pathfinder != null)
+            return ctx.Pathfinder.GetMoveCommandToTarget(_diemMucTieu);
         return BotSteering.MoveTowards(ctx, _diemMucTieu);
     }
 
