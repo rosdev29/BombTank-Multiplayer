@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
@@ -6,12 +5,11 @@ using UnityEngine.UI;
 
 public class HealingZone : NetworkBehaviour
 {
-    // Danh sach tat ca vung hoi mau tren map (bot dung de tim vi tri gan nhat)
     private static readonly List<HealingZone> zones = new List<HealingZone>();
 
     public static IReadOnlyList<HealingZone> AllZones => zones;
     public Vector2 Position => transform.position;
-    public bool CoTheHoiMau => HealPower.Value > 0; // false khi het nang luong hoac dang cooldown
+    public bool CoTheHoiMau => HealPower.Value > 0;
 
     [Header("References")]
     [SerializeField] private Image healPowerBar;
@@ -25,17 +23,13 @@ public class HealingZone : NetworkBehaviour
 
     private float remainingCooldown;
     private float tickTimer;
-    private HashSet<TankPlayer> playersInZone = new HashSet<TankPlayer>();
 
     private NetworkVariable<int> HealPower = new NetworkVariable<int>();
 
-    // Dang ky / huy dang ky khi vung hoi mau bat/tat tren scene
     private void OnEnable()
     {
         if (!zones.Contains(this))
-        {
             zones.Add(this);
-        }
     }
 
     private void OnDisable()
@@ -46,9 +40,7 @@ public class HealingZone : NetworkBehaviour
     private void Awake()
     {
         if (healPowerBar != null && maxHealPower > 0)
-        {
             healPowerBar.fillAmount = 1f;
-        }
     }
 
     public override void OnNetworkSpawn()
@@ -60,79 +52,41 @@ public class HealingZone : NetworkBehaviour
         }
 
         if (IsServer)
-        {
             HealPower.Value = maxHealPower;
-        }
     }
 
     public override void OnNetworkDespawn()
     {
         if (IsClient)
-        {
             HealPower.OnValueChanged -= HandleHealPowerChanged;
-        }
     }
 
-    private void OnTriggerEnter2D(Collider2D col)
+    private bool IsPlayerInsideZone(TankPlayer player, Collider2D zoneCollider)
     {
-        if (!IsServer || !IsSpawned) { return; }
-        TryRegisterPlayer(col);
+        if (player == null || zoneCollider == null || !player.IsSpawned)
+            return false;
+
+        // Dùng vị trí thân tank — không phụ thuộc collider con (tháp pháo, đạn) thoát trigger khi bắn.
+        return zoneCollider.OverlapPoint(player.transform.position);
     }
 
-    private void OnTriggerExit2D(Collider2D col)
+    private void CollectPlayersInZone(List<TankPlayer> buffer)
     {
-        if (!IsServer || !IsSpawned) { return; }
+        buffer.Clear();
 
-        if (!TryGetTankPlayer(col, out TankPlayer player)) { return; }
-
-        if (playersInZone.Remove(player))
-        {
-            Debug.Log($"Left: {player.PlayerName.Value}");
-        }
-    }
-
-    private void OnTriggerStay2D(Collider2D col)
-    {
-        if (!IsServer || !IsSpawned) { return; }
-        TryRegisterPlayer(col);
-    }
-
-    private void TryRegisterPlayer(Collider2D col)
-    {
-        if (!TryGetTankPlayer(col, out TankPlayer player)) { return; }
-
-        if (playersInZone.Add(player))
-        {
-            Debug.Log($"Entered: {player.PlayerName.Value}");
-        }
-    }
-
-    private static bool TryGetTankPlayer(Collider2D col, out TankPlayer player)
-    {
-        player = null;
-        if (col == null) { return false; }
-
-        player = col.GetComponentInParent<TankPlayer>();
-        return player != null && player.IsSpawned;
-    }
-
-    private void RefreshPlayersInZone()
-    {
         Collider2D zoneCollider = GetComponent<Collider2D>();
-        if (zoneCollider == null) { return; }
+        if (zoneCollider == null)
+            return;
 
-        playersInZone.Clear();
-
-        Bounds bounds = zoneCollider.bounds;
-        Collider2D[] hits = Physics2D.OverlapBoxAll(bounds.center, bounds.size, 0f);
-        foreach (Collider2D hit in hits)
+        TankPlayer[] allPlayers = FindObjectsByType<TankPlayer>(FindObjectsSortMode.None);
+        foreach (TankPlayer player in allPlayers)
         {
-            if (TryGetTankPlayer(hit, out TankPlayer player))
-            {
-                playersInZone.Add(player);
-            }
+            if (IsPlayerInsideZone(player, zoneCollider))
+                buffer.Add(player);
         }
     }
+
+    private readonly List<TankPlayer> playersInZone = new List<TankPlayer>();
 
     private void Update()
     {
@@ -144,20 +98,16 @@ public class HealingZone : NetworkBehaviour
         {
             remainingCooldown -= Time.deltaTime;
             if (remainingCooldown <= 0f)
-            {
                 HealPower.Value = maxHealPower;
-            }
             else
-            {
                 return;
-            }
         }
 
         float tickInterval = 1f / healTickRate;
         tickTimer += Time.deltaTime;
         if (tickTimer < tickInterval) { return; }
 
-        RefreshPlayersInZone();
+        CollectPlayersInZone(playersInZone);
 
         foreach (TankPlayer player in playersInZone)
         {
@@ -179,9 +129,7 @@ public class HealingZone : NetworkBehaviour
             HealPower.Value -= 1;
 
             if (HealPower.Value == 0)
-            {
                 remainingCooldown = healCooldown;
-            }
         }
 
         tickTimer = tickTimer % tickInterval;

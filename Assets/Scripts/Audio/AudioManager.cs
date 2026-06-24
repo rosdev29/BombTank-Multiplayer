@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI; // Thêm dòng này để làm việc với UI
+using UnityEngine.UI;
 
 public class AudioManager : MonoBehaviour
 {
@@ -21,23 +21,52 @@ public class AudioManager : MonoBehaviour
 
     [Header("Volume Settings")]
     [Range(0f, 1f)] public float gunShotVolume = 0.7f;
-    [Range(0f, 1f)] public float coinPickupVolume = 0.075f;
+    [Range(0f, 1f)] public float coinPickupVolume = 0.04f;
     [Range(0f, 1f)] public float clickVolume = 1f;
 
     [Header("Music Clips")]
     public AudioClip menuMusic;
 
+    public static AudioManager GetInstance()
+    {
+        if (Instance != null) { return Instance; }
+
+        Instance = FindAnyObjectByType<AudioManager>();
+        if (Instance != null) { return Instance; }
+
+        return EnsureExists();
+    }
+
+    public static AudioManager EnsureExists()
+    {
+        if (Instance != null) { return Instance; }
+
+        var go = new GameObject("AudioManager");
+        Instance = go.AddComponent<AudioManager>();
+        return Instance;
+    }
+
     private void Awake()
     {
-        if (Instance == null)
+        EnsureAudioSources();
+        EnsureClipsFromResources();
+
+        if (Instance != null && Instance != this)
         {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
+            // Runtime fallback từ EnsureExists() — thay bằng instance scene (có clip gán sẵn).
+            if (Instance.gunShot == null && gunShot != null)
+                Destroy(Instance.gameObject);
+            else
+            {
+                Destroy(gameObject);
+                return;
+            }
         }
-        else
-        {
-            Destroy(gameObject);
-        }
+
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+        ApplySavedVolumes();
+        PreloadSfxClips();
     }
 
     private void OnEnable() => SceneManager.sceneLoaded += HandleSceneLoaded;
@@ -45,51 +74,93 @@ public class AudioManager : MonoBehaviour
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        // Kiểm tra tên scene để tự động phát nhạc menu
         if (scene.name == ClientSessionOverlay.MenuSceneName)
-        {
             PlayMusic(menuMusic);
+
+        if (scene.name == "Game")
+        {
+            EnsureExists();
+            EnsureClipsFromResources();
+            if (musicSource != null)
+                musicSource.Stop();
+            ApplySavedVolumes();
         }
 
-        // TỰ ĐỘNG GẮN ÂM THANH CLICK CHO TẤT CẢ CÁC NÚT KHI LOAD SCENE
         AttachClickSoundToAllButtons();
     }
 
     private void Start()
     {
-        // Load cài đặt âm lượng từ PlayerPrefs
-        musicSource.volume = PlayerPrefs.GetFloat("MusicVolume", 1f);
-        sfxSource.volume = PlayerPrefs.GetFloat("SfxVolume", 1f);
-        PlayMusic(menuMusic);
-
-        // Gọi thêm ở Start phòng trường hợp Scene hiện tại là Scene đầu tiên
+        ApplySavedVolumes();
+        if (SceneManager.GetActiveScene().name == ClientSessionOverlay.MenuSceneName)
+            PlayMusic(menuMusic);
         AttachClickSoundToAllButtons();
     }
 
-    // --- Hàm mới: Tự động tìm và gắn sự kiện âm thanh cho mọi Button ---
+    private void EnsureAudioSources()
+    {
+        AudioSource[] sources = GetComponents<AudioSource>();
+        if (musicSource == null)
+        {
+            musicSource = sources.Length > 0 ? sources[0] : gameObject.AddComponent<AudioSource>();
+            musicSource.playOnAwake = false;
+            musicSource.loop = true;
+        }
+
+        if (sfxSource == null)
+        {
+            sfxSource = sources.Length > 1 ? sources[1] : gameObject.AddComponent<AudioSource>();
+            sfxSource.playOnAwake = false;
+            sfxSource.loop = false;
+        }
+
+        musicSource.spatialBlend = 0f;
+        sfxSource.spatialBlend = 0f;
+    }
+
+    private void EnsureClipsFromResources()
+    {
+        if (gunShot == null)     gunShot = Resources.Load<AudioClip>("SFX/tankshot");
+        if (coinPickup == null)  coinPickup = Resources.Load<AudioClip>("SFX/pick_coin");
+        if (clickSound == null)  clickSound = Resources.Load<AudioClip>("SFX/click-ui");
+        PreloadSfxClips();
+    }
+
+    private void ApplySavedVolumes()
+    {
+        if (musicSource != null)
+            musicSource.volume = PlayerPrefs.GetFloat("MusicVolume", 1f);
+        if (sfxSource != null)
+            sfxSource.volume = PlayerPrefs.GetFloat("SfxVolume", 1f);
+    }
+
+    public void PlayGunshot() => PlaySFX(gunShot, gunShotVolume);
+    public void PlayCoinPickup() => PlaySFX(coinPickup, coinPickupVolume);
+
+    private void PreloadSfxClips()
+    {
+        if (clickSound != null && clickSound.loadState == AudioDataLoadState.Unloaded)
+            clickSound.LoadAudioData();
+    }
+
     private void AttachClickSoundToAllButtons()
     {
-        // Tìm tất cả các Button có trong Scene (bao gồm cả các nút đang bị ẩn/inactive)
         Button[] allButtons = Resources.FindObjectsOfTypeAll<Button>();
-
         foreach (Button btn in allButtons)
         {
-            // Bỏ qua các nút thuộc về Prefab chưa được đưa ra màn hình để tránh lỗi
-            if (btn.gameObject.scene.name == null) continue;
+            if (btn == null || btn.gameObject.scene.name == null) { continue; }
 
-            // Xóa sự kiện cũ (nếu có) để tránh việc bị phát tiếng 2 lần khi click
+            // Gỡ cách cũ (onClick chạy sau handler nút → cảm giác delay).
             btn.onClick.RemoveListener(PlayClick);
 
-            // Gắn sự kiện phát tiếng click vào nút
-            btn.onClick.AddListener(PlayClick);
+            if (btn.GetComponent<ButtonClickSfx>() == null)
+                btn.gameObject.AddComponent<ButtonClickSfx>();
         }
     }
 
-    // --- Các hàm điều khiển Âm thanh ---
-
     public void PlaySFX(AudioClip clip, float volumeScale = 1f)
     {
-        if (clip == null || sfxSource == null) return;
+        if (clip == null || sfxSource == null) { return; }
         sfxSource.PlayOneShot(clip, Mathf.Clamp01(volumeScale));
     }
 
@@ -97,18 +168,14 @@ public class AudioManager : MonoBehaviour
 
     public void PlayMusic(AudioClip musicClip)
     {
-        if (musicClip == null || musicSource == null) return;
-        if (musicSource.clip == musicClip && musicSource.isPlaying) return;
+        if (musicClip == null || musicSource == null) { return; }
+        if (musicSource.clip == musicClip && musicSource.isPlaying) { return; }
 
         musicSource.clip = musicClip;
         musicSource.Play();
     }
 
-    // Hàm gọi khi thắng
     public void PlayWinMusic() => PlayMusic(winMusic);
-
-    // Hàm gọi khi thua
     public void PlayLoseMusic() => PlayMusic(loseMusic);
-
     public void StopMusic() => musicSource.Stop();
 }

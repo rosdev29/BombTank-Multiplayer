@@ -7,13 +7,15 @@ using UnityEngine;
 ///
 /// Cần được thêm vào cùng GameObject với BotBrain và BoPhongDan.
 /// </summary>
-public class BotShooter : NetworkBehaviour
+public class BotShooter : MonoBehaviour
 {
     private BoPhongDan _boPhongDan;
+    private NetworkObject _networkObject;
 
     private void Awake()
     {
         _boPhongDan = GetComponent<BoPhongDan>();
+        _networkObject = GetComponent<NetworkObject>();
     }
 
     /// <summary>
@@ -23,7 +25,8 @@ public class BotShooter : NetworkBehaviour
     /// </summary>
     public void XuLyBan(bool coBopCo)
     {
-        if (!IsServer) { return; }
+        if (_networkObject == null || !_networkObject.IsSpawned) { return; }
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) { return; }
         if (_boPhongDan == null) { return; }
 
         if (coBopCo)
