@@ -12,7 +12,6 @@ public class BotMover : MonoBehaviour
     [Header("Né tường")]
     [SerializeField] private LayerMask layerMaskTuong;
     [SerializeField] private float khoangNeTuong  = 2.5f;
-    [SerializeField] private float khoangKhanCap  = 0.6f;
 
     [Header("Anti-Stuck")]
     [SerializeField] private float thoiGianPhatHienKet   = 0.6f;
