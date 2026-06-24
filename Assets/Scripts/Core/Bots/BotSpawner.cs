@@ -203,6 +203,9 @@ public class BotSpawner : MonoBehaviour
         if (botBrain == null)
             botBrain = botInstance.gameObject.AddComponent<BotBrain>();
 
+        if (botInstance.GetComponent<BotPathfinder>() == null)
+            botInstance.gameObject.AddComponent<BotPathfinder>();
+
         // LayerMask được BotBrain tự set trong OnNetworkSpawn qua KhoiTao() — không cần override ở đây.
 
 
