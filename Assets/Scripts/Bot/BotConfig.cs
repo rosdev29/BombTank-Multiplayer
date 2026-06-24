@@ -24,4 +24,8 @@ public class BotConfig : ScriptableObject
     [Tooltip("Tỷ lệ HP (0–1) dưới ngưỡng này bot rút lui. Dễ=0.5 / Trung=0.3 / Khó=0.15")]
     [Range(0f, 1f)]
     public float nguongRutLui = 0.30f;
+
+    [Tooltip("Tỷ lệ HP (0–1) để thoát rút lui. Phải > nguongRutLui. Dễ=0.6 / Trung=0.45 / Khó=0.3")]
+    [Range(0f, 1f)]
+    public float nguongThoatRutLui = 0.45f;
 }
