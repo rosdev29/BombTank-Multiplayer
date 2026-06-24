@@ -40,6 +40,9 @@ public class BotContext
 
     public bool DuCoinDeBan(int chiPhiBan) => SoCoinHienTai >= chiPhiBan;
 
+    /// <summary>BotBrain set trước mỗi chu kỳ chọn state — dùng hysteresis rút lui.</summary>
+    public bool IsRetreating { get; set; }
+
     public Vector2  OutputHuongDiChuyen { get; set; }
     public Vector2  OutputDiemNgam      { get; set; }
     public bool     OutputCoBopCo       { get; set; }
