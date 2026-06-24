@@ -45,7 +45,6 @@ public class BotBrain : NetworkBehaviour
     private BotShooter          botShooter;
 
     // ── FSM states ──────────────────────────────────────────────────────────
-    private IBotState stateTuanTra;
     private IBotState stateGiaoTranh;
     private IBotState stateNhatCoin;
     private IBotState stateRutLui;
@@ -69,7 +68,6 @@ public class BotBrain : NetworkBehaviour
         turretController = GetComponent<BotTurretController>();
         botShooter       = GetComponent<BotShooter>();
 
-        stateTuanTra   = new TrangThaiTuanTra();
         stateGiaoTranh = new TrangThaiGiaoTranh();
         stateNhatCoin  = new TrangThaiNhatCoin();
         stateRutLui    = new TrangThaiRutLui();
@@ -110,16 +108,15 @@ public class BotBrain : NetworkBehaviour
         // Khởi tạo Priority transitions (Priority cao → kiểm tra trước)
         _transitions = new List<IBotStateTransition>
         {
-            new ChuyenRutLui   (stateRutLui,    priority: 40),
-            new ChuyenTronViHetCoin(stateRutLui, priority: 35, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
-            new ChuyenGiaoTranh(stateGiaoTranh, priority: 30, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
-            new ChuyenNhatCoin (stateNhatCoin,  priority: 20, chiPhi: chiPhiBan, banKinhBoQua: banKinhGiaoTranh * 0.75f),
-            new ChuyenTuanTra  (stateTuanTra,   priority: 10),   // fallback luôn true
+            new ChuyenRutLui        (stateRutLui,    priority: 40),
+            new ChuyenTronViHetCoin (stateRutLui,    priority: 35, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
+            new ChuyenGiaoTranh     (stateGiaoTranh, priority: 30, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
+            new ChuyenNhatCoin      (stateNhatCoin,  priority: 10),
         };
         _transitions.Sort((a, b) => b.Priority.CompareTo(a.Priority));
 
         _timerDanhGia = RandomChuKy();
-        ChuyenTrangThai(stateTuanTra);
+        ChuyenTrangThai(stateNhatCoin);
     }
 
     public override void OnNetworkDespawn() { }
@@ -200,16 +197,16 @@ public class BotBrain : NetworkBehaviour
             CapNhatLabelDebug();
         }
 
-        if (currentState == stateGiaoTranh)
+        if (currentState == stateGiaoTranh || currentState == stateRutLui)
         {
-            ThuFireGiaoTranh();
+            ThuFireKhiNgam();
         }
 
         // Act: BotMover thực thi lệnh mỗi frame (để chuyển động mượt)
         botMover.ThucThiLenh(_currentCommand);
     }
 
-    private void ThuFireGiaoTranh()
+    private void ThuFireKhiNgam()
     {
         if (ctx == null || ctx.NearestEnemy == null) { return; }
         if (!ctx.DuCoinDeBan(chiPhiBan)) { return; }
@@ -232,6 +229,8 @@ public class BotBrain : NetworkBehaviour
 
     private void ChonTrangThaiTheoPriority()
     {
+        ctx.IsRetreating = currentState == stateRutLui;
+
         foreach (IBotStateTransition t in _transitions)
         {
             if (t.CanEnter(ctx))
@@ -291,7 +290,6 @@ public class BotBrain : NetworkBehaviour
         TrangThaiGiaoTranh => "⚔️ Giao tranh",
         TrangThaiNhatCoin  => "💰 Nhặt coin",
         TrangThaiRutLui    => "🏃 Rút lui",
-        TrangThaiTuanTra   => "🔍 Tuần tra",
         _                  => s?.GetType().Name ?? "null"
     };
 
@@ -299,6 +297,9 @@ public class BotBrain : NetworkBehaviour
 
     private static float LayNguongRutLui(BotContext botCtx) =>
         botCtx.Config != null ? botCtx.Config.nguongRutLui : 0.35f;
+
+    private static float LayNguongThoatRutLui(BotContext botCtx) =>
+        botCtx.Config != null ? botCtx.Config.nguongThoatRutLui : 0.45f;
 
 
     // ── Transition implementations (nested classes) ───────────────────────────
@@ -315,7 +316,9 @@ public class BotBrain : NetworkBehaviour
         }
 
         public bool CanEnter(BotContext botCtx) =>
-            botCtx.HealthRatio < LayNguongRutLui(botCtx);
+            botCtx.IsRetreating
+                ? botCtx.HealthRatio < LayNguongThoatRutLui(botCtx)
+                : botCtx.HealthRatio < LayNguongRutLui(botCtx);
     }
 
     private sealed class ChuyenTronViHetCoin : IBotStateTransition
@@ -364,35 +367,13 @@ public class BotBrain : NetworkBehaviour
     {
         public int       Priority { get; }
         public IBotState State    { get; }
-        private readonly int   _chiPhi;
-        private readonly float _banKinhBoQua;
 
-        public ChuyenNhatCoin(IBotState state, int priority, int chiPhi, float banKinhBoQua)
-        {
-            State         = state;
-            Priority      = priority;
-            _chiPhi       = chiPhi;
-            _banKinhBoQua = banKinhBoQua;
-        }
-
-        public bool CanEnter(BotContext botCtx) =>
-            !botCtx.DuCoinDeBan(_chiPhi)
-            && botCtx.NearestCoin != null
-            && (botCtx.NearestEnemy == null || botCtx.DistanceToEnemy > _banKinhBoQua);
-    }
-
-    private sealed class ChuyenTuanTra : IBotStateTransition
-    {
-        public int       Priority { get; }
-        public IBotState State    { get; }
-
-        public ChuyenTuanTra(IBotState state, int priority)
+        public ChuyenNhatCoin(IBotState state, int priority)
         {
             State    = state;
             Priority = priority;
         }
 
-        // Fallback: luôn true — tuần tra khi không có điều kiện nào khác thoả
         public bool CanEnter(BotContext botCtx) => true;
     }
 }
