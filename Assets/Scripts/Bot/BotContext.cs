@@ -48,4 +48,5 @@ public class BotContext
     public bool     OutputCoBopCo       { get; set; }
     public float    DeltaTime           { get; set; }
     public LayerMask LayerMaskTuong     { get; set; }
+    public BotPathfinder Pathfinder     { get; set; }
 }

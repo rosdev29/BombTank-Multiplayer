@@ -12,6 +12,7 @@ using TMPro;
 [RequireComponent(typeof(TankPlayer))]
 [RequireComponent(typeof(BotSense))]
 [RequireComponent(typeof(BotMover))]
+[RequireComponent(typeof(BotPathfinder))]
 public class BotBrain : NetworkBehaviour
 {
     [Header("Chu kỳ đánh giá")]
@@ -88,7 +89,10 @@ public class BotBrain : NetworkBehaviour
             LayerMaskTuong       = LayerMask.GetMask("Terrain"),
             BanKinhPhatHienDich  = banKinhPhatHienDich,
             BanKinhPhatHienCoin  = banKinhPhatHienCoin,
+            Pathfinder           = GetComponent<BotPathfinder>(),
         };
+
+        ctx.Pathfinder.Init(ctx);
 
         BoPhongDan combat = GetComponent<BoPhongDan>();
         if (combat != null)
