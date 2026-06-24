@@ -2,6 +2,8 @@
 
 using UnityEditor;
 using UnityEngine;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
 
 public static class BountySetupEditor
 {
@@ -27,6 +29,9 @@ public static class BountySetupEditor
             return;
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // CrownDisplay
+        // ─────────────────────────────────────────────────────────────
         CrownDisplay crownDisplay =
             prefabRoot.GetComponent<CrownDisplay>();
 
@@ -38,31 +43,104 @@ public static class BountySetupEditor
             Debug.Log("[BountySetup] Added CrownDisplay.");
         }
 
-        Transform crownTransform =
-            prefabRoot.transform.Find("CrownIcon");
+        // ─────────────────────────────────────────────────────────────
+        // Load Crown Sprite
+        // ─────────────────────────────────────────────────────────────
+        Sprite bountySprite =
+            AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/Art/BountyCrown.png");
 
-        GameObject crownObject;
-
-        if (crownTransform == null)
+        if (bountySprite == null)
         {
-            crownObject = new GameObject("CrownIcon");
+            Debug.LogWarning(
+                "[BountySetup] Không tìm thấy Assets/Art/BountyCrown.png.");
+        }
 
-            crownObject.transform.SetParent(
-                prefabRoot.transform,
-                false);
+        // ─────────────────────────────────────────────────────────────
+        // CrownIcon
+        // ─────────────────────────────────────────────────────────────
+        GameObject crownObject =
+            FindOrCreateChild(prefabRoot, "CrownIcon");
 
+        if (crownObject != null)
+        {
             crownObject.transform.localPosition =
-                new Vector3(0f, 1.5f, 0f);
+                new Vector3(0f, 2.5f, 0f);
 
             crownObject.SetActive(false);
 
-            Debug.Log("[BountySetup] Created CrownIcon.");
-        }
-        else
-        {
-            crownObject = crownTransform.gameObject;
+            SpriteRenderer renderer =
+                crownObject.GetComponent<SpriteRenderer>();
+
+            if (renderer == null)
+            {
+                renderer =
+                    crownObject.AddComponent<SpriteRenderer>();
+            }
+
+            if (bountySprite != null)
+            {
+                renderer.sprite = bountySprite;
+                renderer.color = new Color(1f, 0.84f, 0f, 1f);
+                renderer.sortingOrder = 25;
+            }
         }
 
+        // ─────────────────────────────────────────────────────────────
+        // MinimapIcon (gốc)
+        // ─────────────────────────────────────────────────────────────
+        Transform minimapTransform =
+            prefabRoot.transform.Find("MinimapIcon");
+
+        GameObject minimapObject =
+            minimapTransform != null
+                ? minimapTransform.gameObject
+                : null;
+
+        if (minimapObject == null)
+        {
+            Debug.LogWarning(
+                "[BountySetup] Không tìm thấy MinimapIcon.");
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // CrownMinimapIcon
+        // ─────────────────────────────────────────────────────────────
+        GameObject crownMinimapObject =
+            FindOrCreateChild(prefabRoot, "CrownMinimapIcon");
+
+        if (crownMinimapObject != null)
+        {
+            crownMinimapObject.transform.localPosition =
+                new Vector3(0f, 0f, 10f);
+
+            crownMinimapObject.transform.localScale =
+                new Vector3(1.5f, 1.5f, 1.5f);
+
+            crownMinimapObject.layer = 8;
+
+            crownMinimapObject.SetActive(false);
+
+            SpriteRenderer renderer =
+                crownMinimapObject.GetComponent<SpriteRenderer>();
+
+            if (renderer == null)
+            {
+                renderer =
+                    crownMinimapObject.AddComponent<SpriteRenderer>();
+            }
+
+            if (bountySprite != null)
+            {
+                renderer.sprite = bountySprite;
+                renderer.color = new Color(1f, 0.84f, 0f, 1f);
+                renderer.sortingOrder = 150;
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // Gán references vào CrownDisplay
+        // ─────────────────────────────────────────────────────────────
         SerializedObject so =
             new SerializedObject(crownDisplay);
 
@@ -71,34 +149,86 @@ public static class BountySetupEditor
 
         if (crownField != null)
         {
-            crownField.objectReferenceValue = crownObject;
-            so.ApplyModifiedProperties();
+            crownField.objectReferenceValue =
+                crownObject;
         }
 
-        SpriteRenderer spriteRenderer =
-            crownObject.GetComponent<SpriteRenderer>();
+        SerializedProperty minimapField =
+            so.FindProperty("minimapIcon");
 
-        if (spriteRenderer == null)
+        if (minimapField != null)
         {
-            spriteRenderer = crownObject.AddComponent<SpriteRenderer>();
+            minimapField.objectReferenceValue =
+                minimapObject;
         }
 
-        Sprite bountySprite =
-            AssetDatabase.LoadAssetAtPath<Sprite>(
-                "Assets/Art/BountyCrown.png");
+        SerializedProperty crownMinimapField =
+            so.FindProperty("crownMinimapObject");
 
-        if (bountySprite != null)
+        if (crownMinimapField != null)
         {
-            spriteRenderer.sprite = bountySprite;
-            spriteRenderer.color = new Color(1f, 0.84f, 0f, 1f);
-            spriteRenderer.sortingOrder = 25;
+            crownMinimapField.objectReferenceValue =
+                crownMinimapObject;
+        }
+
+        so.ApplyModifiedProperties();
+
+        // ─────────────────────────────────────────────────────────────
+        // Setup BountySystem trong Game Scene
+        // ─────────────────────────────────────────────────────────────
+
+        string scenePath = "Assets/Scenes/Game.unity";
+
+        Scene scene = EditorSceneManager.OpenScene(
+            scenePath,
+            OpenSceneMode.Single);
+
+        GameObject respawnHandler =
+            GameObject.Find("RespawnHandler");
+
+        if (respawnHandler == null)
+        {
+            Debug.LogWarning(
+                "[BountySetup] Không tìm thấy RespawnHandler trong Game scene.");
         }
         else
         {
-            Debug.LogWarning(
-                "[BountySetup] Không tìm thấy Assets/Art/BountyCrown.png.");
+            BountySystem bountySystem =
+                respawnHandler.GetComponent<BountySystem>();
+
+            if (bountySystem == null)
+            {
+                bountySystem =
+                    Undo.AddComponent<BountySystem>(respawnHandler);
+
+                Debug.Log("[BountySetup] Added BountySystem.");
+            }
+
+            SerializedObject bountySO =
+                new SerializedObject(bountySystem);
+
+            bountySO.FindProperty("bountyThreshold")
+                .intValue = 100;
+
+            bountySO.FindProperty("bountyRewardPercent")
+                .floatValue = 20f;
+
+            bountySO.FindProperty("updateInterval")
+                .floatValue = 0.2f;
+
+            bountySO.ApplyModifiedProperties();
+
+            EditorUtility.SetDirty(respawnHandler);
+
+            Debug.Log(
+                "[BountySetup] Configured BountySystem on RespawnHandler.");
         }
 
+        EditorSceneManager.SaveScene(scene);
+
+        // ─────────────────────────────────────────────────────────────
+        // Save
+        // ─────────────────────────────────────────────────────────────
         PrefabUtility.SaveAsPrefabAsset(
             prefabRoot,
             prefabPath);
@@ -110,7 +240,34 @@ public static class BountySetupEditor
         AssetDatabase.Refresh();
 
         Debug.Log(
-            $"[BountySetup] Hoàn tất setup prefab: {prefabPath}");
+            $"[BountySetup] Hoàn tất setup CrownDisplay: {prefabPath}");
+    }
+
+    private static GameObject FindOrCreateChild(
+        GameObject parent,
+        string childName)
+    {
+        Transform child =
+            parent.transform.Find(childName);
+
+        if (child != null)
+        {
+            return child.gameObject;
+        }
+
+        GameObject go =
+            new GameObject(childName);
+
+        go.transform.SetParent(
+            parent.transform,
+            false);
+
+        go.SetActive(false);
+
+        Debug.Log(
+            $"[BountySetup] Created {childName}.");
+
+        return go;
     }
 }
 
