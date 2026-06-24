@@ -25,9 +25,23 @@ public class CoinWallet : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        if (!IsServer) { return; }
+        if (IsServer)
+            coinRadius = coinPrefab.GetComponent<CircleCollider2D>().radius;
 
-        coinRadius = coinPrefab.GetComponent<CircleCollider2D>().radius;
+        TankPlayer tank = GetComponent<TankPlayer>();
+        if (IsOwner && (tank == null || !tank.IsCurrentlyBot()))
+            TotalCoins.OnValueChanged += HandleCoinsIncreasedForSfx;
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        TotalCoins.OnValueChanged -= HandleCoinsIncreasedForSfx;
+    }
+
+    private void HandleCoinsIncreasedForSfx(int previous, int current)
+    {
+        if (current <= previous) { return; }
+        AudioManager.GetInstance()?.PlayCoinPickup();
     }
 
     public void SpendCoins(int chiPhiBan)
@@ -49,14 +63,6 @@ public class CoinWallet : NetworkBehaviour
     private void OnTriggerEnter2D(Collider2D col)
     {
         if (!col.TryGetComponent<Coin>(out Coin coin)) { return; }
-
-        if (LaNguoiChoiLocal())
-        {
-            AudioManager.Instance?.PlaySFX(
-                AudioManager.Instance.coinPickup,
-                AudioManager.Instance.coinPickupVolume
-            );
-        }
 
         int coinValue = coin.Collect();
 
@@ -121,12 +127,6 @@ public class CoinWallet : NetworkBehaviour
             coinInstance.SetValue(coinValue);
             coinInstance.NetworkObject.Spawn();
         }
-    }
-
-    private bool LaNguoiChoiLocal()
-    {
-        TankPlayer tank = GetComponent<TankPlayer>();
-        return tank != null && tank.IsOwner && !tank.IsCurrentlyBot();
     }
 
     private Vector2 GetSpawnPoint()
