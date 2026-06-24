@@ -5912,7 +5912,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 344280559
+  GlobalObjectIdHash: 964848143
   InScenePlacedSourceGlobalObjectIdHash: 0
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
@@ -6096,10 +6096,10 @@ MonoBehaviour:
   tocDoEmissionVetBanh: 26
   thoiGianTonTaiVetBanh: 2.5
   nguongDiChuyenDePhatBui: 0.0004
-  idleVolume: 0.01
-  maxVolume: 0.25
+  idleVolume: 0.003
+  maxVolume: 0.006
   idlePitch: 0.45
-  maxPitch: 1.8
+  maxPitch: 0.55
   changeSpeed: 8
 --- !u!82 &4045108128442885575
 AudioSource:

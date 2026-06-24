@@ -149,6 +149,8 @@ public class BountySystem : NetworkBehaviour
     // ─── Server: tìm xe dẫn đầu và cập nhật DUY NHẤT 1 crown (nếu đủ điều kiện) ─
     private void RefreshCrownList()
     {
+        if (!CanModifyCrownList()) { return; }
+
         // Tìm xe có TotalCoins cao nhất trong số các xe đang sống/spawned
         TankPlayer leader = null;
         int leaderCoins = int.MinValue;
@@ -188,6 +190,15 @@ public class BountySystem : NetworkBehaviour
     }
 
     // ─── Server: subscribe/unsubscribe death handler ─────────────────────────
+    private bool CanModifyCrownList()
+    {
+        if (!IsServer || !IsSpawned) { return false; }
+        if (NetworkManager == null || !NetworkManager.IsListening) { return false; }
+        if (NetworkManager.ShutdownInProgress) { return false; }
+        if (NetworkObject == null || !NetworkObject.IsSpawned) { return false; }
+        return true;
+    }
+
     private void SubscribePlayer(TankPlayer player)
     {
         if (player == null || player.Health == null) { return; }
@@ -205,12 +216,8 @@ public class BountySystem : NetworkBehaviour
 
         player.Health.KhiChet -= handler;
         _deathHandlers.Remove(player);
-
-        // Nếu xe này đang là người giữ bounty → reset ngay (xe đã bị loại khỏi trận)
-        if (CrownedNetworkIds.Count > 0 && CrownedNetworkIds[0] == player.NetworkObjectId)
-        {
-            CrownedNetworkIds.Clear();
-        }
+        // Không sửa CrownedNetworkIds ở đây — shutdown/despawn có thể làm NetworkList
+        // không còn hợp lệ. RefreshCrownList() sẽ cập nhật crown ở tick kế tiếp.
     }
 
     // ─── Server: trao thưởng bounty khi xe đang mang crown bị giết ───────────
@@ -223,7 +230,8 @@ public class BountySystem : NetworkBehaviour
 
         // Xe dẫn đầu bị loại → reset bounty ngay lập tức.
         // Lượt Update() kế tiếp (RefreshCrownList) sẽ tự tìm ra người dẫn đầu mới.
-        CrownedNetworkIds.Clear();
+        if (CanModifyCrownList())
+            CrownedNetworkIds.Clear();
 
         // Tìm kẻ giết
         if (!health.TryLayKeGiet(out TankPlayer killer)) { return; }

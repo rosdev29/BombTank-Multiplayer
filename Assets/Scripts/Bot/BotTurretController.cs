@@ -5,17 +5,19 @@ using UnityEngine;
 /// Điều khiển nòng súng (turret) của bot.
 /// Tự động lấy turretTransform từ NguoiChoiNgamBan — không cần gán tay trong Inspector.
 /// </summary>
-public class BotTurretController : NetworkBehaviour
+public class BotTurretController : MonoBehaviour
 {
     [Tooltip("Tốc độ xoay nòng súng bot (độ/giây).")]
     [SerializeField] private float tocDoXoayNong = 180f;
 
     private Transform  _turretTransform;
     private BotContext _ctx;
+    private NetworkObject _networkObject;
 
-    public override void OnNetworkSpawn()
+    private void Awake()
     {
-        // Tự động lấy turretTransform từ NguoiChoiNgamBan trên cùng GameObject
+        _networkObject = GetComponent<NetworkObject>();
+
         var nguoiChoiNgamBan = GetComponent<NguoiChoiNgamBan>();
         if (nguoiChoiNgamBan != null)
         {
@@ -38,7 +40,8 @@ public class BotTurretController : NetworkBehaviour
 
     private void LateUpdate()
     {
-        if (!IsServer) { return; }
+        if (_networkObject == null || !_networkObject.IsSpawned) { return; }
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) { return; }
         if (_ctx == null) { return; }
         if (_turretTransform == null) { return; }
 
