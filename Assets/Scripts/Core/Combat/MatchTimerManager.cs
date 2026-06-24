@@ -89,6 +89,41 @@ public class MatchTimerManager : NetworkBehaviour
     private void NotifyMatchEndedClientRpc()
     {
         MatchEndBridge.NotifyMatchEnded();
+
+        bool isWinner = false;
+
+        LeaderBoardEntityDisplay[] displays =
+            FindObjectsByType<LeaderBoardEntityDisplay>(FindObjectsSortMode.None);
+
+        if (displays != null && displays.Length > 0)
+        {
+            System.Array.Sort(displays,
+                (a, b) => b.Coins.CompareTo(a.Coins));
+
+            if (NetworkManager.Singleton != null)
+            {
+                ulong localClientId = NetworkManager.Singleton.LocalClientId;
+
+                isWinner = displays[0].ClientId == localClientId;
+
+                Debug.Log($"Top Player ID: {displays[0].ClientId}");
+                Debug.Log($"Local Player ID: {localClientId}");
+                Debug.Log($"Is Winner: {isWinner}");
+            }
+        }
+
+        if (AudioManager.Instance != null)
+        {
+            if (isWinner)
+            {
+                AudioManager.Instance.PlayWinMusic();
+            }
+            else
+            {
+                AudioManager.Instance.PlayLoseMusic();
+            }
+        }
+
         MatchEndClient.ShowEndOverlay();
     }
 }
