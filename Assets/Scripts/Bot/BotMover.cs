@@ -15,8 +15,8 @@ public class BotMover : MonoBehaviour
     [SerializeField] private float khoangKhanCap  = 0.6f;
 
     [Header("Anti-Stuck")]
-    [SerializeField] private float thoiGianPhatHienKet   = 1.0f;
-    [SerializeField] private float nguongDisplacementKet  = 0.3f;
+    [SerializeField] private float thoiGianPhatHienKet   = 0.6f;
+    [SerializeField] private float nguongDisplacementKet  = 0.15f;
 
     private Rigidbody2D _rb;
 
@@ -33,9 +33,9 @@ public class BotMover : MonoBehaviour
 
     private BotContext _ctx;
 
-    private const float STUCK_CHECK_INTERVAL = 0.5f;
-    private const float THOI_GIAN_LUI_THOAT  = 0.6f;
-    private const float THOI_GIAN_XOAY_THOAT = 0.4f;
+    private const float STUCK_CHECK_INTERVAL = 0.3f;
+    private const float THOI_GIAN_LUI_THOAT  = 0.3f;
+    private const float THOI_GIAN_XOAY_THOAT = 0.3f;
     private const float TOC_DO                = 5f;
     private const float TOC_DO_XOY            = 120f;
     private const float TOC_DO_XOY_GOC        = 200f;
@@ -139,28 +139,20 @@ public class BotMover : MonoBehaviour
         float steer    = cmd.MoveInput.x;
         float throttle = cmd.MoveInput.y;
 
-        float steerNe = TinhSteerNeTuong(throttle, out bool khanCap);
+        float steerNe = TinhSteerNeTuong(throttle);
 
-        _steerNeTuongTruoc = Mathf.Lerp(_steerNeTuongTruoc, steerNe, 8f * dt);
-
-        float urgency    = khanCap ? 1f : Mathf.Abs(_steerNeTuongTruoc);
-        float throttleNe = throttle * (1f - urgency * 0.75f);
-
-        float tocDoXoayThucTe = khanCap ? TOC_DO_XOY_GOC : TOC_DO_XOY;
-
-        if (khanCap)
-        {
-            float huongNe = Mathf.Abs(steerNe) > 0.001f ? Mathf.Sign(steerNe) : 1f;
-            steer    = huongNe;
-            throttle = throttleNe;
-        }
+        if (Mathf.Abs(steerNe) > 0.05f)
+            _steerNeTuongTruoc = steerNe; 
         else
-        {
-            steer    = Mathf.Lerp(steer, Mathf.Sign(_steerNeTuongTruoc + 0.001f), urgency);
-            throttle = throttleNe;
-        }
+            _steerNeTuongTruoc = Mathf.MoveTowards(_steerNeTuongTruoc, 0f, dt * 3f); 
 
-        _ctx.BodyTransform.Rotate(0f, 0f, steer * -tocDoXoayThucTe * dt);
+        float urgency = Mathf.Clamp01(Mathf.Abs(_steerNeTuongTruoc));
+        
+        steer = Mathf.Lerp(steer, Mathf.Sign(_steerNeTuongTruoc + 0.001f) * urgency, urgency); 
+        float throttleNe = throttle * (1f - urgency * 0.6f); // Giam toc do khi dang ne tuong
+        throttle = Mathf.Lerp(throttle, throttleNe, urgency);
+
+        _ctx.BodyTransform.Rotate(0f, 0f, steer * -TOC_DO_XOY * dt);
         _rb.velocity = (Vector2)_ctx.BodyTransform.up * throttle * TOC_DO;
     }
 
@@ -168,55 +160,26 @@ public class BotMover : MonoBehaviour
     /// Tính hướng né tường bằng raycast quạt phía trước xe.
     /// Trả về giá trị steer [-1, 1]. khanCap = true khi tường rất gần.
     /// </summary>
-    private float TinhSteerNeTuong(float throttle, out bool khanCap)
+    private float TinhSteerNeTuong(float throttle)
     {
-        khanCap = false;
-
         if (Mathf.Abs(throttle) < 0.05f) { return 0f; }
-        if (layerMaskTuong.value == 0)   { return 0f; }
 
         Vector2 viTri     = _ctx.BotPosition;
         Vector2 huongTien = (Vector2)_ctx.BodyTransform.up;
         if (throttle < 0f) { huongTien = -huongTien; }
 
-        // Kiểm tra khẩn cấp (tường rất gần): 0°, ±30°
-        float[] gocKhanCap = { 0f, 30f, -30f };
-        Vector2 lucKhanCap = Vector2.zero;
-        foreach (float g in gocKhanCap)
-        {
-            Vector2      huong = Quaternion.Euler(0f, 0f, g) * huongTien;
-            RaycastHit2D hit   = Physics2D.Raycast(viTri, huong, khoangKhanCap, layerMaskTuong);
-            if (hit.collider == null) { continue; }
-
-            khanCap    = true;
-            float t    = 1f - (hit.distance / khoangKhanCap);
-            lucKhanCap += hit.normal * (t * t);
-        }
-
-        if (khanCap)
-        {
-            if (lucKhanCap.sqrMagnitude > 0.0001f)
-            {
-                float gocKC = Vector2.SignedAngle(huongTien, lucKhanCap.normalized);
-                return gocKC > 0f ? 1f : -1f;
-            }
-            return 0f; // góc tường: lực triệt tiêu, caller dùng hướng mặc định
-        }
-
-        // Né thường (tường vừa gần): ±20°, ±40°, ±60°, ±80°
-        float[] cacGoc     = { 0f, 20f, -20f, 40f, -40f, 60f, -60f, 80f, -80f };
+        float[] cacGoc     = { 0f, 15f, -15f, 30f, -30f, 45f, -45f, 60f, -60f, 90f, -90f };
         Vector2 lucDayTong = Vector2.zero;
         bool    coTuong    = false;
 
         foreach (float g in cacGoc)
         {
-            Vector2      huong = Quaternion.Euler(0f, 0f, g) * huongTien;
-            RaycastHit2D hit   = Physics2D.Raycast(viTri, huong, khoangNeTuong, layerMaskTuong);
-            if (hit.collider == null) { continue; }
+            Vector2 huong = Quaternion.Euler(0f, 0f, g) * huongTien;
+            if (!BotSteering.RaycastTuong(viTri, huong, khoangNeTuong, out RaycastHit2D hit)) { continue; }
 
             coTuong = true;
             float t    = 1f - (hit.distance / khoangNeTuong);
-            float manh = t * t;
+            float manh = t * t * t; // Tang truong theo ham mu 3 de day cuc manh khi qua gan
             lucDayTong += hit.normal * manh;
         }
 
@@ -224,7 +187,7 @@ public class BotMover : MonoBehaviour
 
         float goc     = Vector2.SignedAngle(huongTien, lucDayTong.normalized);
         float huongNe = goc > 0f ? 1f : -1f;
-        float cuongDo = Mathf.Clamp01(lucDayTong.magnitude);
+        float cuongDo = Mathf.Clamp01(lucDayTong.magnitude * 2f); // Nhan 2 de phan ung nhay hon
 
         return huongNe * cuongDo;
     }
