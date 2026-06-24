@@ -75,9 +75,13 @@ public class TrangThaiRutLui : IBotState
             _timerBiKet = THOI_GIAN_BI_KET;
         }
 
-        BotCommand cmd = BotSteering.MoveTowards(ctx, _diemMucTieu);
-        ApDungBanNe(ctx, cmd);
+        BotCommand cmd;
+        if (ctx.Pathfinder != null)
+            cmd = ctx.Pathfinder.GetMoveCommandToTarget(_diemMucTieu);
+        else
+            cmd = BotSteering.MoveTowards(ctx, _diemMucTieu);
 
+        ApDungBanNe(ctx, cmd);
         _viTriDichCu = ctx.NearestEnemy != null ? ctx.EnemyPosition : _viTriDichCu;
         return cmd;
     }
