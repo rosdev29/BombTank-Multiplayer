@@ -11,6 +11,7 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
     [SerializeField] private Rigidbody2D rb;
     [SerializeField] private ParticleSystem dustTrail;
     [SerializeField] private ParticleSystem[] vetBanhTrails;
+    [SerializeField] private AudioSource engineSource;
 
     [Header("Cai dat")]
     [SerializeField] private float tocDoDiChuyen = 5f;
@@ -20,6 +21,12 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
     [SerializeField] private float thoiGianTonTaiVetBanh = 2.5f;
     [SerializeField] private float nguongDiChuyenDePhatBui = 0.0004f;
 
+    [Header("Cai dat Am Thanh Dong Co")]
+    [SerializeField] private float idleVolume = 0.05f;
+    [SerializeField] private float maxVolume = 0.2f;
+    [SerializeField] private float idlePitch = 0.45f;
+    [SerializeField] private float maxPitch = 1.4f;
+    [SerializeField] private float changeSpeed = 8f;
 
     private Vector2 inputDiChuyenTruoc;
     private Vector3 viTriTruoc;
@@ -29,6 +36,15 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
 
     private void Awake()
     {
+        if (engineSource != null)
+        {
+            engineSource.loop = true;
+            engineSource.playOnAwake = false;
+
+            engineSource.volume = idleVolume;
+            engineSource.pitch = idlePitch;
+        }
+
         if (vetBanhTrails == null || vetBanhTrails.Length == 0)
         {
             vetBanhTrails = TimVetBanhTheoTen();
@@ -45,6 +61,11 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
         if (dustTrail != null && !dustTrail.isPlaying)
         {
             dustTrail.Play();
+        }
+
+        if (engineSource != null && !engineSource.isPlaying)
+        {
+            engineSource.Play();
         }
 
         if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
@@ -64,6 +85,10 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
     private void OnDisable()
     {
         DungBui();
+        if (engineSource != null)
+        {
+            engineSource.Stop();
+        }
     }
 
     private void DungBui()
@@ -104,11 +129,13 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
     {
         bool nenPhat = CaphatBuiTheoTrangThai();
         CapNhatVetBanh(nenPhat);
+        CapNhatAmThanhDongCo(nenPhat);
 
         if (!IsOwner || (TryGetComponent<TankPlayer>(out var tp) && tp.IsBot.Value)) { return; }
 
         if (GameplayInputGate.IsBlocked || MatchEndBridge.IsMatchEnded)
         {
+
             rb.velocity = Vector2.zero;
             return;
         }
@@ -167,6 +194,48 @@ public class DiChuyenNguoiChoi : NetworkBehaviour
                 vetBanh.Play();
             }
         }
+    }
+
+    private void CapNhatAmThanhDongCo(bool dangChay)
+    {
+        if (engineSource == null) return;
+
+        // Nếu âm thanh bị dừng thì tự phát lại
+        if (!engineSource.isPlaying)
+        {
+            engineSource.Play();
+        }
+
+        // Chỉ tăng âm lượng khi người chơi thực sự nhấn W/S
+        bool dangNhanGa = Mathf.Abs(inputDiChuyenTruoc.y) > 0.05f;
+
+        float targetVolume;
+        float targetPitch;
+
+        if (dangNhanGa)
+        {
+            // Đang di chuyển
+            targetVolume = maxVolume;
+            targetPitch = maxPitch;
+        }
+        else
+        {
+            // Đứng yên
+            targetVolume = idleVolume;
+
+            // Tạo cảm giác máy vẫn nổ nhẹ
+            targetPitch = idlePitch + Mathf.Sin(Time.time * 3f) * 0.02f;
+        }
+
+        engineSource.volume = Mathf.Lerp(
+            engineSource.volume,
+            targetVolume,
+            Time.deltaTime * changeSpeed);
+
+        engineSource.pitch = Mathf.Lerp(
+            engineSource.pitch,
+            targetPitch,
+            Time.deltaTime * changeSpeed);
     }
 
     private void CauHinhVetBanh()

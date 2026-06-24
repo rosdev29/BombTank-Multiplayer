@@ -18,17 +18,22 @@ public class Mau : NetworkBehaviour
 
     public Action<Mau> KhiChet;
 
+    [SerializeField] private AudioClip amThanhTrungDan;
+    [SerializeField] private float amLuongTrungDan = 0.5f;
+    [SerializeField] private AudioClip amThanhNo;
+    [SerializeField] private float amLuongNo = 0.8f;
+
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
-        daChet           = false;
-        lastAttacker     = null;
+        daChet = false;
+        lastAttacker = null;
         lastAttackerTime = 0f;
 
         if (!IsServer || !IsSpawned) { return; }
 
         MauToiDaNet.Value = MauToiDa;
-        MauHienTai.Value  = MauToiDa;
+        MauHienTai.Value = MauToiDa;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -44,10 +49,10 @@ public class Mau : NetworkBehaviour
             return;
         }
 
-        MauToiDa         = max;
+        MauToiDa = max;
         MauToiDaNet.Value = max;
         MauHienTai.Value = max;
-        daChet           = false;
+        daChet = false;
         Debug.Log($"[Mau] DatMauToiDa → {MauToiDa}");
     }
     // ─────────────────────────────────────────────────────────────────────
@@ -61,7 +66,7 @@ public class Mau : NetworkBehaviour
     public void GhiNhanSatThuongTu(TankPlayer attacker)
     {
         if (!IsServer || attacker == null) { return; }
-        lastAttacker     = attacker;
+        lastAttacker = attacker;
         lastAttackerTime = Time.time;
     }
 
@@ -86,12 +91,35 @@ public class Mau : NetworkBehaviour
         if (daChet) { return; }
 
         int maxMau = IsSpawned ? MauToiDaNet.Value : MauToiDa;
-        int mauMoi = MauHienTai.Value + value;
+        int mauCu = MauHienTai.Value;
+        int mauMoi = mauCu + value;
+
         MauHienTai.Value = Mathf.Clamp(mauMoi, 0, maxMau);
+
+        // Bị mất máu => phát tiếng trúng đạn
+        if (value < 0 &&
+            MauHienTai.Value > 0 &&
+            amThanhTrungDan != null)
+        {
+            AudioSource.PlayClipAtPoint(
+                amThanhTrungDan,
+                transform.position,
+                amLuongTrungDan);
+        }
 
         if (MauHienTai.Value == 0)
         {
             daChet = true;
+
+            // Phát tiếng nổ khi chết trước khi đối tượng bị biến mất
+            if (amThanhNo != null)
+            {
+                AudioSource.PlayClipAtPoint(
+                    amThanhNo,
+                    transform.position,
+                    amLuongNo);
+            }
+
             KhiChet?.Invoke(this);
 
             if (IsServer)
