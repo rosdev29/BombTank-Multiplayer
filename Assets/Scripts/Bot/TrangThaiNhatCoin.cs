@@ -2,21 +2,50 @@ using UnityEngine;
 
 public class TrangThaiNhatCoin : IBotState
 {
-    private const float KHOANG_CACH_CHAM = 1.2f;
-    private const int   CHI_PHI_BAN      = 1;
+    private Vector2 _diemMucTieu;
+    private float   _timerTimeout;
 
-    public void OnEnter(BotContext ctx) { }
+    private const float KHOANG_CACH_CHAM   = 1.2f;
+    private const float KHOANG_CACH_DA_TOI = 1.5f;
+    private const float THOI_GIAN_TIMEOUT  = 8f;
+
+    public void OnEnter(BotContext ctx)
+    {
+        _diemMucTieu  = ChonDiemTrenMap();
+        _timerTimeout = THOI_GIAN_TIMEOUT;
+    }
 
     public BotCommand Update(BotContext ctx)
     {
-        if (ctx.NearestCoin == null || ctx.DuCoinDeBan(CHI_PHI_BAN))
+        if (ctx.NearestCoin != null)
         {
-            return new BotCommand();
+            float throttle = ctx.DistanceToCoin < KHOANG_CACH_CHAM ? 0.3f : 1f;
+            return BotSteering.MoveTowards(ctx, ctx.CoinPosition, throttle);
         }
 
-        float throttle = ctx.DistanceToCoin < KHOANG_CACH_CHAM ? 0.3f : 1f;
-        return BotSteering.MoveTowards(ctx, ctx.CoinPosition, throttle);
+        if (BotSteering.DaToiNoi(ctx.BotPosition, _diemMucTieu, KHOANG_CACH_DA_TOI))
+        {
+            ChonDiemMoi();
+        }
+        else
+        {
+            _timerTimeout -= ctx.DeltaTime;
+            if (_timerTimeout <= 0f)
+            {
+                ChonDiemMoi();
+            }
+        }
+
+        return BotSteering.MoveTowards(ctx, _diemMucTieu);
     }
 
     public void OnExit(BotContext ctx) { }
+
+    private void ChonDiemMoi()
+    {
+        _diemMucTieu  = ChonDiemTrenMap();
+        _timerTimeout = THOI_GIAN_TIMEOUT;
+    }
+
+    private static Vector2 ChonDiemTrenMap() => SpawnPoint.GetRandomSpawnPos();
 }
