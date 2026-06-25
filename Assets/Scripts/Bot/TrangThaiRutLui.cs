@@ -79,10 +79,7 @@ public class TrangThaiRutLui : IBotState
         if (ctx.Pathfinder != null)
             cmd = ctx.Pathfinder.GetMoveCommandToTarget(_diemMucTieu);
         else
-        {
-            Vector2 tiepCan = BotSteering.TimDiemTiepCan(ctx.BotPosition, _diemMucTieu, 8f);
-            cmd = BotSteering.MoveTowards(ctx, tiepCan, 0.7f);
-        }
+            cmd = BotSteering.MoveTowards(ctx, _diemMucTieu);
 
         ApDungBanNe(ctx, cmd);
         _viTriDichCu = ctx.NearestEnemy != null ? ctx.EnemyPosition : _viTriDichCu;
