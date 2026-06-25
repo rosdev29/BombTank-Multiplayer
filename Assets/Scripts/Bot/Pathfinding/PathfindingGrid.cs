@@ -104,7 +104,8 @@ public class PathfindingGrid : MonoBehaviour
         int penalty = 0;
 
         // Su dung NonAlloc de tranh tao ra rac bo nho (Garbage Collection) giup chong lag
-        int hitCount = Physics2D.OverlapCircleNonAlloc(_grid[x, y].WorldPosition, NodeRadius * 1.0f, _results);
+        // Thu nho ban kinh quet xuong 0.9f de cac khe hep (1 unit) khong bi danh dau la Unwalkable
+        int hitCount = Physics2D.OverlapCircleNonAlloc(_grid[x, y].WorldPosition, NodeRadius * 0.9f, _results);
         for (int i = 0; i < hitCount; i++)
         {
             if (BotSteering.LaTuong(_results[i]))
@@ -133,14 +134,12 @@ public class PathfindingGrid : MonoBehaviour
 
     public Node NodeFromWorldPoint(Vector2 worldPosition)
     {
-        float percentX = (worldPosition.x + GridWorldSize.x / 2) / GridWorldSize.x;
-        float percentY = (worldPosition.y + GridWorldSize.y / 2) / GridWorldSize.y;
+        Vector2 bottomLeft = (Vector2)transform.position - new Vector2(GridWorldSize.x, GridWorldSize.y) * 0.5f;
+        float percentX = Mathf.Clamp01((worldPosition.x - bottomLeft.x) / GridWorldSize.x);
+        float percentY = Mathf.Clamp01((worldPosition.y - bottomLeft.y) / GridWorldSize.y);
 
-        percentX = Mathf.Clamp01(percentX);
-        percentY = Mathf.Clamp01(percentY);
-
-        int x = Mathf.RoundToInt((_gridSizeX - 1) * percentX);
-        int y = Mathf.RoundToInt((_gridSizeY - 1) * percentY);
+        int x = Mathf.Clamp(Mathf.RoundToInt((_gridSizeX - 1) * percentX), 0, _gridSizeX - 1);
+        int y = Mathf.Clamp(Mathf.RoundToInt((_gridSizeY - 1) * percentY), 0, _gridSizeY - 1);
 
         return _grid[x, y];
     }

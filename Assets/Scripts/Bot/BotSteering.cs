@@ -19,16 +19,17 @@ public static class BotSteering
         float gocLech = Vector2.SignedAngle((Vector2)ctx.BodyTransform.up, huong.normalized);
         float steer   = -Mathf.Clamp(gocLech / 30f, -1f, 1f); // proportional: mượt trong ±30°
 
-        // Giam toc do khi dang phai re gap de bot khong bi "troi" vao tuong do cua rong
+        // Bắt buộc xe tăng phải xoay tại chỗ nếu lệch hướng > 10 độ. 
+        // Vì thân xe hình chữ nhật, nếu vừa rẽ vừa tiến trong hành lang hẹp sẽ quệt đuôi vào tường!
         float absGoc = Mathf.Abs(gocLech);
         float finalThrottle = throttle;
-        if (absGoc > 60f) 
+        if (absGoc > 10f) 
         {
-            finalThrottle *= 0.1f; // Re rat gap -> di chuyen rat cham de xoay
+            finalThrottle = 0f; // Dừng lại hoàn toàn để xoay tại chỗ
         }
-        else if (absGoc > 30f)
+        else
         {
-            finalThrottle *= 0.5f; // Re vua -> di chuyen cham lai
+            finalThrottle *= 1f; // Đi thẳng
         }
 
         cmd.MoveInput = new Vector2(steer, finalThrottle);
@@ -49,13 +50,21 @@ public static class BotSteering
         float   dist  = delta.magnitude;
         if (dist < 0.01f) { return !CoNamTrongTuong(to); }
 
-        RaycastHit2D[] hits = Physics2D.CircleCastAll(from, radius, delta / dist, dist);
-        foreach (RaycastHit2D hit in hits)
+        Vector2 dir = delta / dist;
+        float step = Mathf.Max(0.2f, radius * 0.75f);
+        int numSteps = Mathf.CeilToInt(dist / step);
+
+        for (int i = 0; i <= numSteps; i++)
         {
-            if (LaTuong(hit.collider)) { return false; }
+            Vector2 checkPos = from + dir * Mathf.Min(dist, i * step);
+            Collider2D[] overlaps = Physics2D.OverlapCircleAll(checkPos, radius);
+            foreach (Collider2D col in overlaps)
+            {
+                if (LaTuong(col)) { return false; }
+            }
         }
 
-        return !CoNamTrongTuong(to);
+        return true;
     }
 
     // Tim waypoint tiep theo de den heal zone (quet tuong theo huong zone)
@@ -210,13 +219,23 @@ public static class BotSteering
         if (col.gameObject.layer == LayerMask.NameToLayer("Terrain"))
             return true;
 
+        string colType = col.GetType().Name;
+        if (colType == "TilemapCollider2D" || colType == "CompositeCollider2D")
+            return true;
+
+        if (col.attachedRigidbody != null && col.attachedRigidbody.bodyType == RigidbodyType2D.Static)
+            return true;
+
         Transform t = col.transform;
         while (t != null)
         {
             string ten = t.name;
             if (ten.IndexOf("Wall", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                 ten.IndexOf("Boundary", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                ten.IndexOf("Rock", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                ten.IndexOf("Rock", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                ten.IndexOf("Stone", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                ten.IndexOf("Tilemap", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                ten.IndexOf("Grid", System.StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 return true;
             }
