@@ -21,6 +21,7 @@ public class MainMenu : MonoBehaviour
 
     private GameObject errorPopupRoot;
     private Coroutine hideErrorPopupCoroutine;
+    private Coroutine showErrorPopupCoroutine;
     private Coroutine joinMonitorCoroutine;
     private bool pendingClientJoin;
     private bool joinFailureHandled;
@@ -36,17 +37,22 @@ public class MainMenu : MonoBehaviour
             networkManager.OnClientDisconnectCallback += HandleClientDisconnected;
         }
 
+        if (clientButton == null)
+        {
+            GameObject clientBtnGo = GameObject.Find("ClientButton");
+            if (clientBtnGo != null)
+                clientButton = clientBtnGo.GetComponent<Button>();
+        }
+
         if (ipField != null)
         {
             SanitizeIpFieldOnLoad();
-            ipField.onValueChanged.AddListener(HandleIpChanged);
-            if (ipField.placeholder is TMP_Text placeholder)
-            {
-                placeholder.text = "192.168.1.7";
-            }
         }
 
-        HandleIpChanged(GetIpInputRaw());
+        if (clientButton != null)
+        {
+            clientButton.interactable = true;
+        }
     }
 
     private void SanitizeIpFieldOnLoad()
@@ -97,6 +103,11 @@ public class MainMenu : MonoBehaviour
 
     private void OnEnable()
     {
+        if (clientButton != null)
+        {
+            clientButton.interactable = true;
+        }
+
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlayMusic(AudioManager.Instance.menuMusic);
@@ -111,11 +122,6 @@ public class MainMenu : MonoBehaviour
         {
             networkManager.OnClientConnectedCallback -= HandleClientConnected;
             networkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
-        }
-
-        if (ipField != null)
-        {
-            ipField.onValueChanged.RemoveListener(HandleIpChanged);
         }
     }
 
@@ -353,19 +359,6 @@ public class MainMenu : MonoBehaviour
         return cached;
     }
 
-    private void HandleIpChanged(string rawValue)
-    {
-        string ip = rawValue == null ? string.Empty : rawValue.Trim().Replace("\u200b", string.Empty);
-        bool isValid = !string.IsNullOrWhiteSpace(ip)
-            && !IsPlaceholderIpText(ip)
-            && IsValidIpv4(ip);
-
-        if (clientButton != null)
-        {
-            clientButton.interactable = isValid;
-        }
-    }
-
     private static bool IsValidIpv4(string ip)
     {
         if (!IPAddress.TryParse(ip, out IPAddress parsed))
@@ -424,12 +417,28 @@ public class MainMenu : MonoBehaviour
             if (bodyText != null) { bodyText.text = body; }
         }
 
-        errorPopupRoot.SetActive(true);
-        AudioManager.Instance?.PlayClick();
+        if (showErrorPopupCoroutine != null)
+        {
+            StopCoroutine(showErrorPopupCoroutine);
+        }
 
         if (hideErrorPopupCoroutine != null)
         {
             StopCoroutine(hideErrorPopupCoroutine);
+        }
+
+        showErrorPopupCoroutine = StartCoroutine(ShowErrorPopupDeferred());
+    }
+
+    private IEnumerator ShowErrorPopupDeferred()
+    {
+        // Chờ frame sau để popup không ăn cùng sự kiện nhấn/chuột với nút Tham gia.
+        yield return null;
+        showErrorPopupCoroutine = null;
+
+        if (errorPopupRoot != null)
+        {
+            errorPopupRoot.SetActive(true);
         }
 
         hideErrorPopupCoroutine = StartCoroutine(HideErrorPopupAfterDelay(4f));
@@ -446,6 +455,12 @@ public class MainMenu : MonoBehaviour
         {
             StopCoroutine(hideErrorPopupCoroutine);
             hideErrorPopupCoroutine = null;
+        }
+
+        if (showErrorPopupCoroutine != null)
+        {
+            StopCoroutine(showErrorPopupCoroutine);
+            showErrorPopupCoroutine = null;
         }
     }
 
@@ -526,6 +541,7 @@ public class MainMenu : MonoBehaviour
         Button btn = btnGo.AddComponent<Button>();
         btn.targetGraphic = btnBg;
         btn.onClick.AddListener(CloseErrorPopup);
+        btnGo.AddComponent<ButtonClickSfx>();
 
         GameObject btnLabelGo = new GameObject("Text", typeof(RectTransform));
         RectTransform btnLabelRect = btnLabelGo.GetComponent<RectTransform>();
