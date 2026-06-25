@@ -11,7 +11,7 @@ public class BotMover : MonoBehaviour
 {
     [Header("Né tường")]
     [SerializeField] private LayerMask layerMaskTuong;
-    [SerializeField] private float khoangNeTuong  = 2.5f;
+    [SerializeField] private float khoangNeTuong  = 4f;
 
     [Header("Anti-Stuck")]
     [SerializeField] private float thoiGianPhatHienKet   = 0.6f;
@@ -31,6 +31,7 @@ public class BotMover : MonoBehaviour
     private float _steerNeTuongTruoc = 0f;
 
     private BotContext _ctx;
+    private BotPathfinder _pathfinder;
 
     private const float STUCK_CHECK_INTERVAL = 0.3f;
     private const float THOI_GIAN_LUI_THOAT  = 0.3f;
@@ -50,6 +51,7 @@ public class BotMover : MonoBehaviour
         _ctx             = ctx;
         layerMaskTuong   = maskTuong;
         _viTriKiemTraCu  = ctx.BotPosition;
+        _pathfinder      = GetComponent<BotPathfinder>();
     }
 
     /// <summary>Cho phép BotSpawner set LayerMask từ bên ngoài.</summary>
@@ -96,8 +98,21 @@ public class BotMover : MonoBehaviour
         _stuckTimer    = 0f;
         _dangThoatKet  = true;
         _thoatKetTimer = THOI_GIAN_LUI_THOAT + THOI_GIAN_XOAY_THOAT;
-        _steerThoatKet = Random.value > 0.5f ? 1f : -1f;
-        Debug.Log($"[BotMover] {(_ctx?.Player != null ? _ctx.Player.PlayerName.Value.ToString() : gameObject.name)} → Kich hoat thoat ket!");
+        _pathfinder?.InvalidatePath();
+
+        Vector2 escape = BotSteering.TimHuongMo(_ctx.BotPosition, 6f);
+        if (escape != _ctx.BotPosition)
+        {
+            Vector2 dir = (escape - _ctx.BotPosition).normalized;
+            float angle = Vector2.SignedAngle((Vector2)_ctx.BodyTransform.up, dir);
+            _steerThoatKet = Mathf.Clamp(-angle / 45f, -1f, 1f);
+            if (Mathf.Abs(_steerThoatKet) < 0.2f)
+                _steerThoatKet = angle > 0f ? 1f : -1f;
+        }
+        else
+        {
+            _steerThoatKet = Random.value > 0.5f ? 1f : -1f;
+        }
     }
 
     private BotCommand LayLenhThoatKet(float dt)
@@ -148,8 +163,9 @@ public class BotMover : MonoBehaviour
         float urgency = Mathf.Clamp01(Mathf.Abs(_steerNeTuongTruoc));
         
         steer = Mathf.Lerp(steer, Mathf.Sign(_steerNeTuongTruoc + 0.001f) * urgency, urgency); 
-        float throttleNe = throttle * (1f - urgency * 0.6f); // Giam toc do khi dang ne tuong
+        float throttleNe = throttle * (1f - urgency * 0.6f);
         throttle = Mathf.Lerp(throttle, throttleNe, urgency);
+        throttle = ChanThrottleKhiTuongPhiaTruoc(throttle);
 
         _ctx.BodyTransform.Rotate(0f, 0f, steer * -TOC_DO_XOY * dt);
         _rb.velocity = (Vector2)_ctx.BodyTransform.up * throttle * TOC_DO;
@@ -189,5 +205,21 @@ public class BotMover : MonoBehaviour
         float cuongDo = Mathf.Clamp01(lucDayTong.magnitude * 2f); // Nhan 2 de phan ung nhay hon
 
         return huongNe * cuongDo;
+    }
+
+    private float ChanThrottleKhiTuongPhiaTruoc(float throttle)
+    {
+        if (Mathf.Abs(throttle) < 0.05f) { return throttle; }
+
+        Vector2 viTri     = _ctx.BotPosition;
+        Vector2 huongTien = (Vector2)_ctx.BodyTransform.up * Mathf.Sign(throttle);
+
+        if (!BotSteering.CoDuongThong(viTri, viTri + huongTien * khoangNeTuong))
+            return 0f;
+
+        if (!BotSteering.CoDuongThong(viTri, viTri + huongTien * (khoangNeTuong * 0.45f)))
+            return throttle * 0.2f;
+
+        return throttle;
     }
 }
