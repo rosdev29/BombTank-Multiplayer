@@ -7,7 +7,7 @@ public class PathfindingGrid : MonoBehaviour
 
     [Header("Grid Settings")]
     public Vector2 GridWorldSize = new Vector2(160, 160);
-    public float NodeRadius = 1.0f;
+    public float NodeRadius = 0.5f;
 
     private Node[,] _grid;
     private float _nodeDiameter;
@@ -84,7 +84,7 @@ public class PathfindingGrid : MonoBehaviour
         }
     }
 
-    private Collider2D[] _results = new Collider2D[16];
+    private Collider2D[] _results = new Collider2D[10];
 
     public void UpdateGridWalkability()
     {
@@ -102,7 +102,7 @@ public class PathfindingGrid : MonoBehaviour
     {
         bool walkable = true;
         int penalty = 0;
-        
+
         // Su dung NonAlloc de tranh tao ra rac bo nho (Garbage Collection) giup chong lag
         int hitCount = Physics2D.OverlapCircleNonAlloc(_grid[x, y].WorldPosition, NodeRadius * 1.0f, _results);
         for (int i = 0; i < hitCount; i++)
@@ -133,12 +133,14 @@ public class PathfindingGrid : MonoBehaviour
 
     public Node NodeFromWorldPoint(Vector2 worldPosition)
     {
-        Vector2 bottomLeft = (Vector2)transform.position - new Vector2(GridWorldSize.x, GridWorldSize.y) * 0.5f;
-        float percentX = Mathf.Clamp01((worldPosition.x - bottomLeft.x) / GridWorldSize.x);
-        float percentY = Mathf.Clamp01((worldPosition.y - bottomLeft.y) / GridWorldSize.y);
+        float percentX = (worldPosition.x + GridWorldSize.x / 2) / GridWorldSize.x;
+        float percentY = (worldPosition.y + GridWorldSize.y / 2) / GridWorldSize.y;
 
-        int x = Mathf.Clamp(Mathf.RoundToInt((_gridSizeX - 1) * percentX), 0, _gridSizeX - 1);
-        int y = Mathf.Clamp(Mathf.RoundToInt((_gridSizeY - 1) * percentY), 0, _gridSizeY - 1);
+        percentX = Mathf.Clamp01(percentX);
+        percentY = Mathf.Clamp01(percentY);
+
+        int x = Mathf.RoundToInt((_gridSizeX - 1) * percentX);
+        int y = Mathf.RoundToInt((_gridSizeY - 1) * percentY);
 
         return _grid[x, y];
     }
@@ -163,7 +165,7 @@ public class PathfindingGrid : MonoBehaviour
                     {
                         bool walk1 = _grid[node.GridX + x, node.GridY].Walkable;
                         bool walk2 = _grid[node.GridX, node.GridY + y].Walkable;
-                        
+
                         // Neu 1 trong 2 o thang ben canh bi chan boi tuong, cam di cheo qua goc do
                         if (!walk1 || !walk2)
                         {
@@ -192,14 +194,5 @@ public class PathfindingGrid : MonoBehaviour
                 Gizmos.DrawCube(n.WorldPosition, Vector3.one * (_nodeDiameter - 0.1f));
             }
         }
-    }
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void EnsureGridInScene()
-    {
-        if (Object.FindAnyObjectByType<PathfindingGrid>() != null) return;
-
-        var go = new GameObject("PathfindingManager");
-        go.AddComponent<PathfindingGrid>();
     }
 }

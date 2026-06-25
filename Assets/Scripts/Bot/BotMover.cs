@@ -98,7 +98,6 @@ public class BotMover : MonoBehaviour
         _stuckTimer    = 0f;
         _dangThoatKet  = true;
         _thoatKetTimer = THOI_GIAN_LUI_THOAT + THOI_GIAN_XOAY_THOAT;
-        _pathfinder?.InvalidatePath();
 
         Vector2 escape = BotSteering.TimHuongMo(_ctx.BotPosition, 6f);
         if (escape != _ctx.BotPosition)
