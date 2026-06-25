@@ -11,20 +11,29 @@ public static class AStar
         Node startNode = grid.NodeFromWorldPoint(startPos);
         Node targetNode = grid.NodeFromWorldPoint(targetPos);
 
-        if (!startNode.Walkable || !targetNode.Walkable)
+        if (!startNode.Walkable)
         {
-            // Neu target nam trong tuong, tim node gan nhat co the di duoc xung quanh no
-            if (!targetNode.Walkable)
+            Node validStart = GetNearestWalkableNode(grid, startNode);
+            if (validStart != null)
             {
-                Node validNeighbor = GetNearestWalkableNode(grid, targetNode);
-                if (validNeighbor != null)
-                {
-                    targetNode = validNeighbor;
-                }
-                else
-                {
-                    return null; // Khong the den target
-                }
+                startNode = validStart;
+            }
+            else
+            {
+                return null; // Khong the bat dau
+            }
+        }
+
+        if (!targetNode.Walkable)
+        {
+            Node validTarget = GetNearestWalkableNode(grid, targetNode);
+            if (validTarget != null)
+            {
+                targetNode = validTarget;
+            }
+            else
+            {
+                return null; // Khong the den target
             }
         }
 
@@ -78,12 +87,35 @@ public static class AStar
         return null; // Khong tim thay duong
     }
 
-    private static Node GetNearestWalkableNode(PathfindingGrid grid, Node targetNode)
+    private static Node GetNearestWalkableNode(PathfindingGrid grid, Node startNode)
     {
-        List<Node> neighbors = grid.GetNeighbors(targetNode);
-        foreach (Node n in neighbors)
+        Queue<Node> queue = new Queue<Node>();
+        HashSet<Node> visited = new HashSet<Node>();
+        
+        queue.Enqueue(startNode);
+        visited.Add(startNode);
+
+        int maxDepth = 4; // Tim kiem toi da 4 buoc (radius 4)
+        int currentDepth = 0;
+
+        while (queue.Count > 0 && currentDepth <= maxDepth)
         {
-            if (n.Walkable) return n;
+            int levelSize = queue.Count;
+            for (int i = 0; i < levelSize; i++)
+            {
+                Node current = queue.Dequeue();
+                if (current.Walkable) return current;
+
+                foreach (Node neighbor in grid.GetNeighbors(current))
+                {
+                    if (!visited.Contains(neighbor))
+                    {
+                        visited.Add(neighbor);
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+            currentDepth++;
         }
         return null;
     }
@@ -93,7 +125,7 @@ public static class AStar
         List<Vector2> path = new List<Vector2>();
         Node currentNode = endNode;
 
-        while (currentNode != startNode)
+        while (currentNode != startNode && currentNode != null)
         {
             path.Add(currentNode.WorldPosition);
             currentNode = currentNode.Parent;

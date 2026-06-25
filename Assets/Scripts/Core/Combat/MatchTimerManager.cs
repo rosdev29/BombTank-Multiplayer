@@ -7,7 +7,7 @@ using UnityEngine;
 /// </summary>
 public class MatchTimerManager : NetworkBehaviour
 {
-    [SerializeField] private float matchDurationSeconds = 600f;
+    [SerializeField] private float matchDurationSeconds = 900f;
 
     // Private — do not edit in Inspector (use Match Duration Seconds above).
     private readonly NetworkVariable<float> timeRemaining = new NetworkVariable<float>(
