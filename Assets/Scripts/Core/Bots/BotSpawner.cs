@@ -253,6 +253,7 @@ public class BotSpawner : MonoBehaviour
             if (tankPlayer.Wallet != null)
             {
                 tankPlayer.Wallet.TotalCoins.Value = 10;
+                tankPlayer.Wallet.LifetimeCoins.Value = 10;
             }
         }
     }
