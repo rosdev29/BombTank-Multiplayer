@@ -7,7 +7,7 @@ public class PathfindingGrid : MonoBehaviour
 
     [Header("Grid Settings")]
     public Vector2 GridWorldSize = new Vector2(160, 160);
-    public float NodeRadius = 0.5f;
+    public float NodeRadius = 1.0f;
 
     private Node[,] _grid;
     private float _nodeDiameter;
@@ -84,7 +84,7 @@ public class PathfindingGrid : MonoBehaviour
         }
     }
 
-    private Collider2D[] _results = new Collider2D[10];
+    private Collider2D[] _results = new Collider2D[16];
 
     public void UpdateGridWalkability()
     {
@@ -133,14 +133,12 @@ public class PathfindingGrid : MonoBehaviour
 
     public Node NodeFromWorldPoint(Vector2 worldPosition)
     {
-        float percentX = (worldPosition.x + GridWorldSize.x / 2) / GridWorldSize.x;
-        float percentY = (worldPosition.y + GridWorldSize.y / 2) / GridWorldSize.y;
-        
-        percentX = Mathf.Clamp01(percentX);
-        percentY = Mathf.Clamp01(percentY);
+        Vector2 bottomLeft = (Vector2)transform.position - new Vector2(GridWorldSize.x, GridWorldSize.y) * 0.5f;
+        float percentX = Mathf.Clamp01((worldPosition.x - bottomLeft.x) / GridWorldSize.x);
+        float percentY = Mathf.Clamp01((worldPosition.y - bottomLeft.y) / GridWorldSize.y);
 
-        int x = Mathf.RoundToInt((_gridSizeX - 1) * percentX);
-        int y = Mathf.RoundToInt((_gridSizeY - 1) * percentY);
+        int x = Mathf.Clamp(Mathf.RoundToInt((_gridSizeX - 1) * percentX), 0, _gridSizeX - 1);
+        int y = Mathf.Clamp(Mathf.RoundToInt((_gridSizeY - 1) * percentY), 0, _gridSizeY - 1);
 
         return _grid[x, y];
     }

@@ -3,8 +3,10 @@ using UnityEngine;
 // Dieu khien di chuyen bot + tim duong tranh tuong
 public static class BotSteering
 {
-    private const float BAN_KINH_QUET_DUONG = 0.45f;  // gan bang ban kinh tank
-    private const int   SO_HUONG_TIM_DUONG  = 16;     // so huong quet khi ne dich
+    /// <summary>Bán kính quét ~ nửa chiều rộng thân tank (BoxCollider ~1.75×2.05).</summary>
+    public const float BanKinhQuetDuong = 0.95f;
+
+    private const int   SO_HUONG_TIM_DUONG  = 16;
     private const int   SO_HUONG_DEN_ZONE   = 24;     // so huong quet khi di den heal zone
     private const float GOC_QUET_ZONE       = 150f;  // do lech quanh huong zone
 
@@ -28,7 +30,22 @@ public static class BotSteering
         }
         else if (absGoc > 30f)
         {
-            finalThrottle *= 0.5f; // Re vua -> di chuyen cham lai
+            finalThrottle *= 0.5f;
+        }
+
+        // Không tăng ga nếu phía trước bị tường chặn
+        if (Mathf.Abs(finalThrottle) > 0.05f)
+        {
+            Vector2 huongTien = (Vector2)ctx.BodyTransform.up * Mathf.Sign(finalThrottle);
+            Vector2 diemTruoc = ctx.BotPosition + huongTien * 3.5f;
+            if (!CoDuongThong(ctx.BotPosition, diemTruoc))
+            {
+                finalThrottle = 0f;
+            }
+            else if (!CoDuongThong(ctx.BotPosition, ctx.BotPosition + huongTien * 1.2f))
+            {
+                finalThrottle *= 0.25f;
+            }
         }
 
         cmd.MoveInput = new Vector2(steer, finalThrottle);
@@ -43,7 +60,7 @@ public static class BotSteering
     }
 
     // CircleCast tu A den B, false neu co tuong chan duong
-    public static bool CoDuongThong(Vector2 from, Vector2 to, float radius = BAN_KINH_QUET_DUONG)
+    public static bool CoDuongThong(Vector2 from, Vector2 to, float radius = BanKinhQuetDuong)
     {
         Vector2 delta = to - from;
         float   dist  = delta.magnitude;
@@ -157,7 +174,7 @@ public static class BotSteering
     // OverlapCircle kiem tra diem co nam trong/sát tuong khong
     private static bool CoNamTrongTuong(Vector2 pos)
     {
-        Collider2D[] hits = Physics2D.OverlapCircleAll(pos, BAN_KINH_QUET_DUONG);
+        Collider2D[] hits = Physics2D.OverlapCircleAll(pos, BanKinhQuetDuong);
         foreach (Collider2D col in hits)
         {
             if (LaTuong(col)) { return true; }
@@ -167,7 +184,7 @@ public static class BotSteering
     }
 
     // Khi bi ket hoan toan: tim bat ky huong nao di duoc
-    private static Vector2 TimHuongMo(Vector2 from, float buoc)
+    public static Vector2 TimHuongMo(Vector2 from, float buoc)
     {
         for (int i = 0; i < SO_HUONG_TIM_DUONG; i++)
         {
@@ -206,6 +223,9 @@ public static class BotSteering
         if (col.GetComponentInParent<Coin>() != null) { return false; }
         if (col.GetComponentInParent<Projectile>() != null) { return false; }
         if (col.GetComponentInParent<HealingZone>() != null) { return false; }
+
+        if (col.gameObject.layer == LayerMask.NameToLayer("Terrain"))
+            return true;
 
         Transform t = col.transform;
         while (t != null)

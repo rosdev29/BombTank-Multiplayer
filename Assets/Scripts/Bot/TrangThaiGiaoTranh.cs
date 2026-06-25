@@ -6,8 +6,7 @@ public class TrangThaiGiaoTranh : IBotState
     private const float KHOANG_CACH_AN_TOAN = 6f;  // Nếu địch quá gần thì phải lùi
     private const float NGUONG_GOC_DE_BAN = 10f;
     private const float HE_SO_LEAD = 0.15f;
-    private const int CHI_PHI_BAN = 1;
-    
+
     private const float THOI_GIAN_DOI_HUONG_STRAFE = 2.5f;
 
     private Vector2 _viTriDichCu;
@@ -121,14 +120,20 @@ public class TrangThaiGiaoTranh : IBotState
                 throttle = 0.8f; // Chạy tới với tốc độ 80% để xoay vòng
             }
 
-            // Né tường khi đang strafe
+            // Né tường khi đang strafe / tiến-lùi
+            const float KHOANG_QUET_TUONG = 4f;
             Vector2 huongDiChuyenThucTe = throttle >= 0 ? (Vector2)ctx.BodyTransform.up : -(Vector2)ctx.BodyTransform.up;
             _flipCooldown -= ctx.DeltaTime;
-            if (_flipCooldown <= 0f && BotSteering.RaycastTuong(ctx.BotPosition, huongDiChuyenThucTe, 2.5f, out _))
+            if (_flipCooldown <= 0f && BotSteering.RaycastTuong(ctx.BotPosition, huongDiChuyenThucTe, KHOANG_QUET_TUONG, out RaycastHit2D hitTuong))
             {
-                _strafeDirection *= -1f; // Đảo chiều
-                _strafeTimer = THOI_GIAN_DOI_HUONG_STRAFE; // Reset timer
-                _flipCooldown = 0.5f; // Khong cho phep dao chieu lien tuc trong 0.5s de chong xoay xe
+                _strafeDirection *= -1f;
+                _strafeTimer = THOI_GIAN_DOI_HUONG_STRAFE;
+                _flipCooldown = 0.5f;
+                throttle *= hitTuong.distance < 1.5f ? 0f : 0.25f;
+            }
+            else if (throttle > 0.05f && !BotSteering.CoDuongThong(ctx.BotPosition, ctx.BotPosition + huongDiChuyenThucTe * 2f))
+            {
+                throttle *= 0.3f;
             }
 
             cmd.MoveInput = new Vector2(steer, throttle);
@@ -138,7 +143,7 @@ public class TrangThaiGiaoTranh : IBotState
             Transform nongNgam = ctx.TurretTransform != null ? ctx.TurretTransform : ctx.BodyTransform;
             float gocLechNgam = Vector2.Angle((Vector2)nongNgam.up, huongNgam);
 
-            if (gocLechNgam < NGUONG_GOC_DE_BAN && ctx.DuCoinDeBan(CHI_PHI_BAN))
+            if (gocLechNgam < NGUONG_GOC_DE_BAN && ctx.DuCoinDeBan(ctx.ChiPhiBan))
             {
                 cmd.Fire = true;
             }

@@ -244,6 +244,7 @@ public class BountySystem : NetworkBehaviour
         if (bountyReward <= 0) { return; }
 
         killer.Wallet.TotalCoins.Value += bountyReward;
+        killer.Wallet.LifetimeCoins.Value += bountyReward;
 
         Debug.Log($"[BountySystem] {killer.PlayerName.Value} săn bounty " +
                   $"{victim.PlayerName.Value} → nhận {bountyReward} coin bounty!");
