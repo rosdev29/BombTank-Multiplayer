@@ -104,7 +104,8 @@ public class PathfindingGrid : MonoBehaviour
         int penalty = 0;
 
         // Su dung NonAlloc de tranh tao ra rac bo nho (Garbage Collection) giup chong lag
-        int hitCount = Physics2D.OverlapCircleNonAlloc(_grid[x, y].WorldPosition, NodeRadius * 1.0f, _results);
+        // Thu nho ban kinh quet xuong 0.9f de cac khe hep (1 unit) khong bi danh dau la Unwalkable
+        int hitCount = Physics2D.OverlapCircleNonAlloc(_grid[x, y].WorldPosition, NodeRadius * 0.9f, _results);
         for (int i = 0; i < hitCount; i++)
         {
             if (BotSteering.LaTuong(_results[i]))

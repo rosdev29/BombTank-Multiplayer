@@ -42,21 +42,26 @@ public class TrangThaiGiaoTranh : IBotState
         _viTriDichCu = ctx.EnemyPosition;
 
         // --- 2. KIỂM TRA LINE OF SIGHT (LOS) ---
-        bool losThong = BotSteering.CoDuongThong(ctx.BotPosition, ctx.EnemyPosition);
+        // Tang ban kinh quet len 0.85f de chac chan khong bi vuong da/tuong o mep
+        // Neu bi vuong, bot se chuyen sang dung A* de di vong qua thay vi co tinh dam thang vao
+        bool losThong = BotSteering.CoDuongThong(ctx.BotPosition, ctx.EnemyPosition, 0.85f);
 
         // Hysteresis cho LOS de chong flicking (bot xoay lien tuc)
-        if (losThong)
+        // Yeu cau them dieu kien: Phai du gan (cach <= 14f) moi bat dau the hien trang thai giao tranh
+        bool duGan = khoangCachToiDich <= KHOANG_CACH_LY_TUONG + 4f;
+
+        if (losThong && duGan)
         {
-            _wasLOS = true;
-            _losHysteresisTimer = 0.3f; // Delay truoc khi tin rang da mat LOS hoan toan
+            _losHysteresisTimer += ctx.DeltaTime;
+            if (_losHysteresisTimer > 0.3f)
+            {
+                _wasLOS = true;
+            }
         }
         else
         {
-            _losHysteresisTimer -= ctx.DeltaTime;
-            if (_losHysteresisTimer <= 0f)
-            {
-                _wasLOS = false;
-            }
+            _losHysteresisTimer = 0f;
+            _wasLOS = false;
         }
 
         if (!_wasLOS)
@@ -100,13 +105,17 @@ public class TrangThaiGiaoTranh : IBotState
             {
                 // Tiến lại gần: hướng thẳng mũi xe vào địch
                 steer = -Mathf.Clamp(gocLechThanXe / 30f, -1f, 1f);
-                throttle = Mathf.Abs(gocLechThanXe) > 45f ? 0.3f : 1f; // Chờ quay đầu xong mới tăng ga
+                float absGoc = Mathf.Abs(gocLechThanXe);
+                if (absGoc > 10f) throttle = 0f;
+                else throttle = 1f;
             }
             else if (khoangCachToiDich < KHOANG_CACH_AN_TOAN)
             {
                 // Lùi ra xa: Vẫn hướng mũi xe vào địch nhưng cài số lùi
                 steer = -Mathf.Clamp(gocLechThanXe / 30f, -1f, 1f);
-                throttle = Mathf.Abs(gocLechThanXe) > 45f ? -0.3f : -1f;
+                float absGoc = Mathf.Abs(gocLechThanXe);
+                if (absGoc > 10f) throttle = 0f;
+                else throttle = -1f;
             }
             else
             {
@@ -118,7 +127,9 @@ public class TrangThaiGiaoTranh : IBotState
                 while (gocSaiLech < -180f) gocSaiLech += 360f;
 
                 steer = -Mathf.Clamp(gocSaiLech / 30f, -1f, 1f);
-                throttle = 0.8f; // Chạy tới với tốc độ 80% để xoay vòng
+                float absGoc = Mathf.Abs(gocSaiLech);
+                if (absGoc > 10f) throttle = 0f;
+                else throttle = 0.8f;
             }
 
             // Né tường khi đang strafe
