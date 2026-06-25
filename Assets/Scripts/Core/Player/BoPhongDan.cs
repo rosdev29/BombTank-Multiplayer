@@ -229,7 +229,7 @@ public class BoPhongDan : NetworkBehaviour
         Vector3 huongDi    = DiemSpawnDan.up;
         int     teamIndex  = TeamIndexHienTai();
 
-        SpawnServerBullets(viTriSpawn, huongDi, teamIndex);
+        if (!SpawnServerBullets(viTriSpawn, huongDi, teamIndex)) { return; }
         spawnDanGiaClientRpc(viTriSpawn, huongDi, teamIndex);
 
         hieuUngLoeNong?.SetActive(true);
@@ -242,7 +242,7 @@ public class BoPhongDan : NetworkBehaviour
     {
         if (MatchEndBridge.IsMatchEnded) { return; }
 
-        SpawnServerBullets(viTriSpawn, huongDi, TeamIndexHienTai());
+        if (!SpawnServerBullets(viTriSpawn, huongDi, TeamIndexHienTai())) { return; }
         spawnDanGiaClientRpc(viTriSpawn, huongDi, TeamIndexHienTai());
     }
 
@@ -253,16 +253,16 @@ public class BoPhongDan : NetworkBehaviour
         spawnDanGia(viTriSpawn, huongDi, teamIndex);
     }
 
-    private void SpawnServerBullets(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)
+    private bool SpawnServerBullets(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)
     {
-        if (MatchEndBridge.IsMatchEnded) { return; }
+        if (MatchEndBridge.IsMatchEnded) { return false; }
 
         int soLuongDan = IsDoubleBarrelActive.Value ? 2 : 1;
         int tongChiPhi = ChiPhiBan * soLuongDan;
 
-        if (wallet.TotalCoins.Value < tongChiPhi) { return; }
+        if (wallet.TotalCoins.Value < tongChiPhi) { return false; }
 
-        if (!wallet.TrySpendCoins(tongChiPhi)) { return; }
+        if (!wallet.TrySpendCoins(tongChiPhi)) { return false; }
 
         const float offsetTrucTiep = 0.3f;
 
@@ -294,6 +294,8 @@ public class BoPhongDan : NetworkBehaviour
             if (danInstance.TryGetComponent<Rigidbody2D>(out Rigidbody2D rb))
                 rb.velocity = rb.transform.up * TocDoDan;
         }
+
+        return true;
     }
 
     private void spawnDanGia(Vector3 viTriSpawn, Vector3 huongDi, int teamIndex)

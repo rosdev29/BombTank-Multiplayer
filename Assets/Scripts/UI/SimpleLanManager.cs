@@ -1,3 +1,4 @@
+// LEGACY: Scene Menu dùng MainMenu.cs — không gắn component này vào scene nữa.
 using System.Net;
 using System.Net.Sockets;
 using System.Text;

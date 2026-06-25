@@ -18,15 +18,25 @@ public class BotPathfinder : MonoBehaviour
         _ctx = ctx;
     }
 
+    public void InvalidatePath()
+    {
+        _currentPath = null;
+        _timeSinceLastPathRequest = PathRefreshInterval;
+    }
+
     public BotCommand GetMoveCommandToTarget(Vector2 targetPos, float throttle = 1f)
     {
         if (PathfindingGrid.Instance == null)
-        {
-            // Fallback neu khong co grid
-            return BotSteering.MoveTowards(_ctx, targetPos, throttle);
-        }
+            return MoveTowardsSafeFallback(targetPos, throttle);
 
         _timeSinceLastPathRequest += Time.deltaTime;
+
+        if (_currentPath != null && _currentWaypointIndex < _currentPath.Count)
+        {
+            Vector2 wp = _currentPath[_currentWaypointIndex];
+            if (!BotSteering.CoDuongThong(_ctx.BotPosition, wp))
+                InvalidatePath();
+        }
 
         // Tinh toan lai duong di neu target doi vi tri qua nhieu, hoac sau 1 khoang thoi gian
         if (_currentPath == null || _timeSinceLastPathRequest > PathRefreshInterval || Vector2.Distance(targetPos, _lastTargetPos) > 2f)
@@ -50,8 +60,7 @@ public class BotPathfinder : MonoBehaviour
             // Path Smoothing (String Pulling): Bo qua cac waypoint trung gian neu bot co the nhin thang thay waypoint tiep theo
             while (_currentWaypointIndex + 1 < _currentPath.Count)
             {
-                // Su dung ban kinh 0.8f de dam bao duong chim bay du rong cho kich co xe tang
-                if (BotSteering.CoDuongThong(_ctx.BotPosition, _currentPath[_currentWaypointIndex + 1], 0.8f))
+                if (BotSteering.CoDuongThong(_ctx.BotPosition, _currentPath[_currentWaypointIndex + 1], BotSteering.BanKinhQuetDuong))
                 {
                     _currentWaypointIndex++;
                 }
@@ -72,9 +81,13 @@ public class BotPathfinder : MonoBehaviour
             }
         }
 
-        // Khong tim duoc duong A*, hoac da den waypoint cuoi cung nhung chua cham vao muc tieu (Coin)
-        // Thay vi dung im, ta su dung MoveTowards tiep can truc tiep de "let" vao muc tieu thuc te
-        return BotSteering.MoveTowards(_ctx, targetPos, throttle);
+        return MoveTowardsSafeFallback(targetPos, throttle);
+    }
+
+    private BotCommand MoveTowardsSafeFallback(Vector2 targetPos, float throttle)
+    {
+        Vector2 tiepCan = BotSteering.TimDiemTiepCan(_ctx.BotPosition, targetPos, 8f);
+        return BotSteering.MoveTowards(_ctx, tiepCan, throttle * 0.7f);
     }
 
     private void OnDrawGizmos()

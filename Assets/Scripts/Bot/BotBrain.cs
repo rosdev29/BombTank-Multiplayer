@@ -126,7 +126,7 @@ public class BotBrain : MonoBehaviour
         _transitions = new List<IBotStateTransition>
         {
             new ChuyenRutLui        (stateRutLui,    priority: 40),
-            new ChuyenTronViHetCoin (stateRutLui,    priority: 35, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
+            new ChuyenTronViHetCoin (stateNhatCoin,  priority: 35, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
             new ChuyenGiaoTranh     (stateGiaoTranh, priority: 30, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
             new ChuyenNhatCoin      (stateNhatCoin,  priority: 10),
         };
@@ -227,7 +227,7 @@ public class BotBrain : MonoBehaviour
     private void ThuFireKhiNgam()
     {
         if (ctx == null || ctx.NearestEnemy == null) { return; }
-        if (!ctx.DuCoinDeBan(chiPhiBan)) { return; }
+        if (ctx.Wallet == null || ctx.Wallet.TotalCoins.Value < chiPhiBan) { return; }
         if (_currentCommand.AimTarget == null) { return; }
 
         if (!BotSteering.CoDuongThong(ctx.BotPosition, ctx.EnemyPosition)) { return; }
