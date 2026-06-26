@@ -98,6 +98,7 @@ public class BotMover : MonoBehaviour
         _stuckTimer    = 0f;
         _dangThoatKet  = true;
         _thoatKetTimer = THOI_GIAN_LUI_THOAT + THOI_GIAN_XOAY_THOAT;
+        _pathfinder?.InvalidatePath();
 
         Vector2 escape = BotSteering.TimHuongMo(_ctx.BotPosition, 6f);
         if (escape != _ctx.BotPosition)
@@ -152,14 +153,10 @@ public class BotMover : MonoBehaviour
         float steer    = cmd.MoveInput.x;
         float throttle = cmd.MoveInput.y;
 
-        // B. Tính toán steer phụ để lách khỏi tường
-        // NẾU đang đi theo đường A*, tắt hoàn toàn tính năng né tường vì A* đã tính đường an toàn!
-        // Nếu bật né tường, bot sẽ đánh lái loạn xạ trong hành lang hẹp và bám tường thay vì đi thẳng
-        float steerNeTuong = cmd.IsPathfinding ? 0f : TinhSteerNeTuong(throttle, false);
+        float steerNe = TinhSteerNeTuong(throttle);
 
-        // C. Làm mượt steer phụ
-        if (Mathf.Abs(steerNeTuong) > 0.05f)
-            _steerNeTuongTruoc = steerNeTuong; 
+        if (Mathf.Abs(steerNe) > 0.05f)
+            _steerNeTuongTruoc = steerNe; 
         else
             _steerNeTuongTruoc = Mathf.MoveTowards(_steerNeTuongTruoc, 0f, dt * 3f); 
 
@@ -168,7 +165,7 @@ public class BotMover : MonoBehaviour
         steer = Mathf.Lerp(steer, Mathf.Sign(_steerNeTuongTruoc + 0.001f) * urgency, urgency); 
         float throttleNe = throttle * (1f - urgency * 0.6f);
         throttle = Mathf.Lerp(throttle, throttleNe, urgency);
-        throttle = GiamTocKhiCoTuongPhiaTruoc(throttle);
+        throttle = ChanThrottleKhiTuongPhiaTruoc(throttle);
 
         _ctx.BodyTransform.Rotate(0f, 0f, steer * -TOC_DO_XOY * dt);
         _rb.velocity = (Vector2)_ctx.BodyTransform.up * throttle * TOC_DO;
@@ -178,7 +175,7 @@ public class BotMover : MonoBehaviour
     /// Tính hướng né tường bằng raycast quạt phía trước xe.
     /// Trả về giá trị steer [-1, 1]. khanCap = true khi tường rất gần.
     /// </summary>
-    private float TinhSteerNeTuong(float throttle, bool isPathfinding)
+    private float TinhSteerNeTuong(float throttle)
     {
         if (Mathf.Abs(throttle) < 0.05f) { return 0f; }
 
@@ -189,16 +186,14 @@ public class BotMover : MonoBehaviour
         float[] cacGoc     = { 0f, 15f, -15f, 30f, -30f, 45f, -45f, 60f, -60f, 90f, -90f };
         Vector2 lucDayTong = Vector2.zero;
         bool    coTuong    = false;
-        
-        float banKinhNe = isPathfinding ? 1.0f : khoangNeTuong;
 
         foreach (float g in cacGoc)
         {
             Vector2 huong = Quaternion.Euler(0f, 0f, g) * huongTien;
-            if (!BotSteering.RaycastTuong(viTri, huong, banKinhNe, out RaycastHit2D hit)) { continue; }
+            if (!BotSteering.RaycastTuong(viTri, huong, khoangNeTuong, out RaycastHit2D hit)) { continue; }
 
             coTuong = true;
-            float t    = 1f - (hit.distance / banKinhNe);
+            float t    = 1f - (hit.distance / khoangNeTuong);
             float manh = t * t * t; // Tang truong theo ham mu 3 de day cuc manh khi qua gan
             lucDayTong += hit.normal * manh;
         }
@@ -212,20 +207,18 @@ public class BotMover : MonoBehaviour
         return huongNe * cuongDo;
     }
 
-    private float GiamTocKhiCoTuongPhiaTruoc(float throttle)
+    private float ChanThrottleKhiTuongPhiaTruoc(float throttle)
     {
         if (Mathf.Abs(throttle) < 0.05f) { return throttle; }
 
         Vector2 viTri     = _ctx.BotPosition;
         Vector2 huongTien = (Vector2)_ctx.BodyTransform.up * Mathf.Sign(throttle);
 
-        // Kiem tra tuong ngay truoc mui xe (truc dien)
-        if (BotSteering.RaycastTuong(viTri, huongTien, 0.8f, out _))
+        if (!BotSteering.CoDuongThong(viTri, viTri + huongTien * khoangNeTuong))
             return 0f;
 
-        // Kiem tra tuong o xa hon 1 chut de giam toc
-        if (BotSteering.RaycastTuong(viTri, huongTien, 1.5f, out _))
-            return throttle * 0.3f;
+        if (!BotSteering.CoDuongThong(viTri, viTri + huongTien * (khoangNeTuong * 0.45f)))
+            return throttle * 0.2f;
 
         return throttle;
     }
