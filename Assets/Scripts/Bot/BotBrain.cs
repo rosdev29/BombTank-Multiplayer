@@ -357,8 +357,7 @@ public class BotBrain : MonoBehaviour
         public bool CanEnter(BotContext botCtx) =>
             botCtx.NearestEnemy != null
             && botCtx.DistanceToEnemy < _banKinh
-            && !botCtx.DuCoinDeBan(_chiPhi)
-            && BotSteering.CoDuongThong(botCtx.BotPosition, botCtx.EnemyPosition, 0.45f); // Bắt buộc phải nhìn thấy tận mắt
+            && !botCtx.DuCoinDeBan(_chiPhi);
     }
 
     private sealed class ChuyenGiaoTranh : IBotStateTransition
@@ -379,8 +378,7 @@ public class BotBrain : MonoBehaviour
         public bool CanEnter(BotContext botCtx) =>
             botCtx.NearestEnemy != null
             && botCtx.DistanceToEnemy < _banKinh
-            && botCtx.DuCoinDeBan(_chiPhi)
-            && BotSteering.CoDuongThong(botCtx.BotPosition, botCtx.EnemyPosition, 0.45f); // Bắt buộc phải nhìn thấy tận mắt (không có tường chắn)
+            && botCtx.DuCoinDeBan(_chiPhi);
     }
 
     private sealed class ChuyenNhatCoin : IBotStateTransition
