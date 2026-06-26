@@ -3,7 +3,7 @@ using UnityEngine;
 
 public class BotPathfinder : MonoBehaviour
 {
-    public float WaypointTolerance = 0.05f; // Giam xuong 0.05f de bot phai di den vao dung tam cua o truoc khi quay dau, chong ket goc
+    public float WaypointTolerance = 1.0f;
     public float PathRefreshInterval = 0.5f;
 
     private List<Vector2> _currentPath;
@@ -18,12 +18,25 @@ public class BotPathfinder : MonoBehaviour
         _ctx = ctx;
     }
 
+    public void InvalidatePath()
+    {
+        _currentPath = null;
+        _timeSinceLastPathRequest = PathRefreshInterval;
+    }
+
     public BotCommand GetMoveCommandToTarget(Vector2 targetPos, float throttle = 1f)
     {
         if (PathfindingGrid.Instance == null)
-            return BotSteering.MoveTowards(_ctx, targetPos, throttle);
+            return MoveTowardsSafeFallback(targetPos, throttle);
 
         _timeSinceLastPathRequest += Time.deltaTime;
+
+        if (_currentPath != null && _currentWaypointIndex < _currentPath.Count)
+        {
+            Vector2 wp = _currentPath[_currentWaypointIndex];
+            if (!BotSteering.CoDuongThong(_ctx.BotPosition, wp))
+                InvalidatePath();
+        }
 
         // Tinh toan lai duong di neu target doi vi tri qua nhieu, hoac sau 1 khoang thoi gian
         if (_currentPath == null || _timeSinceLastPathRequest > PathRefreshInterval || Vector2.Distance(targetPos, _lastTargetPos) > 2f)
@@ -47,9 +60,7 @@ public class BotPathfinder : MonoBehaviour
             // Path Smoothing (String Pulling): Bo qua cac waypoint trung gian neu bot co the nhin thang thay waypoint tiep theo
             while (_currentWaypointIndex + 1 < _currentPath.Count)
             {
-                // Ban kinh phai lon hon rat nhieu (0.9f) so voi ban kinh xe (0.45f) 
-                // de tranh chieu dai cua xe hinh chu nhat bi quet vao goc tuong khi xoay cheo
-                if (BotSteering.CoDuongThong(_ctx.BotPosition, _currentPath[_currentWaypointIndex + 1], 0.9f))
+                if (BotSteering.CoDuongThong(_ctx.BotPosition, _currentPath[_currentWaypointIndex + 1], BotSteering.BanKinhQuetDuong))
                 {
                     _currentWaypointIndex++;
                 }
@@ -61,27 +72,22 @@ public class BotPathfinder : MonoBehaviour
 
             if (_currentWaypointIndex < _currentPath.Count)
             {
-                BotCommand cmd = BotSteering.MoveTowards(_ctx, _currentPath[_currentWaypointIndex], throttle);
-                cmd.IsPathfinding = true; // Danh dau day la lenh di chuyen theo A* de BotMover khong duoi co
-                return cmd;
+                currentWaypoint = _currentPath[_currentWaypointIndex];
+            }
+
+            if (_currentWaypointIndex < _currentPath.Count)
+            {
+                return BotSteering.MoveTowards(_ctx, currentWaypoint, throttle);
             }
         }
 
-        // Khong tim duoc duong A*, hoac da den waypoint cuoi cung nhung chua cham vao muc tieu (Coin)
-        // Chi fallback MoveTowards neu muc tieu o gan, neu muc tieu o xa thi dung lai tranh huc tuong
-        if (Vector2.Distance(_ctx.BotPosition, targetPos) <= 2.5f)
-        {
-            // QUAN TRONG: Phai kiem tra xem co tuong chan giua khong. Neu co tuong (vi du 2 xe cach nhau 1 buc tuong)
-            // ma dung MoveTowards thi se bi loi huc tuong!
-            if (BotSteering.CoDuongThong(_ctx.BotPosition, targetPos, 0.45f))
-            {
-                BotCommand fallbackCmd = BotSteering.MoveTowards(_ctx, targetPos, throttle);
-                fallbackCmd.IsPathfinding = true; 
-                return fallbackCmd;
-            }
-        }
-        
-        return new BotCommand() { MoveInput = Vector2.zero, IsPathfinding = true };
+        return MoveTowardsSafeFallback(targetPos, throttle);
+    }
+
+    private BotCommand MoveTowardsSafeFallback(Vector2 targetPos, float throttle)
+    {
+        Vector2 tiepCan = BotSteering.TimDiemTiepCan(_ctx.BotPosition, targetPos, 8f);
+        return BotSteering.MoveTowards(_ctx, tiepCan, throttle * 0.7f);
     }
 
     private void OnDrawGizmos()
