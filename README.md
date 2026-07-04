@@ -1,4 +1,4 @@
-# BombTank Multiplayer — Game Tank Bắn Nhau Nhiều Người
+# BombTank Multiplayer 
 
 Unity · C# · Netcode for GameObjects · URP · TextMeshPro
 
