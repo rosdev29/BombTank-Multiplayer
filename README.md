@@ -118,7 +118,7 @@ Unity · C# · Netcode for GameObjects · URP · TextMeshPro
 ### Sơ đồ kỹ thuật
 
 <details>
-<summary>Bot AI · Combat · Mạng LAN (15 sơ đồ)</summary>
+<summary>Bot AI · Combat · Mạng LAN</summary>
 
 | | |
 |---|---|
