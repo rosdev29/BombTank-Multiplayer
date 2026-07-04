@@ -3,102 +3,123 @@ using UnityEngine;
 
 public static class AStar
 {
+    // Kích thước heap tối đa = toàn bộ node trên grid (80×80 = 6400)
+    // Cấp phát 1 lần, tái dùng qua các lần FindPath để tránh GC.
+    private static MinHeap<Node>  _openHeap    = new MinHeap<Node>(8192);
+    private static HashSet<Node>  _openLookup  = new HashSet<Node>();
+    private static HashSet<Node>  _closedSet   = new HashSet<Node>();
+    private static List<Node>     _dirtyNodes  = new List<Node>();
+
     public static List<Vector2> FindPath(Vector2 startPos, Vector2 targetPos)
     {
         PathfindingGrid grid = PathfindingGrid.Instance;
         if (grid == null) return null;
 
-        Node startNode = grid.NodeFromWorldPoint(startPos);
+        Node startNode  = grid.NodeFromWorldPoint(startPos);
         Node targetNode = grid.NodeFromWorldPoint(targetPos);
 
         if (!startNode.Walkable)
         {
-            Node validStart = GetNearestWalkableNode(grid, startNode);
-            if (validStart != null)
-            {
-                startNode = validStart;
-            }
-            else
-            {
-                return null; // Khong the bat dau
-            }
+            startNode = GetNearestWalkableNode(grid, startNode);
+            if (startNode == null) return null;
         }
 
         if (!targetNode.Walkable)
         {
-            Node validTarget = GetNearestWalkableNode(grid, targetNode);
-            if (validTarget != null)
-            {
-                targetNode = validTarget;
-            }
-            else
-            {
-                return null; // Khong the den target
-            }
+            targetNode = GetNearestWalkableNode(grid, targetNode);
+            if (targetNode == null) return null;
         }
 
-        List<Node> openSet = new List<Node>();
-        HashSet<Node> closedSet = new HashSet<Node>();
-        openSet.Add(startNode);
+        // Reset trạng thái từ lần trước
+        ResetDirtyNodes();
+        _openHeap.Clear();
+        _openLookup.Clear();
+        _closedSet.Clear();
 
-        while (openSet.Count > 0)
+        // Khởi tạo start node
+        startNode.ResetPathData();
+        startNode.GCost = 0;
+        startNode.HCost = GetDistance(startNode, targetNode);
+        MarkDirty(startNode);
+
+        _openHeap.Push(startNode);
+        _openLookup.Add(startNode);
+
+        while (_openHeap.Count > 0)
         {
-            Node currentNode = openSet[0];
-            for (int i = 1; i < openSet.Count; i++)
-            {
-                if (openSet[i].FCost < currentNode.FCost || 
-                   (openSet[i].FCost == currentNode.FCost && openSet[i].HCost < currentNode.HCost))
-                {
-                    currentNode = openSet[i];
-                }
-            }
+            Node current = _openHeap.Pop();
+            _openLookup.Remove(current);
+            _closedSet.Add(current);
 
-            openSet.Remove(currentNode);
-            closedSet.Add(currentNode);
-
-            if (currentNode == targetNode)
-            {
+            if (current == targetNode)
                 return RetracePath(startNode, targetNode);
-            }
 
-            foreach (Node neighbor in grid.GetNeighbors(currentNode))
+            foreach (Node neighbor in grid.GetNeighbors(current))
             {
-                if (!neighbor.Walkable || closedSet.Contains(neighbor))
-                {
+                if (!neighbor.Walkable || _closedSet.Contains(neighbor))
                     continue;
-                }
 
-                // Chi phi di chuyen cheo la 14, di thang la 10
-                int newMovementCostToNeighbor = currentNode.GCost + GetDistance(currentNode, neighbor) + neighbor.Penalty;
-                if (newMovementCostToNeighbor < neighbor.GCost || !openSet.Contains(neighbor))
+                // g = chi phí thực từ start đến neighbor qua current
+                int moveCost = current.GCost + GetDistance(current, neighbor) + neighbor.Penalty;
+
+                bool inOpen = _openLookup.Contains(neighbor);
+
+                if (moveCost < neighbor.GCost)
                 {
-                    neighbor.GCost = newMovementCostToNeighbor;
-                    neighbor.HCost = GetDistance(neighbor, targetNode);
-                    neighbor.Parent = currentNode;
-
-                    if (!openSet.Contains(neighbor))
+                    // Lần đầu tiếp cận node này → reset dữ liệu cũ
+                    if (!inOpen)
                     {
-                        openSet.Add(neighbor);
+                        neighbor.ResetPathData();
+                        MarkDirty(neighbor);
+                    }
+
+                    neighbor.GCost  = moveCost;
+                    neighbor.HCost  = GetDistance(neighbor, targetNode);
+                    neighbor.Parent = current;
+
+                    if (inOpen)
+                    {
+                        // FCost giảm → đẩy lên trên heap
+                        _openHeap.UpdateItem(neighbor);
+                    }
+                    else
+                    {
+                        _openHeap.Push(neighbor);
+                        _openLookup.Add(neighbor);
                     }
                 }
             }
         }
 
-        return null; // Khong tim thay duong
+        return null; // Không tìm thấy đường
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static void MarkDirty(Node node)
+    {
+        _dirtyNodes.Add(node);
+    }
+
+    private static void ResetDirtyNodes()
+    {
+        foreach (Node n in _dirtyNodes)
+            n.ResetPathData();
+        _dirtyNodes.Clear();
     }
 
     private static Node GetNearestWalkableNode(PathfindingGrid grid, Node startNode)
     {
-        Queue<Node> queue = new Queue<Node>();
+        Queue<Node>   queue   = new Queue<Node>();
         HashSet<Node> visited = new HashSet<Node>();
-        
+
         queue.Enqueue(startNode);
         visited.Add(startNode);
 
-        int maxDepth = 4; // Tim kiem toi da 4 buoc (radius 4)
-        int currentDepth = 0;
+        int maxDepth = 4;
+        int depth    = 0;
 
-        while (queue.Count > 0 && currentDepth <= maxDepth)
+        while (queue.Count > 0 && depth <= maxDepth)
         {
             int levelSize = queue.Count;
             for (int i = 0; i < levelSize; i++)
@@ -115,7 +136,7 @@ public static class AStar
                     }
                 }
             }
-            currentDepth++;
+            depth++;
         }
         return null;
     }
@@ -123,26 +144,25 @@ public static class AStar
     private static List<Vector2> RetracePath(Node startNode, Node endNode)
     {
         List<Vector2> path = new List<Vector2>();
-        Node currentNode = endNode;
+        Node current = endNode;
 
-        while (currentNode != startNode && currentNode != null)
+        while (current != startNode && current != null)
         {
-            path.Add(currentNode.WorldPosition);
-            currentNode = currentNode.Parent;
+            path.Add(current.WorldPosition);
+            current = current.Parent;
         }
 
-        // Lat nguoc lai de duoc duong di tu start -> end
         path.Reverse();
         return path;
     }
 
+    // Octile distance (tối ưu hơn Euclidean cho grid 8 hướng)
     private static int GetDistance(Node nodeA, Node nodeB)
     {
         int dstX = Mathf.Abs(nodeA.GridX - nodeB.GridX);
         int dstY = Mathf.Abs(nodeA.GridY - nodeB.GridY);
 
-        if (dstX > dstY)
-            return 14 * dstY + 10 * (dstX - dstY);
+        if (dstX > dstY) return 14 * dstY + 10 * (dstX - dstY);
         return 14 * dstX + 10 * (dstY - dstX);
     }
 }

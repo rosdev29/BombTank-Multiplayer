@@ -195,6 +195,17 @@ public class TrangThaiRutLui : IBotState
             }
         }
 
+        // Fallback: tất cả candidate bị chặn → tìm bất kỳ hướng thoáng nào
+        if (totNhat == viTri || diemTotNhat == float.MinValue)
+        {
+            Vector2 huongMo = BotSteering.TimHuongMo(viTri, KHOANG_CACH_RUT_LUI * 0.5f);
+            if (huongMo != viTri) return huongMo;
+
+            // Tình huống cực kỳ bị bao vây: thử khoảng ngắn hơn
+            huongMo = BotSteering.TimHuongMo(viTri, 3f);
+            if (huongMo != viTri) return huongMo;
+        }
+
         return totNhat;
     }
 
