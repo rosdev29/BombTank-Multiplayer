@@ -4,12 +4,12 @@ public class TrangThaiGiaoTranh : IBotState
 {
     private const float KHOANG_CACH_LY_TUONG = 10f; // Khoảng cách giữ so với địch
     private const float KHOANG_CACH_AN_TOAN = 6f;  // Nếu địch quá gần thì phải lùi
-    private const float NGUONG_GOC_DE_BAN = 10f;
-    private const float HE_SO_LEAD = 0.15f;
-
+    
     private const float THOI_GIAN_DOI_HUONG_STRAFE = 2.5f;
+    private const float TOC_DO_DAN = 10f; // Vận tốc đạn để tính lead shot
 
     private Vector2 _viTriDichCu;
+    private Vector2 _vanTocDichSmooth;
     private float _strafeDirection = 1f; // 1 = vòng phải, -1 = vòng trái
     private float _strafeTimer;
     private float _flipCooldown;
@@ -21,37 +21,58 @@ public class TrangThaiGiaoTranh : IBotState
         _wasLOS = true;
         _losHysteresisTimer = 0f;
         _viTriDichCu = ctx.EnemyPosition;
-        _strafeDirection = Random.value > 0.5f ? 1f : -1f;
+        _vanTocDichSmooth = Vector2.zero;
+        
+        ChonHuongStrafeThoang(ctx);
         _strafeTimer = Random.Range(1f, THOI_GIAN_DOI_HUONG_STRAFE);
     }
 
     public BotCommand Update(BotContext ctx)
     {
         var cmd = new BotCommand();
-        if (ctx.NearestEnemy == null) { return cmd; }
+        if (ctx.NearestEnemy == null)
+        {
+            // Di chuyển về vị trí địch cuối biết — không đứng im
+            if (ctx.Pathfinder != null)
+            {
+                BotCommand moveCmd = ctx.Pathfinder.GetMoveCommandToTarget(_viTriDichCu);
+                cmd.MoveInput = moveCmd.MoveInput;
+            }
+            else
+            {
+                BotCommand moveCmd = BotSteering.MoveTowards(ctx, _viTriDichCu);
+                cmd.MoveInput = moveCmd.MoveInput;
+            }
+            return cmd;
+        }
 
-        // --- 1. NGẮM BẮN & TÍNH TOÁN ĐƯỜNG ĐẠN ---
-        const float TOC_DO_DAN = 10f;
-        Vector2 vanTocDich = (ctx.EnemyPosition - _viTriDichCu) / Mathf.Max(ctx.DeltaTime, 0.001f);
+        float dt = Time.deltaTime; // Dùng real-time thay vì chu kỳ cập nhật cho các timer mượt
+
+        // --- 1. NGẮM BẮN & TÍNH TOÁN ĐƯỜNG ĐẠN (LEAD SHOT) ---
+        Vector2 vanTocDichHienTai = (ctx.EnemyPosition - _viTriDichCu) / Mathf.Max(ctx.DeltaTime, 0.001f);
+        // Làm mượt vận tốc để tránh điểm ngắm giật cục
+        _vanTocDichSmooth = Vector2.Lerp(_vanTocDichSmooth, vanTocDichHienTai, 0.4f);
+        
         float khoangCachToiDich = Vector2.Distance(ctx.BotPosition, ctx.EnemyPosition);
         float thoiGianBay = khoangCachToiDich / TOC_DO_DAN;
 
-        Vector2 diemNgam = ctx.EnemyPosition + vanTocDich * thoiGianBay * HE_SO_LEAD;
+        // Tính lead shot chuẩn: Vị trí hiện tại + (Vận tốc * Thời gian đạn bay)
+        Vector2 diemNgam = ctx.EnemyPosition + _vanTocDichSmooth * thoiGianBay;
         cmd.AimTarget = diemNgam;
         _viTriDichCu = ctx.EnemyPosition;
 
         // --- 2. KIỂM TRA LINE OF SIGHT (LOS) ---
         bool losThong = BotSteering.CoDuongThong(ctx.BotPosition, ctx.EnemyPosition);
 
-        // Hysteresis cho LOS de chong flicking (bot xoay lien tuc)
+        // Hysteresis cho LOS để chống flicking (bot xoay liên tục)
         if (losThong)
         {
             _wasLOS = true;
-            _losHysteresisTimer = 0.3f; // Delay truoc khi tin rang da mat LOS hoan toan
+            _losHysteresisTimer = 0.5f; // Delay trước khi tin rằng đã mất LOS hoàn toàn (dùng 0.5s real-time)
         }
         else
         {
-            _losHysteresisTimer -= ctx.DeltaTime;
+            _losHysteresisTimer -= dt;
             if (_losHysteresisTimer <= 0f)
             {
                 _wasLOS = false;
@@ -61,16 +82,21 @@ public class TrangThaiGiaoTranh : IBotState
         if (!_wasLOS)
         {
             // --- PHA TRUY ĐUỔI (MẤT LOS) ---
-            // Dùng A* để tìm đường đến chỗ địch trong mê cung
+            float throttle = 1f;
+            // Giảm tốc khi đã đến gần nơi nghi ngờ có địch
+            if (khoangCachToiDich < KHOANG_CACH_LY_TUONG)
+            {
+                throttle = Mathf.Lerp(0.4f, 1f, khoangCachToiDich / KHOANG_CACH_LY_TUONG);
+            }
+
             if (ctx.Pathfinder != null)
             {
-                BotCommand moveCmd = ctx.Pathfinder.GetMoveCommandToTarget(ctx.EnemyPosition);
+                BotCommand moveCmd = ctx.Pathfinder.GetMoveCommandToTarget(ctx.EnemyPosition, throttle);
                 cmd.MoveInput = moveCmd.MoveInput;
             }
             else
             {
-                // Fallback nếu không có A* (ít xảy ra)
-                BotCommand moveCmd = BotSteering.MoveTowards(ctx, ctx.EnemyPosition);
+                BotCommand moveCmd = BotSteering.MoveTowards(ctx, ctx.EnemyPosition, throttle);
                 cmd.MoveInput = moveCmd.MoveInput;
             }
 
@@ -80,14 +106,11 @@ public class TrangThaiGiaoTranh : IBotState
         else
         {
             // --- PHA ĐỌ SÚNG CHIẾN THUẬT (CÓ LOS) ---
-            // Thực hiện Strafe (đi vòng) và giữ khoảng cách
-            
-            _strafeTimer -= ctx.DeltaTime;
+            _strafeTimer -= dt;
             if (_strafeTimer <= 0f)
             {
-                // Đổi chiều strafe ngẫu nhiên để né đạn
-                _strafeDirection *= -1f;
-                _strafeTimer = Random.Range(1f, THOI_GIAN_DOI_HUONG_STRAFE);
+                ChonHuongStrafeThoang(ctx);
+                _strafeTimer = Random.Range(1.5f, THOI_GIAN_DOI_HUONG_STRAFE);
             }
 
             Vector2 huongToiDich = (ctx.EnemyPosition - ctx.BotPosition).normalized;
@@ -97,19 +120,19 @@ public class TrangThaiGiaoTranh : IBotState
 
             if (khoangCachToiDich > KHOANG_CACH_LY_TUONG + 2f)
             {
-                // Tiến lại gần: hướng thẳng mũi xe vào địch
+                // Tiến lại gần
                 steer = -Mathf.Clamp(gocLechThanXe / 30f, -1f, 1f);
-                throttle = Mathf.Abs(gocLechThanXe) > 45f ? 0.3f : 1f; // Chờ quay đầu xong mới tăng ga
+                throttle = Mathf.Abs(gocLechThanXe) > 45f ? 0.3f : 1f;
             }
             else if (khoangCachToiDich < KHOANG_CACH_AN_TOAN)
             {
-                // Lùi ra xa: Vẫn hướng mũi xe vào địch nhưng cài số lùi
+                // Lùi ra xa
                 steer = -Mathf.Clamp(gocLechThanXe / 30f, -1f, 1f);
                 throttle = Mathf.Abs(gocLechThanXe) > 45f ? -0.3f : -1f;
             }
             else
             {
-                // Strafe: Xoay thân xe ngang 75 độ so với địch để chạy vòng tròn
+                // Strafe
                 float gocMucTieu = 75f * _strafeDirection; 
                 float gocSaiLech = gocLechThanXe - gocMucTieu;
                 
@@ -117,23 +140,32 @@ public class TrangThaiGiaoTranh : IBotState
                 while (gocSaiLech < -180f) gocSaiLech += 360f;
 
                 steer = -Mathf.Clamp(gocSaiLech / 30f, -1f, 1f);
-                throttle = 0.8f; // Chạy tới với tốc độ 80% để xoay vòng
+                throttle = 0.8f;
             }
 
-            // Né tường khi đang strafe / tiến-lùi
-            const float KHOANG_QUET_TUONG = 4f;
+            // Né tường khi đang strafe / tiến-lùi (Chỉ dùng CoDuongThong cho nhẹ và bao quát)
             Vector2 huongDiChuyenThucTe = throttle >= 0 ? (Vector2)ctx.BodyTransform.up : -(Vector2)ctx.BodyTransform.up;
-            _flipCooldown -= ctx.DeltaTime;
-            if (_flipCooldown <= 0f && BotSteering.RaycastTuong(ctx.BotPosition, huongDiChuyenThucTe, KHOANG_QUET_TUONG, out RaycastHit2D hitTuong))
+            _flipCooldown -= dt;
+            
+            if (Mathf.Abs(throttle) > 0.05f && !BotSteering.CoDuongThong(ctx.BotPosition, ctx.BotPosition + huongDiChuyenThucTe * 3.5f))
             {
-                _strafeDirection *= -1f;
-                _strafeTimer = THOI_GIAN_DOI_HUONG_STRAFE;
-                _flipCooldown = 0.5f;
-                throttle *= hitTuong.distance < 1.5f ? 0f : 0.25f;
-            }
-            else if (throttle > 0.05f && !BotSteering.CoDuongThong(ctx.BotPosition, ctx.BotPosition + huongDiChuyenThucTe * 2f))
-            {
-                throttle *= 0.3f;
+                if (_flipCooldown <= 0f && khoangCachToiDich >= KHOANG_CACH_AN_TOAN && khoangCachToiDich <= KHOANG_CACH_LY_TUONG + 2f)
+                {
+                    // Đảo strafe nếu sắp đâm tường
+                    _strafeDirection *= -1f;
+                    _strafeTimer = THOI_GIAN_DOI_HUONG_STRAFE;
+                    _flipCooldown = 1f;
+                }
+                
+                // Hãm phanh khi tường quá gần
+                if (!BotSteering.CoDuongThong(ctx.BotPosition, ctx.BotPosition + huongDiChuyenThucTe * 1.5f))
+                {
+                    throttle = 0f;
+                }
+                else
+                {
+                    throttle *= 0.3f;
+                }
             }
 
             cmd.MoveInput = new Vector2(steer, throttle);
@@ -143,17 +175,43 @@ public class TrangThaiGiaoTranh : IBotState
             Transform nongNgam = ctx.TurretTransform != null ? ctx.TurretTransform : ctx.BodyTransform;
             float gocLechNgam = Vector2.Angle((Vector2)nongNgam.up, huongNgam);
 
-            if (gocLechNgam < NGUONG_GOC_DE_BAN && ctx.DuCoinDeBan(ctx.ChiPhiBan))
+            // Ngưỡng góc bắn linh hoạt: địch càng gần thì nới lỏng góc bắn
+            float nguongGocDeBan = khoangCachToiDich < 8f ? 20f : 10f;
+
+            if (gocLechNgam < nguongGocDeBan && ctx.DuCoinDeBan(ctx.ChiPhiBan))
             {
-                cmd.Fire = true;
-            }
-            else
-            {
-                cmd.Fire = false;
+                // Check Line of Fire trước khi bóp cò
+                if (BotSteering.CoDuongThong(ctx.BotPosition, diemNgam))
+                {
+                    cmd.Fire = true;
+                }
             }
         }
 
         return cmd;
+    }
+
+    private void ChonHuongStrafeThoang(BotContext ctx)
+    {
+        Vector2 huongToiDich = (ctx.EnemyPosition - ctx.BotPosition).normalized;
+        Vector2 huongPhai = Quaternion.Euler(0, 0, -75f) * huongToiDich;
+        Vector2 huongTrai = Quaternion.Euler(0, 0, 75f) * huongToiDich;
+
+        bool thongPhai = BotSteering.CoDuongThong(ctx.BotPosition, ctx.BotPosition + huongPhai * 5f);
+        bool thongTrai = BotSteering.CoDuongThong(ctx.BotPosition, ctx.BotPosition + huongTrai * 5f);
+
+        if (thongPhai && !thongTrai)
+        {
+            _strafeDirection = 1f; // Phải thoáng hơn
+        }
+        else if (thongTrai && !thongPhai)
+        {
+            _strafeDirection = -1f; // Trái thoáng hơn
+        }
+        else
+        {
+            _strafeDirection = Random.value > 0.5f ? 1f : -1f; // Đều thoáng hoặc đều tắc
+        }
     }
 
     public void OnExit(BotContext ctx)

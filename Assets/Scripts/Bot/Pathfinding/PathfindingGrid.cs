@@ -98,13 +98,21 @@ public class PathfindingGrid : MonoBehaviour
         }
     }
 
+    // Ngưỡng penalty theo khoảng cách tới tường (tính theo bội số NodeRadius)
+    private const float PENALTY_RADIUS_NEAR   = 1.5f;  // Penalty 80 — sát tường, cực kỳ tránh
+    private const float PENALTY_RADIUS_MID    = 2.5f;  // Penalty 35 — gần tường
+    private const float PENALTY_RADIUS_FAR    = 3.5f;  // Penalty 10 — hơi xa tường
+
     private void UpdateNodeWalkability(int x, int y)
     {
-        bool walkable = true;
-        int penalty = 0;
-        
-        // Su dung NonAlloc de tranh tao ra rac bo nho (Garbage Collection) giup chong lag
-        int hitCount = Physics2D.OverlapCircleNonAlloc(_grid[x, y].WorldPosition, NodeRadius * 1.0f, _results);
+        Vector2 pos      = _grid[x, y].WorldPosition;
+        bool    walkable = true;
+        int     penalty  = 0;
+
+        // Dùng NonAlloc để tránh tạo ra rác bộ nhớ (GC).
+        // Bán kính 0.45× NodeRadius: chỉ mark non-walkable khi tâm ô thực sự nằm trong/sát vật thể,
+        // tránh vùng đỏ tràn ra ngoài hình học thực tế của tường.
+        int hitCount = Physics2D.OverlapCircleNonAlloc(pos, NodeRadius * 0.45f, _results);
         for (int i = 0; i < hitCount; i++)
         {
             if (BotSteering.LaTuong(_results[i]))
@@ -114,31 +122,64 @@ public class PathfindingGrid : MonoBehaviour
             }
         }
 
+        // Penalty gradient 3 mức: càng gần tường càng bị phạt nặng
+        // A* sẽ ưu tiên đường đi qua giữa hành lang thay vì đi sát tường
         if (walkable)
         {
-            int penaltyHitCount = Physics2D.OverlapCircleNonAlloc(_grid[x, y].WorldPosition, NodeRadius * 2.5f, _results);
-            for (int i = 0; i < penaltyHitCount; i++)
+            // Mức 1: Sát tường → penalty rất cao
+            int nearCount = Physics2D.OverlapCircleNonAlloc(pos, NodeRadius * PENALTY_RADIUS_NEAR, _results);
+            for (int i = 0; i < nearCount; i++)
             {
                 if (BotSteering.LaTuong(_results[i]))
                 {
-                    penalty = 25;
+                    penalty = 80;
                     break;
+                }
+            }
+
+            // Mức 2: Gần tường
+            if (penalty == 0)
+            {
+                int midCount = Physics2D.OverlapCircleNonAlloc(pos, NodeRadius * PENALTY_RADIUS_MID, _results);
+                for (int i = 0; i < midCount; i++)
+                {
+                    if (BotSteering.LaTuong(_results[i]))
+                    {
+                        penalty = 35;
+                        break;
+                    }
+                }
+            }
+
+            // Mức 3: Hơi xa tường
+            if (penalty == 0)
+            {
+                int farCount = Physics2D.OverlapCircleNonAlloc(pos, NodeRadius * PENALTY_RADIUS_FAR, _results);
+                for (int i = 0; i < farCount; i++)
+                {
+                    if (BotSteering.LaTuong(_results[i]))
+                    {
+                        penalty = 10;
+                        break;
+                    }
                 }
             }
         }
 
         _grid[x, y].Walkable = walkable;
-        _grid[x, y].Penalty = penalty;
+        _grid[x, y].Penalty  = penalty;
     }
 
     public Node NodeFromWorldPoint(Vector2 worldPosition)
     {
-        Vector2 bottomLeft = (Vector2)transform.position - new Vector2(GridWorldSize.x, GridWorldSize.y) * 0.5f;
-        float percentX = Mathf.Clamp01((worldPosition.x - bottomLeft.x) / GridWorldSize.x);
-        float percentY = Mathf.Clamp01((worldPosition.y - bottomLeft.y) / GridWorldSize.y);
+        float percentX = (worldPosition.x + GridWorldSize.x / 2) / GridWorldSize.x;
+        float percentY = (worldPosition.y + GridWorldSize.y / 2) / GridWorldSize.y;
 
-        int x = Mathf.Clamp(Mathf.RoundToInt((_gridSizeX - 1) * percentX), 0, _gridSizeX - 1);
-        int y = Mathf.Clamp(Mathf.RoundToInt((_gridSizeY - 1) * percentY), 0, _gridSizeY - 1);
+        percentX = Mathf.Clamp01(percentX);
+        percentY = Mathf.Clamp01(percentY);
+
+        int x = Mathf.RoundToInt((_gridSizeX - 1) * percentX);
+        int y = Mathf.RoundToInt((_gridSizeY - 1) * percentY);
 
         return _grid[x, y];
     }
