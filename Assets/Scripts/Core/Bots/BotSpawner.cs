@@ -112,7 +112,6 @@ public class BotSpawner : MonoBehaviour
         }
         else
         {
-            realPlayerCount++;
             UpdateBots();
         }
     }
@@ -126,14 +125,10 @@ public class BotSpawner : MonoBehaviour
             activeBots.Remove(player);
             UpdateBots();
         }
-        else
+        else if (gameObject.activeInHierarchy)
         {
-            realPlayerCount--;
-            if (gameObject.activeInHierarchy)
-            {
-                if (updateBotsCoroutine != null) StopCoroutine(updateBotsCoroutine);
-                updateBotsCoroutine = StartCoroutine(DelayedUpdateBots());
-            }
+            if (updateBotsCoroutine != null) StopCoroutine(updateBotsCoroutine);
+            updateBotsCoroutine = StartCoroutine(DelayedUpdateBots());
         }
     }
 
@@ -153,6 +148,7 @@ public class BotSpawner : MonoBehaviour
         if (NetworkManager.Singleton.ShutdownInProgress) return;
         if (NetworkManager.Singleton.ConnectedClients == null || NetworkManager.Singleton.ConnectedClients.Count == 0) return;
 
+        realPlayerCount = NetworkManager.Singleton.ConnectedClients.Count;
         int targetBotCount = Mathf.Max(0, TargetTotalTanks - realPlayerCount);
 
         int safetyCounter = 0;

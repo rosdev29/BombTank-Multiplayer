@@ -432,6 +432,7 @@ public class Leaderboard : NetworkBehaviour
                     }
                 }
 
+                SubscribeCoinHandler(player, leaderboardId);
                 return;
             }
         }
@@ -456,19 +457,24 @@ public class Leaderboard : NetworkBehaviour
             }
         }
 
-        if (player.Wallet != null && !coinChangedSubscriptions.ContainsKey(leaderboardId))
+        SubscribeCoinHandler(player, leaderboardId);
+    }
+
+    private void SubscribeCoinHandler(TankPlayer player, ulong leaderboardId)
+    {
+        if (player == null || player.Wallet == null) { return; }
+        if (coinChangedSubscriptions.ContainsKey(leaderboardId)) { return; }
+
+        NetworkVariable<int>.OnValueChangedDelegate handler =
+            (oldCoins, newCoins) => HandleCoinsChanged(leaderboardId, newCoins);
+
+        coinChangedSubscriptions[leaderboardId] = new CoinChangedSubscription
         {
-            NetworkVariable<int>.OnValueChangedDelegate handler =
-                (oldCoins, newCoins) => HandleCoinsChanged(leaderboardId, newCoins);
+            wallet = player.Wallet,
+            handler = handler
+        };
 
-            coinChangedSubscriptions[leaderboardId] = new CoinChangedSubscription
-            {
-                wallet = player.Wallet,
-                handler = handler
-            };
-
-            player.Wallet.LifetimeCoins.OnValueChanged += handler;
-        }
+        player.Wallet.LifetimeCoins.OnValueChanged += handler;
     }
 
     private void HandlePlayerDespawned(TankPlayer player)
@@ -480,7 +486,12 @@ public class Leaderboard : NetworkBehaviour
 
         ulong leaderboardId = GetLeaderboardId(player);
 
-        RemoveLeaderboardEntity(leaderboardId);
+        // Giữ người chơi trên bảng khi chết chờ hồi sinh; chỉ xóa bot (thay thế bằng bot mới).
+        if (player.IsCurrentlyBot())
+        {
+            RemoveLeaderboardEntity(leaderboardId);
+        }
+
         UnsubscribeCoinHandlerByClientId(leaderboardId);
     }
 
