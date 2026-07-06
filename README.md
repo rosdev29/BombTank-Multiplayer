@@ -14,6 +14,7 @@ Unity · C# · Netcode for GameObjects · URP · TextMeshPro
 - [Kết quả đạt được](#kết-quả-đạt-được)
 - [Hạn chế hiện tại](#hạn-chế-hiện-tại)
 - [Hướng phát triển](#hướng-phát-triển-trong-tương-lai)
+- [Phân công nhóm](#phân-công-nhóm)
 - [Tác giả](#tác-giả)
 
 ---
@@ -194,17 +195,23 @@ Port: **7777**
 
 ---
 
-## Tác giả
+## Phân công nhóm
 
 **Nhóm 11** — Đồ án Trí tuệ Nhân tạo (2026)
 
 | Thành viên | Phụ trách |
 |------------|-----------|
-| Lê Triệu Duy (NT) | Leader, LAN, kill feed, timer, respawn |
-| Nguyễn Trường An | Bot brain, FSM, A* |
-| Trần Quốc Anh Hoàng | Spawn bot, item, UI coin |
-| Nguyễn Thành Lộc | Trạng thái bot, độ khó, bounty |
-| Võ Ngọc Phúc | Tutorial, âm thanh, việt hoá UI |
-| Nguyễn Chí Thái | Combat, cài đặt, bảng điểm, màn kết thúc |
+| **Lê Triệu Duy (NT)** | Trưởng nhóm — thiết kế map, xây game LAN (tank, coin, combat, menu), kill feed, timer, respawn, ping, quản lý Git & build nộp |
+| **Nguyễn Trường An** | Bot brain, FSM, A* pathfinding |
+| **Trần Quốc Anh Hoàng** | Spawn bot, điều khiển xe bot, item, UI coin |
+| **Nguyễn Thành Lộc** | Trạng thái bot, độ khó, bounty |
+| **Nguyễn Chí Thái** | Combat server, cài đặt, bảng xếp hạng, màn kết thúc |
+| **Võ Ngọc Phúc** | Tutorial, âm thanh, việt hoá UI |
 
 **Repo:** [github.com/rosdev29/BombTank-Multiplayer](https://github.com/rosdev29/BombTank-Multiplayer)
+
+---
+
+## Tác giả
+
+**Nhóm 11** — Đồ án Trí tuệ Nhân tạo (2026)
