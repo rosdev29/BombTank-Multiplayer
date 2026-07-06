@@ -46,7 +46,7 @@ public class TrangThaiGiaoTranh : IBotState
             return cmd;
         }
 
-        float dt = Time.deltaTime; // Dùng real-time thay vì chu kỳ cập nhật cho các timer mượt
+        float dt = ctx.DeltaTime; // Dùng chu kỳ đánh giá thực từ BotBrain, không dùng Time.deltaTime
 
         // --- 1. NGẮM BẮN & TÍNH TOÁN ĐƯỜNG ĐẠN (LEAD SHOT) ---
         Vector2 vanTocDichHienTai = (ctx.EnemyPosition - _viTriDichCu) / Mathf.Max(ctx.DeltaTime, 0.001f);

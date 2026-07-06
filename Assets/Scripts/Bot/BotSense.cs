@@ -4,6 +4,9 @@ using UnityEngine;
 /// Toàn bộ config nhận từ BotContext (Blackboard) do BotBrain set.
 public class BotSense : MonoBehaviour
 {
+    // Buffer pre-allocated để tránh GC trong OverlapCircleNonAlloc
+    private readonly Collider2D[] _coinBuffer = new Collider2D[32];
+
     public void DocMoiTruong(BotContext ctx)
     {
         DocGiacQuanCoin(ctx);
@@ -17,9 +20,11 @@ public class BotSense : MonoBehaviour
         ctx.DistanceToCoin  = float.MaxValue;
         ctx.DanhSachCoinGan.Clear();
 
-        Collider2D[] hits = Physics2D.OverlapCircleAll(ctx.BotPosition, ctx.BanKinhPhatHienCoin);
-        foreach (Collider2D hit in hits)
+        // Dùng NonAlloc để tránh tạo rác bộ nhớ (GC) mỗi chu kỳ
+        int hitCount = Physics2D.OverlapCircleNonAlloc(ctx.BotPosition, ctx.BanKinhPhatHienCoin, _coinBuffer);
+        for (int i = 0; i < hitCount; i++)
         {
+            Collider2D hit = _coinBuffer[i];
             if (hit == null) { continue; }
             Coin coin = hit.GetComponent<Coin>();
             if (coin == null) { continue; }

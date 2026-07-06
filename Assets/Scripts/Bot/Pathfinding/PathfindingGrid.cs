@@ -30,10 +30,55 @@ public class PathfindingGrid : MonoBehaviour
         _gridSizeX = Mathf.RoundToInt(GridWorldSize.x / _nodeDiameter);
         _gridSizeY = Mathf.RoundToInt(GridWorldSize.y / _nodeDiameter);
 
+        // Tự căn chỉnh grid về đúng tâm map trước khi tạo lưới
+        CenterGridOnMap();
         CreateGrid();
     }
 
     private float _updateTimer;
+
+    /// <summary>
+    /// Tự động tính tâm của tất cả Collider2D tường trong scene,
+    /// rồi đặt transform.position của grid về đúng tâm đó.
+    /// Nhờ vậy grid luôn bao phủ đúng khu vực map dù map không ở (0,0).
+    /// </summary>
+    private void CenterGridOnMap()
+    {
+        // Quét tất cả Collider2D trong scene (non-trigger)
+        Collider2D[] allColliders = Object.FindObjectsByType<Collider2D>(
+            FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+
+        Bounds combinedBounds = new Bounds(Vector3.zero, Vector3.zero);
+        bool found = false;
+
+        foreach (Collider2D col in allColliders)
+        {
+            if (!BotSteering.LaTuong(col)) continue;
+
+            if (!found)
+            {
+                combinedBounds = col.bounds;
+                found = true;
+            }
+            else
+            {
+                combinedBounds.Encapsulate(col.bounds);
+            }
+        }
+
+        if (found)
+        {
+            // Đặt tâm grid đúng vào tâm của toàn bộ tường
+            Vector2 mapCenter = combinedBounds.center;
+            transform.position = new Vector3(mapCenter.x, mapCenter.y, 0f);
+            Debug.Log($"[PathfindingGrid] Tâm map tự động: {mapCenter} " +
+                      $"(bounds size: {combinedBounds.size.x:F1}x{combinedBounds.size.y:F1})");
+        }
+        else
+        {
+            Debug.LogWarning("[PathfindingGrid] Không tìm thấy Collider tường nào! Grid đặt tại (0,0).");
+        }
+    }
 
     private void CreateGrid()
     {
@@ -172,14 +217,18 @@ public class PathfindingGrid : MonoBehaviour
 
     public Node NodeFromWorldPoint(Vector2 worldPosition)
     {
-        float percentX = (worldPosition.x + GridWorldSize.x / 2) / GridWorldSize.x;
-        float percentY = (worldPosition.y + GridWorldSize.y / 2) / GridWorldSize.y;
+        // worldBottomLeft là góc dưới-trái của grid (tâm ô [0,0] = worldBottomLeft + NodeRadius)
+        Vector2 worldBottomLeft = (Vector2)transform.position
+            - Vector2.right * GridWorldSize.x / 2
+            - Vector2.up    * GridWorldSize.y / 2;
 
-        percentX = Mathf.Clamp01(percentX);
-        percentY = Mathf.Clamp01(percentY);
+        // Tính chỉ số ô bằng cách lấy khoảng cách từ worldBottomLeft rồi chia cho đường kính ô
+        // FloorToInt để map đúng: mọi điểm trong ô [x,y] đều trả về [x,y]
+        int x = Mathf.FloorToInt((worldPosition.x - worldBottomLeft.x) / _nodeDiameter);
+        int y = Mathf.FloorToInt((worldPosition.y - worldBottomLeft.y) / _nodeDiameter);
 
-        int x = Mathf.RoundToInt((_gridSizeX - 1) * percentX);
-        int y = Mathf.RoundToInt((_gridSizeY - 1) * percentY);
+        x = Mathf.Clamp(x, 0, _gridSizeX - 1);
+        y = Mathf.Clamp(y, 0, _gridSizeY - 1);
 
         return _grid[x, y];
     }
@@ -221,16 +270,37 @@ public class PathfindingGrid : MonoBehaviour
     }
 
     // De visualize trong Editor
+    // Màu: đỏ = không đi được | vàng/cam/xanh nhạt = penalty gần tường | trắng mờ = thoáng
     private void OnDrawGizmos()
     {
         Gizmos.DrawWireCube(transform.position, new Vector3(GridWorldSize.x, GridWorldSize.y, 1));
 
         if (_grid != null)
         {
+            float drawSize = _nodeDiameter - 0.05f; // Viền mỏng để thấy lưới
             foreach (Node n in _grid)
             {
-                Gizmos.color = n.Walkable ? new Color(1, 1, 1, 0.3f) : new Color(1, 0, 0, 0.5f);
-                Gizmos.DrawCube(n.WorldPosition, Vector3.one * (_nodeDiameter - 0.1f));
+                if (!n.Walkable)
+                {
+                    Gizmos.color = new Color(1f, 0f, 0f, 0.6f);       // Đỏ: tường / non-walkable
+                }
+                else if (n.Penalty >= 80)
+                {
+                    Gizmos.color = new Color(1f, 0.3f, 0f, 0.45f);    // Cam đậm: sát tường
+                }
+                else if (n.Penalty >= 35)
+                {
+                    Gizmos.color = new Color(1f, 0.8f, 0f, 0.35f);    // Vàng: gần tường
+                }
+                else if (n.Penalty >= 10)
+                {
+                    Gizmos.color = new Color(0.6f, 1f, 0.6f, 0.25f);  // Xanh nhạt: hơi xa tường
+                }
+                else
+                {
+                    Gizmos.color = new Color(1f, 1f, 1f, 0.08f);      // Trắng mờ: thoáng
+                }
+                Gizmos.DrawCube(n.WorldPosition, Vector3.one * drawSize);
             }
         }
     }
@@ -241,6 +311,7 @@ public class PathfindingGrid : MonoBehaviour
         if (Object.FindAnyObjectByType<PathfindingGrid>() != null) return;
 
         var go = new GameObject("PathfindingManager");
+        go.transform.position = Vector3.zero; // Tạm đặt (0,0); CenterGridOnMap() trong Awake sẽ tự sửa
         go.AddComponent<PathfindingGrid>();
     }
 }

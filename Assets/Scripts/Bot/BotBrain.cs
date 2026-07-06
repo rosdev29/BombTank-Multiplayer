@@ -125,10 +125,10 @@ public class BotBrain : MonoBehaviour
         // Khởi tạo Priority transitions (Priority cao → kiểm tra trước)
         _transitions = new List<IBotStateTransition>
         {
-            new ChuyenRutLui        (stateRutLui,    priority: 40),
-            new ChuyenTronViHetCoin (stateNhatCoin,  priority: 35, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
-            new ChuyenGiaoTranh     (stateGiaoTranh, priority: 30, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
-            new ChuyenNhatCoin      (stateNhatCoin,  priority: 10),
+            new ChuyenRutLui            (stateRutLui,    priority: 40),
+            new ChuyenRutLuiHetCoin     (stateRutLui,    priority: 35, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
+            new ChuyenGiaoTranh         (stateGiaoTranh, priority: 30, banKinh: banKinhGiaoTranh, chiPhi: chiPhiBan),
+            new ChuyenNhatCoin          (stateNhatCoin,  priority: 10),
         };
         _transitions.Sort((a, b) => b.Priority.CompareTo(a.Priority));
 
@@ -339,14 +339,18 @@ public class BotBrain : MonoBehaviour
                 : botCtx.HealthRatio < LayNguongRutLui(botCtx);
     }
 
-    private sealed class ChuyenTronViHetCoin : IBotStateTransition
+    /// <summary>
+    /// Khi có địch gần mà HẾT coin để bắn → rút lui thay vì đứng nhặt coin.
+    /// (Đổi từ ChuyenTronViHetCoin sang stateRutLui)
+    /// </summary>
+    private sealed class ChuyenRutLuiHetCoin : IBotStateTransition
     {
         public int       Priority { get; }
         public IBotState State    { get; }
         private readonly float _banKinh;
         private readonly int   _chiPhi;
 
-        public ChuyenTronViHetCoin(IBotState state, int priority, float banKinh, int chiPhi)
+        public ChuyenRutLuiHetCoin(IBotState state, int priority, float banKinh, int chiPhi)
         {
             State    = state;
             Priority = priority;
