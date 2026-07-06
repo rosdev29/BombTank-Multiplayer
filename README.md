@@ -201,7 +201,7 @@ Port: **7777**
 
 | Thành viên | Phụ trách |
 |------------|-----------|
-| **Lê Triệu Duy (NT)** | Trưởng nhóm — thiết kế map, xây game LAN (tank, coin, combat, menu), kill feed, timer, respawn, ping, quản lý Git & build nộp |
+| **Lê Triệu Duy (NT)** | Thiết kế map, xây game LAN (tank, coin, combat, menu), kill feed, timer, respawn, ping, quản lý Git & build nộp |
 | **Nguyễn Trường An** | Bot brain, FSM, A* pathfinding |
 | **Trần Quốc Anh Hoàng** | Spawn bot, điều khiển xe bot, item, UI coin |
 | **Nguyễn Thành Lộc** | Trạng thái bot, độ khó, bounty |
